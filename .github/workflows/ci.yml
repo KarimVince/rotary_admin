@@ -53,7 +53,8 @@ jobs:
 
       - name: Job summary
         if: always()
-        run: echo "Backend tests + coverage threshold: see logs above for pass/fail and coverage %." >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Backend tests + coverage threshold - see logs above for pass/fail and coverage %." >> "$GITHUB_STEP_SUMMARY"
 
   frontend:
     runs-on: ubuntu-latest
@@ -79,4 +80,5 @@ jobs:
 
       - name: Job summary
         if: always()
-        run: echo "Frontend (Vitest) suite: see logs above for pass/fail." >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Frontend (Vitest) suite - see logs above for pass/fail." >> "$GITHUB_STEP_SUMMARY"
