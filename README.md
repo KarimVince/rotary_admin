@@ -1,0 +1,82 @@
+# Rotary Admin
+
+Admin app for managing Rotary club members, organisations/donations, Rotary friends, and annual fees.
+
+## Project structure
+
+- `backend/` — FastAPI + SQLAlchemy + Alembic, Python 3, Postgres
+- `frontend/` — React + Vite
+
+## Local setup
+
+### Backend
+
+```bash
+cd backend
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
+cp .env.example .env   # fill in DATABASE_URL, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, etc.
+venv/bin/alembic upgrade head
+venv/bin/python -m app.db.seed   # creates default member titles + admin user
+venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev   # http://localhost:5173
+```
+
+## Running tests
+
+Every story from Epic 2 onward ships with its own unit + integration tests as part of "done" — not as a follow-up.
+
+### Everything
+
+```bash
+make test
+```
+
+Runs the backend and frontend suites back to back. Also available as `make test-backend` / `make test-frontend`.
+
+### Backend only (pytest)
+
+```bash
+cd backend
+venv/bin/pytest                  # full suite, with coverage report (fails under 70%)
+venv/bin/pytest -m unit          # unit tests only (no DB)
+venv/bin/pytest -m integration   # integration tests only (real test DB + API)
+venv/bin/pytest tests/unit/test_rotary_year.py   # single file
+venv/bin/pytest tests/unit/test_rotary_year.py::test_rotary_year_boundaries   # single test
+```
+
+Also available via `make test-unit` / `make test-integration` from the repo root.
+
+Backend tests run against a dedicated **`rotary_admin_test`** database (never the dev DB). It's created automatically on first run and migrated to `head` via Alembic once per test session. Each individual test runs inside a transaction that's rolled back afterward, so tests never leak state into each other — no manual cleanup needed.
+
+Available fixtures (see `backend/tests/conftest.py`):
+- `client` — unauthenticated `TestClient`
+- `admin_client` / `treasurer_client` / `user_client` — `TestClient` pre-authenticated as a freshly created user of that role, for one-line permission tests
+- `make_user` / `make_member` / `make_organisation` / `make_rotary_friend` — factory fixtures for the core entities
+
+### Frontend only (Vitest)
+
+```bash
+cd frontend
+npm run test          # single run (used in CI)
+npm run test:watch    # watch mode for local dev
+```
+
+Component tests use MSW (`src/test/mocks`) to mock API calls instead of hitting a real backend — add new mock handlers there as new endpoints are consumed by the UI.
+
+## Continuous Integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and every pull request:
+
+- **backend** job: spins up a Postgres service container, runs Alembic migrations, runs `pytest` with coverage (fails if coverage drops below 70%)
+- **frontend** job: runs `npm run test`
+
+Either job failing blocks the workflow (shown as a failing check on the PR). Click into the failing job in the "Checks" tab of the PR (or the "Actions" tab of the repo) to see which test failed and why — pytest/vitest output points directly at the failing test name and assertion.

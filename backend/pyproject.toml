@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "unit: fast, isolated tests with no DB or network access",
+    "integration: tests that hit the real test DB and/or API routes",
+]
+asyncio_mode = "auto"
+addopts = "-ra --cov=app --cov-report=term-missing --cov-fail-under=70"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/db/seed.py"]
