@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { server } from "../test/mocks/server";
 import UserManagement from "./UserManagement";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 const BASE_USER = {
   id: "user-1",

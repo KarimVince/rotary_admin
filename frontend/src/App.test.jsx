@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import App from "./App";
 import { server } from "./test/mocks/server";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 const MOCK_USER = {
   id: "user-1",
@@ -40,14 +40,14 @@ describe("App auth flow", () => {
 
   it("logs in with valid credentials and lands on the protected dashboard", async () => {
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/login`, () =>
+      http.post(`${API_BASE_URL}/auth/login`, () =>
         HttpResponse.json({
           access_token: "test-access-token",
           refresh_token: "test-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
       DASHBOARD_SUMMARY_HANDLER,
     );
 
@@ -62,7 +62,7 @@ describe("App auth flow", () => {
 
   it("shows an error message and stays on the login page for invalid credentials", async () => {
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/login`, () =>
+      http.post(`${API_BASE_URL}/auth/login`, () =>
         HttpResponse.json({ detail: "Invalid email or password" }, { status: 401 }),
       ),
     );
@@ -80,14 +80,14 @@ describe("App auth flow", () => {
   it("restores the session on load from a stored refresh token", async () => {
     localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+      http.post(`${API_BASE_URL}/auth/refresh`, () =>
         HttpResponse.json({
           access_token: "new-access-token",
           refresh_token: "new-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
       DASHBOARD_SUMMARY_HANDLER,
     );
 
@@ -98,14 +98,14 @@ describe("App auth flow", () => {
 
   it("logging out clears the session and returns to the login page", async () => {
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/login`, () =>
+      http.post(`${API_BASE_URL}/auth/login`, () =>
         HttpResponse.json({
           access_token: "test-access-token",
           refresh_token: "test-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
       DASHBOARD_SUMMARY_HANDLER,
     );
 
@@ -124,14 +124,14 @@ describe("App auth flow", () => {
   it("lets an admin reach the user management page", async () => {
     localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+      http.post(`${API_BASE_URL}/auth/refresh`, () =>
         HttpResponse.json({
           access_token: "new-access-token",
           refresh_token: "new-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
       http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([])),
     );
 
@@ -143,14 +143,14 @@ describe("App auth flow", () => {
   it("redirects a non-admin away from the user management page", async () => {
     localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+      http.post(`${API_BASE_URL}/auth/refresh`, () =>
         HttpResponse.json({
           access_token: "new-access-token",
           refresh_token: "new-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () =>
+      http.get(`${API_BASE_URL}/auth/me`, () =>
         HttpResponse.json({ ...MOCK_USER, role: "user" }),
       ),
       DASHBOARD_SUMMARY_HANDLER,
@@ -165,14 +165,14 @@ describe("App auth flow", () => {
   it("shows locked placeholders for unbuilt modules and an admin-only nav link", async () => {
     localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+      http.post(`${API_BASE_URL}/auth/refresh`, () =>
         HttpResponse.json({
           access_token: "new-access-token",
           refresh_token: "new-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
       DASHBOARD_SUMMARY_HANDLER,
     );
 
@@ -190,14 +190,14 @@ describe("App auth flow", () => {
   it("hides the admin-only nav link for a non-admin user", async () => {
     localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
     server.use(
-      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+      http.post(`${API_BASE_URL}/auth/refresh`, () =>
         HttpResponse.json({
           access_token: "new-access-token",
           refresh_token: "new-refresh-token",
           token_type: "bearer",
         }),
       ),
-      http.get(`${API_BASE_URL}/v1/auth/me`, () =>
+      http.get(`${API_BASE_URL}/auth/me`, () =>
         HttpResponse.json({ ...MOCK_USER, role: "user" }),
       ),
       DASHBOARD_SUMMARY_HANDLER,

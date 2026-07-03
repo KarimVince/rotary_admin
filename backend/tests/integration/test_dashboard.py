@@ -4,13 +4,13 @@ pytestmark = pytest.mark.integration
 
 
 def test_dashboard_summary_requires_authentication(client):
-    response = client.get("/api/dashboard/summary")
+    response = client.get("/api/v1/dashboard/summary")
 
     assert response.status_code == 401
 
 
 def test_dashboard_summary_returns_zero_counts_when_empty(user_client):
-    response = user_client.get("/api/dashboard/summary")
+    response = user_client.get("/api/v1/dashboard/summary")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -28,7 +28,7 @@ def test_dashboard_summary_reflects_created_records(
     make_organisation(name="Org One")
     make_rotary_friend(first_name="Friend", last_name="One")
 
-    response = user_client.get("/api/dashboard/summary")
+    response = user_client.get("/api/v1/dashboard/summary")
 
     assert response.status_code == 200
     body = response.json()

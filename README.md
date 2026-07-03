@@ -2,6 +2,8 @@
 
 Admin app for managing Rotary club members, organisations/donations, Rotary friends, and annual fees.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for API versioning, CORS config, error shape, and mobile-readiness assumptions.
+
 ## Project structure
 
 - `backend/` — FastAPI + SQLAlchemy + Alembic, Python 3, Postgres
@@ -42,15 +44,15 @@ All auth is via a Bearer JWT in the `Authorization` header — there's no cookie
 
 ### User management (Admin only)
 
-- `POST /api/users` — admin creates a user directly with a temporary password (no invite-email flow yet), sets their role.
-- `GET /api/users` — list all users.
-- `PATCH /api/users/{id}` — partial update of `role` and/or `is_active`.
+- `POST /api/v1/users` — admin creates a user directly with a temporary password (no invite-email flow yet), sets their role.
+- `GET /api/v1/users` — list all users.
+- `PATCH /api/v1/users/{id}` — partial update of `role` and/or `is_active`.
 - All three routes require the `admin` role (`app/api/users.py` applies `require_admin` at the router level).
 - Frontend: `/admin/users` (linked from the dashboard for admins) — create-user form plus a table to toggle active/inactive and change role inline.
 
 ## Dashboard shell
 
-- `GET /api/dashboard/summary` — any authenticated user; returns real counts (`active_members`, `organisations_supported`, `rotary_friends`) queried straight from the DB. These are genuinely 0 until Epics 2-4 add data — not hardcoded stubs.
+- `GET /api/v1/dashboard/summary` — any authenticated user; returns real counts (`active_members`, `organisations_supported`, `rotary_friends`) queried straight from the DB. These are genuinely 0 until Epics 2-4 add data — not hardcoded stubs.
 - `components/AppLayout.jsx` is the shared post-login shell (header with the club logo + logout, sidebar nav) wrapping every authenticated route via a layout route in `App.jsx`. Members / NGOs & Donations / Friends of Rotary are shown as greyed-out, unclickable placeholders until their epics are built; "Manage users" only appears for admins.
 - Theme: light, Rotary blue (`--rotary-blue: #17458f`) and white, card-based (`index.css` / `App.css`).
 

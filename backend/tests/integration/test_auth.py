@@ -113,10 +113,10 @@ def test_refresh_with_invalid_token_returns_401(client):
 
 
 def test_protected_route_rejects_missing_and_invalid_tokens(client):
-    no_token_response = client.get("/api/member-titles")
+    no_token_response = client.get("/api/v1/member-titles")
     assert no_token_response.status_code == 401
 
     invalid_token_response = client.get(
-        "/api/member-titles", headers={"Authorization": "Bearer garbage"}
+        "/api/v1/member-titles", headers={"Authorization": "Bearer garbage"}
     )
     assert invalid_token_response.status_code == 401

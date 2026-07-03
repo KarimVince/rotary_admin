@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import Dashboard from "./Dashboard";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 vi.mock("../hooks/useAuth", () => ({
   useAuth: () => ({ user: { full_name: "Admin" } }),
