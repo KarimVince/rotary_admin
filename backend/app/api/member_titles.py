@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user, require_admin
 from app.db.session import get_db
 from app.models import MemberTitle
 from app.schemas.member_title import MemberTitleCreate, MemberTitleRead
@@ -21,7 +21,7 @@ def list_member_titles(
 def create_member_title(
     payload: MemberTitleCreate,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_role("admin")),
+    _current_user=Depends(require_admin),
 ):
     title = MemberTitle(**payload.model_dump())
     db.add(title)

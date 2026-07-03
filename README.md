@@ -30,6 +30,16 @@ cp .env.example .env
 npm run dev   # http://localhost:5173
 ```
 
+## Auth
+
+All auth is via a Bearer JWT in the `Authorization` header — there's no cookie-based session, so the same mechanism works for the web frontend and any future mobile client without backend changes.
+
+- `POST /api/v1/auth/login` — `{email, password}` → `{access_token, refresh_token, token_type}`. Access tokens expire after 30 minutes.
+- `GET /api/v1/auth/me` — returns the current user, requires `Authorization: Bearer <access_token>`.
+- `POST /api/v1/auth/refresh` — `{refresh_token}` → new token pair. Refresh tokens are opaque (not JWTs), stored hashed in the `auth_tokens` table, and single-use: each refresh rotates in a new refresh token and invalidates the old one.
+- There's no public self-registration endpoint — users are created by an Admin (Story 1.5).
+- Route protection dependencies (`app/api/deps.py`): `require_admin`, `require_treasurer_or_admin`, `require_user`, or the generic `require_role(*roles)`.
+
 ## Running tests
 
 Every story from Epic 2 onward ships with its own unit + integration tests as part of "done" — not as a follow-up.

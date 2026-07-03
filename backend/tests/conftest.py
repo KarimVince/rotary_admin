@@ -77,12 +77,14 @@ def make_user(db_session):
         password: str = "password123",
         full_name: str = "Test User",
         role: str = "user",
+        is_active: bool = True,
     ) -> User:
         user = User(
             email=email,
             hashed_password=hash_password(password),
             full_name=full_name,
             role=role,
+            is_active=is_active,
         )
         db_session.add(user)
         db_session.commit()

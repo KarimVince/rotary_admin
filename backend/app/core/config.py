@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     sender_api_key: str = ""
 
-    admin_email: str = "admin@rotaryadmin.local"
+    admin_email: str = "admin@rotaryadmin.app"
     admin_password: str = "change-me"
     admin_full_name: str = "Admin"
 
