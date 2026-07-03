@@ -1,8 +1,11 @@
+/* Login */
+
 .login-page {
   display: flex;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
+  background: var(--bg);
 }
 
 .login-form {
@@ -11,40 +14,145 @@
   gap: 8px;
   width: 100%;
   max-width: 320px;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 32px;
+}
+
+.login-form h1 {
+  text-align: center;
+  margin-bottom: 16px;
 }
 
 .login-form label {
   font-size: 14px;
+  color: var(--text);
 }
 
 .login-form input {
   padding: 8px 10px;
   font-size: 16px;
   margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .login-form button {
   padding: 10px;
   font-size: 16px;
   cursor: pointer;
+  margin-top: 8px;
 }
 
 .login-error {
-  color: var(--accent, #d33);
+  color: #b3261e;
   margin: 0 0 8px;
+  font-size: 14px;
 }
 
-.dashboard-page {
+/* App shell */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-logo {
+  height: 40px;
+}
+
+.app-header button {
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+}
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+}
+
+.app-nav a,
+.app-nav .nav-locked {
+  padding: 10px 24px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.app-nav a.active {
+  background: var(--accent-bg);
+  color: var(--rotary-blue);
+  font-weight: 600;
+  border-right: 3px solid var(--rotary-blue);
+}
+
+.app-nav .nav-locked {
+  color: #9aa4b2;
+  cursor: not-allowed;
+}
+
+.app-content {
+  flex: 1;
   padding: 32px;
 }
 
-.dashboard-page a {
-  display: block;
-  margin: 12px 0;
+/* Dashboard */
+
+.stat-cards {
+  display: flex;
+  gap: 20px;
+  margin-top: 24px;
+  flex-wrap: wrap;
 }
+
+.stat-card {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 24px 32px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--rotary-blue);
+}
+
+.stat-label {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* User management */
 
 .user-management-page {
-  padding: 32px;
+  max-width: 900px;
 }
 
 .create-user-form {
@@ -53,6 +161,10 @@
   gap: 8px;
   max-width: 320px;
   margin-bottom: 32px;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 24px;
 }
 
 .create-user-form input,
@@ -60,6 +172,8 @@
   padding: 8px 10px;
   font-size: 16px;
   margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .create-user-form button {
@@ -71,11 +185,20 @@
 .user-management-page table {
   border-collapse: collapse;
   width: 100%;
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
 .user-management-page th,
 .user-management-page td {
   text-align: left;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border, #ccc);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-management-page th {
+  color: var(--text-h);
+  font-size: 14px;
 }

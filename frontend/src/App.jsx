@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import Dashboard from "./pages/Dashboard";
@@ -12,10 +13,12 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Route>
-        <Route element={<ProtectedRoute requiredRole="admin" />}>
-          <Route path="/admin/users" element={<UserManagement />} />
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route element={<ProtectedRoute requiredRole="admin" />}>
+              <Route path="/admin/users" element={<UserManagement />} />
+            </Route>
+          </Route>
         </Route>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -48,6 +48,12 @@ All auth is via a Bearer JWT in the `Authorization` header — there's no cookie
 - All three routes require the `admin` role (`app/api/users.py` applies `require_admin` at the router level).
 - Frontend: `/admin/users` (linked from the dashboard for admins) — create-user form plus a table to toggle active/inactive and change role inline.
 
+## Dashboard shell
+
+- `GET /api/dashboard/summary` — any authenticated user; returns real counts (`active_members`, `organisations_supported`, `rotary_friends`) queried straight from the DB. These are genuinely 0 until Epics 2-4 add data — not hardcoded stubs.
+- `components/AppLayout.jsx` is the shared post-login shell (header with the club logo + logout, sidebar nav) wrapping every authenticated route via a layout route in `App.jsx`. Members / NGOs & Donations / Friends of Rotary are shown as greyed-out, unclickable placeholders until their epics are built; "Manage users" only appears for admins.
+- Theme: light, Rotary blue (`--rotary-blue: #17458f`) and white, card-based (`index.css` / `App.css`).
+
 **Frontend** (`frontend/src`): `context/AuthContext.jsx` + `hooks/useAuth.js` expose `user`, `isAuthenticated`, `login()`, `logout()`. The access token is kept in memory only (`api/client.js`, never persisted) to limit XSS exposure; the refresh token is kept in `localStorage` under `rotaryadmin.refresh_token` since something has to survive a page reload without cookies. On load, `AuthProvider` silently redeems a stored refresh token to restore the session. `components/ProtectedRoute.jsx` guards routes (e.g. `/dashboard`) and redirects to `/login` when unauthenticated.
 
 ## Running tests

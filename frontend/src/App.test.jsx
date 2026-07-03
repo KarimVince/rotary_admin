@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
@@ -17,6 +17,10 @@ const MOCK_USER = {
   is_active: true,
   created_at: new Date().toISOString(),
 };
+
+const DASHBOARD_SUMMARY_HANDLER = http.get(`${API_BASE_URL}/dashboard/summary`, () =>
+  HttpResponse.json({ active_members: 0, organisations_supported: 0, rotary_friends: 0 }),
+);
 
 function renderApp(initialRoute) {
   return render(
@@ -44,6 +48,7 @@ describe("App auth flow", () => {
         }),
       ),
       http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      DASHBOARD_SUMMARY_HANDLER,
     );
 
     renderApp("/login");
@@ -83,6 +88,7 @@ describe("App auth flow", () => {
         }),
       ),
       http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      DASHBOARD_SUMMARY_HANDLER,
     );
 
     renderApp("/dashboard");
@@ -100,6 +106,7 @@ describe("App auth flow", () => {
         }),
       ),
       http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      DASHBOARD_SUMMARY_HANDLER,
     );
 
     renderApp("/login");
@@ -146,11 +153,59 @@ describe("App auth flow", () => {
       http.get(`${API_BASE_URL}/v1/auth/me`, () =>
         HttpResponse.json({ ...MOCK_USER, role: "user" }),
       ),
+      DASHBOARD_SUMMARY_HANDLER,
     );
 
     renderApp("/admin/users");
 
     expect(await screen.findByText(/welcome, admin/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /user management/i })).not.toBeInTheDocument();
+  });
+
+  it("shows locked placeholders for unbuilt modules and an admin-only nav link", async () => {
+    localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
+    server.use(
+      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+        HttpResponse.json({
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+          token_type: "bearer",
+        }),
+      ),
+      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      DASHBOARD_SUMMARY_HANDLER,
+    );
+
+    renderApp("/dashboard");
+    await screen.findByText(/welcome, admin/i);
+
+    const nav = within(screen.getByRole("navigation"));
+    expect(nav.getByText("Members")).toBeInTheDocument();
+    expect(nav.getByText("Members").closest("a")).toBeNull();
+    expect(nav.getByText("NGOs & Donations").closest("a")).toBeNull();
+    expect(nav.getByText("Friends of Rotary").closest("a")).toBeNull();
+    expect(nav.getByRole("link", { name: /manage users/i })).toBeInTheDocument();
+  });
+
+  it("hides the admin-only nav link for a non-admin user", async () => {
+    localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
+    server.use(
+      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+        HttpResponse.json({
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+          token_type: "bearer",
+        }),
+      ),
+      http.get(`${API_BASE_URL}/v1/auth/me`, () =>
+        HttpResponse.json({ ...MOCK_USER, role: "user" }),
+      ),
+      DASHBOARD_SUMMARY_HANDLER,
+    );
+
+    renderApp("/dashboard");
+    await screen.findByText(/welcome, admin/i);
+
+    expect(screen.queryByRole("link", { name: /manage users/i })).not.toBeInTheDocument();
   });
 });
