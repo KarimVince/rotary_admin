@@ -1,9 +1,4 @@
-import { http, HttpResponse } from 'msw'
-
-const API_BASE_URL = 'http://localhost:8000/api'
-
-export const handlers = [
-  http.get(`${API_BASE_URL}/health`, () => {
-    return HttpResponse.json({ status: 'ok' })
-  }),
-]
+// Default (empty) handler set. Individual test files add the handlers
+// they need via `server.use(...)` so each test's mocked API surface is
+// explicit and scoped to that test.
+export const handlers = [];

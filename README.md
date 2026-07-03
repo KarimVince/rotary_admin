@@ -40,6 +40,8 @@ All auth is via a Bearer JWT in the `Authorization` header — there's no cookie
 - There's no public self-registration endpoint — users are created by an Admin (Story 1.5).
 - Route protection dependencies (`app/api/deps.py`): `require_admin`, `require_treasurer_or_admin`, `require_user`, or the generic `require_role(*roles)`.
 
+**Frontend** (`frontend/src`): `context/AuthContext.jsx` + `hooks/useAuth.js` expose `user`, `isAuthenticated`, `login()`, `logout()`. The access token is kept in memory only (`api/client.js`, never persisted) to limit XSS exposure; the refresh token is kept in `localStorage` under `rotaryadmin.refresh_token` since something has to survive a page reload without cookies. On load, `AuthProvider` silently redeems a stored refresh token to restore the session. `components/ProtectedRoute.jsx` guards routes (e.g. `/dashboard`) and redirects to `/login` when unauthenticated.
+
 ## Running tests
 
 Every story from Epic 2 onward ships with its own unit + integration tests as part of "done" — not as a follow-up.
