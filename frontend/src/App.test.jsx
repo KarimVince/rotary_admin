@@ -113,4 +113,44 @@ describe("App auth flow", () => {
     expect(await screen.findByLabelText(/email/i)).toBeInTheDocument();
     expect(localStorage.getItem("rotaryadmin.refresh_token")).toBeNull();
   });
+
+  it("lets an admin reach the user management page", async () => {
+    localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
+    server.use(
+      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+        HttpResponse.json({
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+          token_type: "bearer",
+        }),
+      ),
+      http.get(`${API_BASE_URL}/v1/auth/me`, () => HttpResponse.json(MOCK_USER)),
+      http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([])),
+    );
+
+    renderApp("/admin/users");
+
+    expect(await screen.findByRole("heading", { name: /user management/i })).toBeInTheDocument();
+  });
+
+  it("redirects a non-admin away from the user management page", async () => {
+    localStorage.setItem("rotaryadmin.refresh_token", "stored-refresh-token");
+    server.use(
+      http.post(`${API_BASE_URL}/v1/auth/refresh`, () =>
+        HttpResponse.json({
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+          token_type: "bearer",
+        }),
+      ),
+      http.get(`${API_BASE_URL}/v1/auth/me`, () =>
+        HttpResponse.json({ ...MOCK_USER, role: "user" }),
+      ),
+    );
+
+    renderApp("/admin/users");
+
+    expect(await screen.findByText(/welcome, admin/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /user management/i })).not.toBeInTheDocument();
+  });
 });

@@ -37,8 +37,16 @@ All auth is via a Bearer JWT in the `Authorization` header — there's no cookie
 - `POST /api/v1/auth/login` — `{email, password}` → `{access_token, refresh_token, token_type}`. Access tokens expire after 30 minutes.
 - `GET /api/v1/auth/me` — returns the current user, requires `Authorization: Bearer <access_token>`.
 - `POST /api/v1/auth/refresh` — `{refresh_token}` → new token pair. Refresh tokens are opaque (not JWTs), stored hashed in the `auth_tokens` table, and single-use: each refresh rotates in a new refresh token and invalidates the old one.
-- There's no public self-registration endpoint — users are created by an Admin (Story 1.5).
+- There's no public self-registration endpoint — users are created by an Admin.
 - Route protection dependencies (`app/api/deps.py`): `require_admin`, `require_treasurer_or_admin`, `require_user`, or the generic `require_role(*roles)`.
+
+### User management (Admin only)
+
+- `POST /api/users` — admin creates a user directly with a temporary password (no invite-email flow yet), sets their role.
+- `GET /api/users` — list all users.
+- `PATCH /api/users/{id}` — partial update of `role` and/or `is_active`.
+- All three routes require the `admin` role (`app/api/users.py` applies `require_admin` at the router level).
+- Frontend: `/admin/users` (linked from the dashboard for admins) — create-user form plus a table to toggle active/inactive and change role inline.
 
 **Frontend** (`frontend/src`): `context/AuthContext.jsx` + `hooks/useAuth.js` expose `user`, `isAuthenticated`, `login()`, `logout()`. The access token is kept in memory only (`api/client.js`, never persisted) to limit XSS exposure; the refresh token is kept in `localStorage` under `rotaryadmin.refresh_token` since something has to survive a page reload without cookies. On load, `AuthProvider` silently redeems a stored refresh token to restore the session. `components/ProtectedRoute.jsx` guards routes (e.g. `/dashboard`) and redirects to `/login` when unauthenticated.
 

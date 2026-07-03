@@ -37,3 +37,45 @@
 .dashboard-page {
   padding: 32px;
 }
+
+.dashboard-page a {
+  display: block;
+  margin: 12px 0;
+}
+
+.user-management-page {
+  padding: 32px;
+}
+
+.create-user-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 320px;
+  margin-bottom: 32px;
+}
+
+.create-user-form input,
+.create-user-form select {
+  padding: 8px 10px;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.create-user-form button {
+  padding: 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.user-management-page table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.user-management-page th,
+.user-management-page td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #ccc);
+}
