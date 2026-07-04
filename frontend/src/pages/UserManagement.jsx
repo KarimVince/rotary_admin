@@ -56,7 +56,7 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="user-management-page">
+    <div className="admin-page">
       <h1>User management</h1>
 
       <form className="admin-form" onSubmit={handleCreate}>

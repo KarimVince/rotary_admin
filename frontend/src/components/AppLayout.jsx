@@ -4,7 +4,7 @@ import BrandHeader from "./BrandHeader";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", enabled: true },
-  { to: "/members", label: "Members", enabled: false },
+  { to: "/members", label: "Members", enabled: true },
   { to: "/ngos", label: "NGOs & Donations", enabled: false },
   { to: "/friends", label: "Friends of Rotary", enabled: false },
 ];
@@ -38,12 +38,20 @@ export default function AppLayout() {
             ),
           )}
           {user?.role === "admin" && (
-            <NavLink
-              to="/admin/users"
-              className={({ isActive }) => (isActive ? "active" : undefined)}
-            >
-              Manage users
-            </NavLink>
+            <>
+              <NavLink
+                to="/admin/users"
+                className={({ isActive }) => (isActive ? "active" : undefined)}
+              >
+                Manage users
+              </NavLink>
+              <NavLink
+                to="/admin/member-titles"
+                className={({ isActive }) => (isActive ? "active" : undefined)}
+              >
+                Member titles
+              </NavLink>
+            </>
           )}
         </nav>
         <main className="app-content">

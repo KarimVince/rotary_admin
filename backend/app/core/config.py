@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
     sender_api_key: str = ""
+    sender_from_email: str = "no-reply@rotaryadmin.app"
+    sender_from_name: str = "Rotary Club of Discovery Bay"
 
     admin_email: str = "admin@rotaryadmin.app"
     admin_password: str = "change-me"

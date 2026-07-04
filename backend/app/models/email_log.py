@@ -18,7 +18,10 @@ class EmailLog(Base):
     source_module: Mapped[str] = mapped_column(String(20), nullable=False)
     recipient_group: Mapped[str] = mapped_column(String(50), nullable=False)
     recipient_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # clock_timestamp() (not now()) so rows inserted within the same DB
+    # transaction still get distinct wall-clock send times — matters for
+    # "most recent send" ordering in the email log view.
     sent_at: Mapped["DateTime"] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
     )
     status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="sent")

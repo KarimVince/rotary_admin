@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, dashboard, health, member_titles, users
+from app.api import auth, dashboard, health, member_email, member_titles, members, users
 from app.core.config import settings
 from app.core.exception_handlers import unhandled_exception_handler
 
@@ -18,6 +18,8 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(member_titles.router, prefix="/api/v1", tags=["member-titles"])
+app.include_router(member_email.router, prefix="/api/v1", tags=["members"])
+app.include_router(members.router, prefix="/api/v1", tags=["members"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(auth.router)

@@ -10,6 +10,13 @@ class MemberTitleCreate(BaseModel):
     sort_order: int = 0
 
 
+class MemberTitleUpdate(BaseModel):
+    code: str | None = None
+    label: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
 class MemberTitleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

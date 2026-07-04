@@ -144,25 +144,34 @@ def make_rotary_friend(db_session):
     return _make_rotary_friend
 
 
-def _authenticated_client(client: TestClient, user: User) -> TestClient:
+def _build_authenticated_client(db_session, user: User) -> TestClient:
+    # Each role-client fixture gets its own TestClient instance (rather than
+    # sharing/mutating the base `client` fixture's headers) so that a single
+    # test can safely request e.g. both admin_client and user_client without
+    # one's Authorization header silently overwriting the other's.
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    test_client = TestClient(app)
     token = create_access_token(str(user.id), user.role)
-    client.headers.update({"Authorization": f"Bearer {token}"})
-    return client
+    test_client.headers.update({"Authorization": f"Bearer {token}"})
+    return test_client
 
 
 @pytest.fixture
-def admin_client(client, make_user):
+def admin_client(db_session, make_user):
     user = make_user(email="admin-fixture@example.com", role="admin")
-    return _authenticated_client(client, user)
+    return _build_authenticated_client(db_session, user)
 
 
 @pytest.fixture
-def treasurer_client(client, make_user):
+def treasurer_client(db_session, make_user):
     user = make_user(email="treasurer-fixture@example.com", role="treasurer")
-    return _authenticated_client(client, user)
+    return _build_authenticated_client(db_session, user)
 
 
 @pytest.fixture
-def user_client(client, make_user):
+def user_client(db_session, make_user):
     user = make_user(email="user-fixture@example.com", role="user")
-    return _authenticated_client(client, user)
+    return _build_authenticated_client(db_session, user)

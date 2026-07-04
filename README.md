@@ -57,11 +57,19 @@ All auth is via a Bearer JWT in the `Authorization` header — there's no cookie
 ## Dashboard shell
 
 - `GET /api/v1/dashboard/summary` — any authenticated user; returns real counts (`active_members`, `organisations_supported`, `rotary_friends`) queried straight from the DB. These are genuinely 0 until Epics 2-4 add data — not hardcoded stubs.
-- `components/AppLayout.jsx` is the shared post-login shell (header with the club branding + logout, sidebar nav) wrapping every authenticated route via a layout route in `App.jsx`. Members / NGOs & Donations / Friends of Rotary are shown as greyed-out, unclickable placeholders until their epics are built; "Manage users" only appears for admins.
+- `components/AppLayout.jsx` is the shared post-login shell (header with the club branding + logout, sidebar nav) wrapping every authenticated route via a layout route in `App.jsx`. NGOs & Donations / Friends of Rotary are still greyed-out, unclickable placeholders until their epics are built; "Manage users" only appears for admins.
 - Theme: light, Rotary blue (`--rotary-blue: #17458f`) and white, card-based (`index.css` / `App.css`).
 - `components/BrandHeader.jsx` renders the club logo + "Rotary Club of Discovery Bay Database" title, shared by the login page and the app shell header. Swapping the logo image later is a one-file replacement (`src/assets/rotary-logo.png`) — no code change needed.
 
 **Frontend** (`frontend/src`): `context/AuthContext.jsx` + `hooks/useAuth.js` expose `user`, `isAuthenticated`, `login()`, `logout()`. The access token is kept in memory only (`api/client.js`, never persisted) to limit XSS exposure; the refresh token is kept in `localStorage` under `rotaryadmin.refresh_token` since something has to survive a page reload without cookies. On load, `AuthProvider` silently redeems a stored refresh token to restore the session. `components/ProtectedRoute.jsx` guards routes (e.g. `/dashboard`) and redirects to `/login` when unauthenticated.
+
+## Members management (Epic 2)
+
+- `POST/GET/PATCH/DELETE /api/v1/members` — CRUD with filters (`status`, `title_id`, `join_year`, `nationality`, `classification`) on the list endpoint. Reads are available to any authenticated role; writes are admin-only. `DELETE` is a soft delete (`status='past'`, backfills `leave_date`). `date_of_birth`/`address` are stripped from responses for non-admin readers (`MemberReadLimited` vs `MemberRead` in `app/schemas/member.py`).
+- `POST/GET/PATCH/DELETE /api/v1/member-titles` — same admin-write/any-read split; `DELETE` soft-deactivates (`is_active=false`) rather than removing the row, since past members may still reference it. `GET` defaults to active-only; pass `include_inactive=true` for the management view.
+- `GET /api/v1/members/statistics` — status/join-year/nationality/classification/age breakdowns, average tenure, and joins-vs-leaves growth by Rotary year (`rotary_year()` groups Jul-Jun). Computed in Python over the full member set rather than SQL aggregates — fine at single-club scale, easier to read and test.
+- `POST /api/v1/members/email` + `GET /api/v1/members/email-log` — bulk email via [Sender.net](https://www.sender.net); admin-only. Sender's transactional API only accepts **one recipient per call** (verified against their docs), so a "group" send is one HTTP call per member with per-recipient try/except — a few bad addresses don't sink the whole batch. Every attempt is logged to `email_log` with an aggregate `status` (`sent` / `partial_failure` / `failed` / `no_recipients`).
+- Frontend: `/members` (list/search/filter/add/edit, admin controls conditionally rendered), `/members/statistics` (recharts), `/members/email` (admin-only: compose → confirm recipient count → send, plus the log table). All three reuse the `.admin-form`/`.admin-table` pattern.
 
 ## Running tests
 
@@ -92,7 +100,7 @@ Backend tests run against a dedicated **`rotary_admin_test`** database (never th
 
 Available fixtures (see `backend/tests/conftest.py`):
 - `client` — unauthenticated `TestClient`
-- `admin_client` / `treasurer_client` / `user_client` — `TestClient` pre-authenticated as a freshly created user of that role, for one-line permission tests
+- `admin_client` / `treasurer_client` / `user_client` — each its own independent `TestClient` pre-authenticated as a freshly created user of that role. Independent instances matter: a test can safely request two of these together (e.g. `admin_client` to set something up, `user_client` to prove it's forbidden) without one's auth header clobbering the other's.
 - `make_user` / `make_member` / `make_organisation` / `make_rotary_friend` — factory fixtures for the core entities
 
 ### Frontend only (Vitest)
