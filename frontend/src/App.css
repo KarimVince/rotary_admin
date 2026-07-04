@@ -20,11 +20,6 @@
   padding: 32px;
 }
 
-.login-form h1 {
-  text-align: center;
-  margin-bottom: 16px;
-}
-
 .login-form label {
   font-size: 14px;
   color: var(--text);
@@ -51,6 +46,42 @@
   font-size: 14px;
 }
 
+/* Brand header (logo + app title) — shared by the login page and the
+   post-login app shell header, see components/BrandHeader.jsx */
+
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-header--large {
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.brand-header--large .brand-logo {
+  height: 72px;
+}
+
+.brand-header--large .brand-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+  text-align: center;
+}
+
+.brand-header--small .brand-logo {
+  height: 40px;
+}
+
+.brand-header--small .brand-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
 /* App shell */
 
 .app-shell {
@@ -66,10 +97,6 @@
   padding: 12px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-}
-
-.app-logo {
-  height: 40px;
 }
 
 .app-header button {
@@ -149,56 +176,78 @@
   color: var(--text);
 }
 
-/* User management */
+/* Admin CRUD pages (Users today; Members / Organisations / Rotary Friends /
+   Fees later) — .admin-form and .admin-table are the standard, deliberately
+   compact/dense pattern for this class of page. Reuse them rather than
+   inventing new spacing per page. */
 
 .user-management-page {
   max-width: 900px;
+  font-size: 13px;
 }
 
-.create-user-form {
+.admin-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 320px;
-  margin-bottom: 32px;
+  gap: 4px;
+  max-width: 280px;
+  margin-bottom: 24px;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: var(--shadow);
-  padding: 24px;
+  padding: 16px;
 }
 
-.create-user-form input,
-.create-user-form select {
-  padding: 8px 10px;
-  font-size: 16px;
-  margin-bottom: 8px;
+.admin-form label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.admin-form input,
+.admin-form select {
+  padding: 4px 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
 }
 
-.create-user-form button {
-  padding: 10px;
-  font-size: 16px;
+.admin-form button {
+  padding: 6px 10px;
+  font-size: 13px;
   cursor: pointer;
+  margin-top: 4px;
 }
 
-.user-management-page table {
+.admin-table {
   border-collapse: collapse;
   width: 100%;
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   box-shadow: var(--shadow);
+  font-size: 13px;
 }
 
-.user-management-page th,
-.user-management-page td {
+.admin-table th,
+.admin-table td {
   text-align: left;
-  padding: 10px 16px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
 }
 
-.user-management-page th {
+.admin-table th {
   color: var(--text-h);
-  font-size: 14px;
+  font-size: 12px;
+}
+
+.admin-table select {
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.admin-table button {
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
 }

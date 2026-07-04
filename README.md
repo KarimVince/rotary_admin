@@ -50,11 +50,16 @@ All auth is via a Bearer JWT in the `Authorization` header — there's no cookie
 - All three routes require the `admin` role (`app/api/users.py` applies `require_admin` at the router level).
 - Frontend: `/admin/users` (linked from the dashboard for admins) — create-user form plus a table to toggle active/inactive and change role inline.
 
+### Admin CRUD page pattern
+
+`.admin-form` and `.admin-table` (`App.css`) are the standard, deliberately compact/dense styling for admin-style CRUD pages — smaller font size (13px vs. the 16px body default) and tighter input/button/cell padding than a normal form. `UserManagement.jsx` is the reference implementation. **Reuse these classes for future CRUD pages** (Members, Organisations, Rotary Friends, Fees) rather than inventing new spacing per page.
+
 ## Dashboard shell
 
 - `GET /api/v1/dashboard/summary` — any authenticated user; returns real counts (`active_members`, `organisations_supported`, `rotary_friends`) queried straight from the DB. These are genuinely 0 until Epics 2-4 add data — not hardcoded stubs.
-- `components/AppLayout.jsx` is the shared post-login shell (header with the club logo + logout, sidebar nav) wrapping every authenticated route via a layout route in `App.jsx`. Members / NGOs & Donations / Friends of Rotary are shown as greyed-out, unclickable placeholders until their epics are built; "Manage users" only appears for admins.
+- `components/AppLayout.jsx` is the shared post-login shell (header with the club branding + logout, sidebar nav) wrapping every authenticated route via a layout route in `App.jsx`. Members / NGOs & Donations / Friends of Rotary are shown as greyed-out, unclickable placeholders until their epics are built; "Manage users" only appears for admins.
 - Theme: light, Rotary blue (`--rotary-blue: #17458f`) and white, card-based (`index.css` / `App.css`).
+- `components/BrandHeader.jsx` renders the club logo + "Rotary Club of Discovery Bay Database" title, shared by the login page and the app shell header. Swapping the logo image later is a one-file replacement (`src/assets/rotary-logo.png`) — no code change needed.
 
 **Frontend** (`frontend/src`): `context/AuthContext.jsx` + `hooks/useAuth.js` expose `user`, `isAuthenticated`, `login()`, `logout()`. The access token is kept in memory only (`api/client.js`, never persisted) to limit XSS exposure; the refresh token is kept in `localStorage` under `rotaryadmin.refresh_token` since something has to survive a page reload without cookies. On load, `AuthProvider` silently redeems a stored refresh token to restore the session. `components/ProtectedRoute.jsx` guards routes (e.g. `/dashboard`) and redirects to `/login` when unauthenticated.
 

@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
-import rotaryLogo from "../assets/rotary-logo.png";
 import { useAuth } from "../hooks/useAuth";
+import BrandHeader from "./BrandHeader";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", enabled: true },
@@ -15,7 +15,7 @@ export default function AppLayout() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <img src={rotaryLogo} alt="Rotary Club of Discovery Bay" className="app-logo" />
+        <BrandHeader size="small" />
         <button type="button" onClick={logout}>
           Log out
         </button>

@@ -59,7 +59,7 @@ export default function UserManagement() {
     <div className="user-management-page">
       <h1>User management</h1>
 
-      <form className="create-user-form" onSubmit={handleCreate}>
+      <form className="admin-form" onSubmit={handleCreate}>
         <h2>Create user</h2>
         <label htmlFor="new-user-email">Email</label>
         <input
@@ -108,7 +108,7 @@ export default function UserManagement() {
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
       {!isLoading && !loadError && (
-        <table>
+        <table className="admin-table">
           <thead>
             <tr>
               <th>Email</th>

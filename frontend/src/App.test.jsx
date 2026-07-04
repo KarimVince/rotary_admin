@@ -34,7 +34,9 @@ describe("App auth flow", () => {
   it("redirects an unauthenticated visitor to the login page", async () => {
     renderApp("/dashboard");
 
-    expect(await screen.findByRole("heading", { name: /rotary admin/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /rotary club of discovery bay database/i }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
   });
 

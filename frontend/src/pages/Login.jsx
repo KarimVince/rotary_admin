@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import BrandHeader from "../components/BrandHeader";
 import { useAuth } from "../hooks/useAuth";
 
 export default function Login() {
@@ -30,7 +31,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <form className="login-form" onSubmit={handleSubmit}>
-        <h1>Rotary Admin</h1>
+        <BrandHeader size="large" />
         <label htmlFor="email">Email</label>
         <input
           id="email"
