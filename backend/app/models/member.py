@@ -1,4 +1,5 @@
 import uuid
+from datetime import date as date_
 
 from sqlalchemy import (
     Boolean,
@@ -18,7 +19,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
 
-member_status_enum = Enum("active", "past", name="member_status")
+member_status_enum = Enum("active", "honorary", "past", name="member_status")
+member_gender_enum = Enum("Male", "Female", "Other", name="member_gender")
 
 
 class Member(Base):
@@ -48,9 +50,13 @@ class Member(Base):
     )
     join_date: Mapped["Date"] = mapped_column(Date, nullable=False)
     leave_date: Mapped["Date | None"] = mapped_column(Date)
+    rotarian_since: Mapped["Date | None"] = mapped_column(Date)
+    rotarian_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+    photo_url: Mapped[str | None] = mapped_column(String(500))
     profession: Mapped[str | None] = mapped_column(String(150))
     classification: Mapped[str | None] = mapped_column(String(150))
     date_of_birth: Mapped["Date | None"] = mapped_column(Date)
+    gender: Mapped[str | None] = mapped_column(member_gender_enum)
     nationality: Mapped[str | None] = mapped_column(String(100))
     address: Mapped[str | None] = mapped_column(Text)
     is_couple: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
@@ -61,3 +67,12 @@ class Member(Base):
     updated_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    @property
+    def years_as_rotarian(self) -> float:
+        start = self.rotarian_since or self.join_date
+        return round((date_.today() - start).days / 365.25, 1)
+
+    @property
+    def years_in_this_club(self) -> float:
+        return round((date_.today() - self.join_date).days / 365.25, 1)

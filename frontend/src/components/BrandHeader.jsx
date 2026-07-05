@@ -2,7 +2,9 @@ import logo from "../assets/rotary-logo.png";
 
 // Swapping in a real/updated logo later is a one-file replacement: drop the
 // new image in as src/assets/rotary-logo.png (or repoint this single import)
-// — no other code needs to change.
+// — no other code needs to change. Also update backend/app/assets/rotary-logo.png
+// (Story 2b.14's PDF/PPTX report generation keeps its own copy so report
+// generation doesn't depend on the frontend source tree being present).
 const APP_TITLE = "Rotary Club of Discovery Bay Database";
 
 export default function BrandHeader({ size = "medium" }) {

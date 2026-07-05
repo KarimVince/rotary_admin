@@ -33,6 +33,15 @@ def test_admin_can_create_member(admin_client):
     assert body["address"] == "1 Rotary Way"
 
 
+def test_admin_can_create_honorary_member(admin_client):
+    response = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="honorary@example.com", status="honorary")
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "honorary"
+
+
 def test_non_admin_cannot_create_member(user_client):
     response = user_client.post("/api/v1/members", json=_create_payload())
 
@@ -61,6 +70,145 @@ def test_create_member_future_date_of_birth_returns_422(admin_client):
     )
 
     assert response.status_code == 422
+
+
+def test_create_member_computes_tenure_fields(admin_client):
+    response = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(join_date="2020-01-15", rotarian_since="2010-01-15"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["rotarian_since"] == "2010-01-15"
+    assert body["years_as_rotarian"] > body["years_in_this_club"]
+
+
+def test_create_member_without_rotarian_since_falls_back_to_join_date(admin_client):
+    response = admin_client.post(
+        "/api/v1/members", json=_create_payload(join_date="2020-01-15")
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["rotarian_since"] is None
+    assert body["years_as_rotarian"] == body["years_in_this_club"]
+
+
+def test_create_member_with_gender(admin_client):
+    response = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="gender@example.com", gender="Female")
+    )
+
+    assert response.status_code == 201
+    assert response.json()["gender"] == "Female"
+
+
+def test_create_member_without_gender_defaults_to_none(admin_client):
+    response = admin_client.post("/api/v1/members", json=_create_payload())
+
+    assert response.status_code == 201
+    assert response.json()["gender"] is None
+
+
+def test_create_member_invalid_gender_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/members", json=_create_payload(gender="Unspecified")
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_member_invalid_nationality_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/members", json=_create_payload(nationality="Chinese")
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_member_valid_nationality_from_fixed_list(admin_client):
+    response = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="valid-nat@example.com", nationality="Japan")
+    )
+
+    assert response.status_code == 201
+    assert response.json()["nationality"] == "Japan"
+
+
+def test_update_member_invalid_nationality_returns_422(admin_client):
+    created = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="update-nat@example.com")
+    ).json()
+
+    response = admin_client.patch(
+        f"/api/v1/members/{created['id']}", json={"nationality": "USA"}
+    )
+
+    assert response.status_code == 422
+
+
+def test_non_admin_sees_gender_in_limited_response(admin_client, user_client):
+    created = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="ltd-gender@example.com", gender="Male")
+    ).json()
+
+    response = user_client.get(f"/api/v1/members/{created['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["gender"] == "Male"
+
+
+def test_create_member_with_rotarian_id(admin_client):
+    response = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="ri1@example.com", rotarian_id="RI-1001"),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["rotarian_id"] == "RI-1001"
+
+
+def test_create_member_duplicate_rotarian_id_returns_409(admin_client):
+    admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="ri2@example.com", rotarian_id="RI-2002"),
+    )
+
+    response = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="ri3@example.com", rotarian_id="RI-2002"),
+    )
+
+    assert response.status_code == 409
+
+
+def test_update_member_duplicate_rotarian_id_returns_409(admin_client):
+    admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="ri4@example.com", rotarian_id="RI-4004"),
+    )
+    second = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="ri5@example.com")
+    ).json()
+
+    response = admin_client.patch(
+        f"/api/v1/members/{second['id']}", json={"rotarian_id": "RI-4004"}
+    )
+
+    assert response.status_code == 409
+
+
+def test_non_admin_does_not_see_rotarian_id(admin_client, user_client):
+    created = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="ri6@example.com", rotarian_id="RI-6006"),
+    ).json()
+
+    response = user_client.get(f"/api/v1/members/{created['id']}")
+
+    assert response.status_code == 200
+    assert "rotarian_id" not in response.json()
 
 
 def test_create_member_leave_before_join_returns_422(admin_client):
@@ -139,7 +287,7 @@ def test_list_members_filters_by_nationality_and_classification(admin_client):
     admin_client.post(
         "/api/v1/members",
         json=_create_payload(
-            email="uk@example.com", nationality="UK", classification="Law"
+            email="uk@example.com", nationality="United Kingdom", classification="Law"
         ),
     )
 
@@ -184,6 +332,46 @@ def test_non_admin_cannot_update_member(admin_client, user_client):
     created = admin_client.post("/api/v1/members", json=_create_payload()).json()
 
     response = user_client.patch(f"/api/v1/members/{created['id']}", json={"phone": "12345"})
+
+    assert response.status_code == 403
+
+
+def test_treasurer_cannot_update_member(admin_client, treasurer_client):
+    created = admin_client.post("/api/v1/members", json=_create_payload()).json()
+
+    response = treasurer_client.patch(
+        f"/api/v1/members/{created['id']}", json={"phone": "12345"}
+    )
+
+    assert response.status_code == 403
+
+
+def test_user_can_update_own_linked_member_record(admin_client, make_user, build_client):
+    created = admin_client.post("/api/v1/members", json=_create_payload()).json()
+    linked_user = make_user(email="linked@example.com", role="user", member_id=created["id"])
+    linked_client = build_client(linked_user)
+
+    response = linked_client.patch(
+        f"/api/v1/members/{created['id']}", json={"phone": "555-0000"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["phone"] == "555-0000"
+
+
+def test_user_cannot_update_a_different_members_record(admin_client, make_user, build_client):
+    own_member = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="own@example.com")
+    ).json()
+    other_member = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="other@example.com")
+    ).json()
+    linked_user = make_user(email="linked2@example.com", role="user", member_id=own_member["id"])
+    linked_client = build_client(linked_user)
+
+    response = linked_client.patch(
+        f"/api/v1/members/{other_member['id']}", json={"phone": "555-0000"}
+    )
 
     assert response.status_code == 403
 
@@ -260,3 +448,50 @@ def test_delete_member_not_found_returns_404(admin_client):
     response = admin_client.delete("/api/v1/members/00000000-0000-0000-0000-000000000000")
 
     assert response.status_code == 404
+
+
+def test_admin_can_upload_member_photo(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.api.members.settings.upload_dir", str(tmp_path))
+
+    response = admin_client.post(
+        "/api/v1/members/photo",
+        files={"file": ("photo.png", b"fake-png-bytes", "image/png")},
+    )
+
+    assert response.status_code == 201
+    photo_url = response.json()["photo_url"]
+    assert photo_url.startswith("/static/members/")
+    assert photo_url.endswith(".png")
+    assert (tmp_path / "members" / photo_url.rsplit("/", 1)[-1]).read_bytes() == b"fake-png-bytes"
+
+
+def test_non_admin_cannot_upload_member_photo(user_client):
+    response = user_client.post(
+        "/api/v1/members/photo",
+        files={"file": ("photo.png", b"fake-png-bytes", "image/png")},
+    )
+
+    assert response.status_code == 403
+
+
+def test_upload_member_photo_rejects_non_image_content_type(admin_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.api.members.settings.upload_dir", str(tmp_path))
+
+    response = admin_client.post(
+        "/api/v1/members/photo",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+
+    assert response.status_code == 422
+
+
+def test_upload_member_photo_rejects_oversized_file(admin_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.api.members.settings.upload_dir", str(tmp_path))
+    monkeypatch.setattr("app.api.members.MAX_PHOTO_BYTES", 10)
+
+    response = admin_client.post(
+        "/api/v1/members/photo",
+        files={"file": ("photo.png", b"this-is-more-than-ten-bytes", "image/png")},
+    )
+
+    assert response.status_code == 422

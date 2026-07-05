@@ -3,7 +3,10 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 
-STATUSES = ("active", "past")
+from app.core.countries import COUNTRIES
+
+STATUSES = ("active", "honorary", "past")
+GENDERS = ("Male", "Female", "Other")
 
 
 class MemberBase(BaseModel):
@@ -15,9 +18,13 @@ class MemberBase(BaseModel):
     title_id: uuid.UUID | None = None
     join_date: date
     leave_date: date | None = None
+    rotarian_since: date | None = None
+    rotarian_id: str | None = None
+    photo_url: str | None = None
     profession: str | None = None
     classification: str | None = None
     date_of_birth: date | None = None
+    gender: str | None = None
     nationality: str | None = None
     address: str | None = None
     is_couple: bool = False
@@ -30,11 +37,25 @@ class MemberBase(BaseModel):
             raise ValueError(f"status must be one of {STATUSES}")
         return value
 
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, value: str | None) -> str | None:
+        if value is not None and value not in GENDERS:
+            raise ValueError(f"gender must be one of {GENDERS}")
+        return value
+
     @field_validator("date_of_birth")
     @classmethod
     def validate_date_of_birth(cls, value: date | None) -> date | None:
         if value is not None and value >= date.today():
             raise ValueError("date_of_birth must be in the past")
+        return value
+
+    @field_validator("nationality")
+    @classmethod
+    def validate_nationality(cls, value: str | None) -> str | None:
+        if value is not None and value not in COUNTRIES:
+            raise ValueError("nationality must be a value from the fixed country list")
         return value
 
     @model_validator(mode="after")
@@ -57,9 +78,13 @@ class MemberUpdate(BaseModel):
     title_id: uuid.UUID | None = None
     join_date: date | None = None
     leave_date: date | None = None
+    rotarian_since: date | None = None
+    rotarian_id: str | None = None
+    photo_url: str | None = None
     profession: str | None = None
     classification: str | None = None
     date_of_birth: date | None = None
+    gender: str | None = None
     nationality: str | None = None
     address: str | None = None
     is_couple: bool | None = None
@@ -72,11 +97,25 @@ class MemberUpdate(BaseModel):
             raise ValueError(f"status must be one of {STATUSES}")
         return value
 
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, value: str | None) -> str | None:
+        if value is not None and value not in GENDERS:
+            raise ValueError(f"gender must be one of {GENDERS}")
+        return value
+
     @field_validator("date_of_birth")
     @classmethod
     def validate_date_of_birth(cls, value: date | None) -> date | None:
         if value is not None and value >= date.today():
             raise ValueError("date_of_birth must be in the past")
+        return value
+
+    @field_validator("nationality")
+    @classmethod
+    def validate_nationality(cls, value: str | None) -> str | None:
+        if value is not None and value not in COUNTRIES:
+            raise ValueError("nationality must be a value from the fixed country list")
         return value
 
 
@@ -94,17 +133,23 @@ class MemberReadLimited(BaseModel):
     title_id: uuid.UUID | None
     join_date: date
     leave_date: date | None
+    rotarian_since: date | None
+    photo_url: str | None
     profession: str | None
     classification: str | None
+    gender: str | None
     nationality: str | None
     is_couple: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime
+    years_as_rotarian: float
+    years_in_this_club: float
 
 
 class MemberRead(MemberReadLimited):
-    """Full member shape, admin only — adds date_of_birth and address."""
+    """Full member shape, admin only — adds date_of_birth, address, and rotarian_id."""
 
     date_of_birth: date | None
     address: str | None
+    rotarian_id: str | None

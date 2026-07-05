@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import MembersStatistics from "./MembersStatistics";
 
@@ -9,21 +10,17 @@ const API_BASE_URL = "http://localhost:8000/api/v1";
 const STATS = {
   by_status: [
     { label: "active", value: 12 },
+    { label: "honorary", value: 2 },
     { label: "past", value: 3 },
   ],
   by_join_year: [
     { label: "2020", value: 5 },
     { label: "2021", value: 4 },
   ],
-  average_tenure_years: 2.4,
   growth_by_rotary_year: [{ label: "2020", joins: 5, leaves: 1 }],
   by_nationality: [
     { label: "France", value: 8 },
     { label: "UK", value: 4 },
-  ],
-  by_classification: [
-    { label: "Accounting", value: 6 },
-    { label: "Law", value: 2 },
   ],
   age_distribution: [
     { label: "<30", value: 1 },
@@ -33,7 +30,25 @@ const STATS = {
     { label: "60-69", value: 3 },
     { label: "70+", value: 2 },
   ],
+  tenure_distribution: [
+    { label: "0-5", value: 4 },
+    { label: "5-10", value: 5 },
+    { label: "10-20", value: 4 },
+    { label: "20+", value: 2 },
+  ],
+  by_gender: [
+    { label: "Female", value: 6 },
+    { label: "Male", value: 8 },
+    { label: "Unknown", value: 1 },
+  ],
+  total_members: 14,
+  honorary_members: 2,
+  new_members_this_rotary_year: 3,
+  countries_represented: 5,
+  women_count: 6,
+  men_count: 8,
   average_age: 47.3,
+  average_tenure_as_rotarian: 9.8,
 };
 
 // recharts' ResponsiveContainer needs real layout dimensions to render its
@@ -42,18 +57,57 @@ const STATS = {
 // deterministically: the stat cards' computed values and the section
 // headings that prove each chart is wired up with data from the API.
 describe("MembersStatistics", () => {
-  it("renders stat cards computed from the statistics response", async () => {
+  it("renders Row 1 and Row 2 stat cards computed from the statistics response", async () => {
     server.use(
       http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
     );
 
     const { container } = render(<MembersStatistics />);
 
-    await screen.findByText("Active members");
+    await screen.findByText("Total Members");
     const values = Array.from(container.querySelectorAll(".stat-value")).map(
       (node) => node.textContent,
     );
-    expect(values).toEqual(["12", "3", "2.4", "47.3"]);
+    expect(values).toEqual(["14", "2", "3", "5", "6", "8", "47.3", "9.8"]);
+
+    expect(screen.getByText("Honorary Members")).toBeInTheDocument();
+    expect(screen.getByText(/new members/i)).toBeInTheDocument();
+    expect(screen.getByText("Countries Represented")).toBeInTheDocument();
+    expect(screen.getByText("Number of Women")).toBeInTheDocument();
+    expect(screen.getByText("Number of Men")).toBeInTheDocument();
+    expect(screen.getByText("Average Age")).toBeInTheDocument();
+    expect(screen.getByText(/average tenure/i)).toBeInTheDocument();
+  });
+
+  it("never shows a Past Members count card", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+    );
+
+    render(<MembersStatistics />);
+
+    await screen.findByText("Total Members");
+    expect(screen.queryByText(/past members/i)).not.toBeInTheDocument();
+  });
+
+  it("groups related stat cards with matching light-tone classes", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+    );
+
+    render(<MembersStatistics />);
+
+    const totalCard = (await screen.findByText("Total Members")).closest(".stat-card");
+    const honoraryCard = screen.getByText("Honorary Members").closest(".stat-card");
+    const womenCard = screen.getByText("Number of Women").closest(".stat-card");
+    const menCard = screen.getByText("Number of Men").closest(".stat-card");
+    const ageCard = screen.getByText("Average Age").closest(".stat-card");
+    const tenureCard = screen.getByText(/average tenure/i).closest(".stat-card");
+
+    expect(totalCard.className).toBe(honoraryCard.className);
+    expect(womenCard.className).toBe(menCard.className);
+    expect(ageCard.className).toBe(tenureCard.className);
+    expect(womenCard.className).not.toBe(ageCard.className);
   });
 
   it("renders a section for each chart", async () => {
@@ -69,8 +123,9 @@ describe("MembersStatistics", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /nationality distribution/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /classification distribution/i }),
+      screen.getByRole("heading", { name: /tenure distribution/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /gender distribution/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /age distribution/i })).toBeInTheDocument();
   });
 
@@ -84,5 +139,88 @@ describe("MembersStatistics", () => {
     render(<MembersStatistics />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/server error/i);
+  });
+
+  describe("Generate Report", () => {
+    // Patch only the two static methods actually used by the download flow,
+    // rather than stubbing the whole URL global — MSW itself relies on the
+    // real `new URL(...)` constructor internally to match requests, and
+    // replacing the global broke every fetch in these tests.
+    let originalCreateObjectURL;
+    let originalRevokeObjectURL;
+
+    beforeEach(() => {
+      originalCreateObjectURL = URL.createObjectURL;
+      originalRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = vi.fn(() => "blob:mock-url");
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    afterEach(() => {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it("downloads a PDF report with the selected format", async () => {
+      let requestedFormat;
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.post(`${API_BASE_URL}/members/statistics/report`, ({ request }) => {
+          requestedFormat = new URL(request.url).searchParams.get("format");
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="members-statistics-report.pdf"',
+            },
+          });
+        }),
+      );
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+      expect(requestedFormat).toBe("pdf");
+    });
+
+    it("requests the pptx format when selected", async () => {
+      let requestedFormat;
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.post(`${API_BASE_URL}/members/statistics/report`, ({ request }) => {
+          requestedFormat = new URL(request.url).searchParams.get("format");
+          return new HttpResponse("fake-pptx-bytes", {
+            headers: { "Content-Disposition": 'attachment; filename="report.pptx"' },
+          });
+        }),
+      );
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+
+      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(requestedFormat).toBe("pptx"));
+    });
+
+    it("shows an error if report generation fails", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.post(`${API_BASE_URL}/members/statistics/report`, () =>
+          HttpResponse.json({ detail: "Report generation failed" }, { status: 500 }),
+        ),
+      );
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/report generation failed/i);
+    });
   });
 });

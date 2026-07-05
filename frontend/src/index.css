@@ -12,6 +12,13 @@
   --accent-bg: rgba(23, 69, 143, 0.08);
   --shadow: rgba(12, 35, 64, 0.08) 0 4px 12px -2px;
 
+  /* Light/pastel stat-card tone pairs (Story 2b.11) — grouped by related
+     stat pairs, all paired with --text-h for accessible contrast. */
+  --tone-blue-bg: #e3edfb;
+  --tone-lavender-bg: #ece7fb;
+  --tone-teal-bg: #e0f4f1;
+  --tone-amber-bg: #fdf0da;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
 

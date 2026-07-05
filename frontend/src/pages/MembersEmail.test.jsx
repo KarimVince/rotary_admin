@@ -157,6 +157,66 @@ describe("MembersEmail", () => {
     );
   });
 
+  it("uploads an attachment, allows removing it, and sends the remaining ones", async () => {
+    mockLoadHandlers();
+    let capturedBody;
+    // jsdom/MSW's FormData round-trip doesn't reliably preserve File.name here
+    // (it comes back as "blob"), so return filenames by upload order instead
+    // of trying to read them back off the parsed request.
+    const uploadedFilenames = ["flyer.pdf", "agenda.pdf"];
+    let uploadCount = 0;
+    server.use(
+      http.post(`${API_BASE_URL}/members/email/attachments`, () => {
+        const filename = uploadedFilenames[uploadCount];
+        uploadCount += 1;
+        return HttpResponse.json(
+          { filename, url: `http://localhost:8000/static/email-attachments/${filename}` },
+          { status: 201 },
+        );
+      }),
+      http.post(`${API_BASE_URL}/members/email`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          email_log_id: "log-4",
+          status: "sent",
+          recipient_count: 1,
+          success_count: 1,
+          failure_count: 0,
+        });
+      }),
+    );
+
+    render(<MembersEmail />);
+    await waitForLoaded();
+
+    await userEvent.type(screen.getByLabelText(/subject/i), "Hello");
+    await userEvent.type(screen.getByLabelText(/body/i), "World");
+
+    const flyer = new File(["flyer-bytes"], "flyer.pdf", { type: "application/pdf" });
+    const agenda = new File(["agenda-bytes"], "agenda.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByLabelText(/attachments/i), flyer);
+    await screen.findByText("flyer.pdf");
+    await userEvent.upload(screen.getByLabelText(/attachments/i), agenda);
+    await screen.findByText("agenda.pdf");
+
+    await userEvent.click(screen.getAllByRole("button", { name: /remove/i })[0]);
+    expect(screen.queryByText("flyer.pdf")).not.toBeInTheDocument();
+    expect(screen.getByText("agenda.pdf")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /review send/i }));
+    expect(screen.getByText(/this will email/i)).toHaveTextContent("1 attachment");
+    await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
+
+    await waitFor(() =>
+      expect(capturedBody?.attachments).toEqual([
+        {
+          filename: "agenda.pdf",
+          url: "http://localhost:8000/static/email-attachments/agenda.pdf",
+        },
+      ]),
+    );
+  });
+
   it("shows an error if sending fails", async () => {
     mockLoadHandlers();
     server.use(

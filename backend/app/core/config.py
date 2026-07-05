@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     admin_password: str = "change-me"
     admin_full_name: str = "Admin"
 
+    upload_dir: str = "uploads"
+    # Absolute origin the backend is reachable at, used to build fully-qualified
+    # URLs for resources external services must fetch (e.g. email attachment
+    # URLs passed to Sender.net, which fetches attachments itself rather than
+    # accepting raw bytes).
+    public_base_url: str = "http://localhost:8000"
+    max_email_attachment_bytes: int = 10 * 1024 * 1024
+
     # CORS_ALLOWED_ORIGINS is comma-separated, e.g.
     # "http://localhost:5173,https://staging.example.com". Kept as a plain
     # string field (rather than list[str]) so pydantic-settings doesn't try

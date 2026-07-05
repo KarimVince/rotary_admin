@@ -192,6 +192,85 @@ def test_email_skips_members_without_an_email_address(admin_client, db_session, 
     assert response.json()["recipient_count"] == 0
 
 
+def test_admin_can_upload_email_attachment(admin_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.api.member_email.settings.upload_dir", str(tmp_path))
+
+    response = admin_client.post(
+        "/api/v1/members/email/attachments",
+        files={"file": ("newsletter.pdf", b"fake-pdf-bytes", "application/pdf")},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["filename"] == "newsletter.pdf"
+    assert body["url"].startswith("http://localhost:8000/static/email-attachments/")
+    assert body["url"].endswith(".pdf")
+
+
+def test_non_admin_cannot_upload_email_attachment(user_client):
+    response = user_client.post(
+        "/api/v1/members/email/attachments",
+        files={"file": ("newsletter.pdf", b"fake-pdf-bytes", "application/pdf")},
+    )
+
+    assert response.status_code == 403
+
+
+def test_upload_email_attachment_rejects_oversized_file(admin_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.api.member_email.settings.upload_dir", str(tmp_path))
+    monkeypatch.setattr("app.api.member_email.settings.max_email_attachment_bytes", 10)
+
+    response = admin_client.post(
+        "/api/v1/members/email/attachments",
+        files={"file": ("big.pdf", b"this-is-more-than-ten-bytes", "application/pdf")},
+    )
+
+    assert response.status_code == 422
+
+
+def test_email_with_attachments_passes_them_to_sender_and_logs_has_attachments(
+    admin_client, monkeypatch
+):
+    captured = {}
+
+    def _capture(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("app.api.member_email.send_email", _capture)
+    _create_member(admin_client, email="a@example.com")
+
+    response = admin_client.post(
+        "/api/v1/members/email",
+        json={
+            "subject": "Newsletter",
+            "body": "<p>Hello</p>",
+            "recipient_group": "all",
+            "attachments": [
+                {"filename": "newsletter.pdf", "url": "http://localhost:8000/static/x.pdf"}
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["attachments"] == {"newsletter.pdf": "http://localhost:8000/static/x.pdf"}
+
+    log_response = admin_client.get("/api/v1/members/email-log")
+    assert log_response.json()[0]["has_attachments"] is True
+
+
+def test_email_without_attachments_logs_has_attachments_false(admin_client, monkeypatch):
+    monkeypatch.setattr("app.api.member_email.send_email", _always_succeeds)
+    _create_member(admin_client, email="a@example.com")
+
+    admin_client.post(
+        "/api/v1/members/email",
+        json={"subject": "Hi", "body": "Hello", "recipient_group": "all"},
+    )
+
+    log_response = admin_client.get("/api/v1/members/email-log")
+    assert log_response.json()[0]["has_attachments"] is False
+
+
 def test_non_admin_cannot_view_email_log(user_client):
     response = user_client.get("/api/v1/members/email-log")
 

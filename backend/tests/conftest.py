@@ -78,6 +78,7 @@ def make_user(db_session):
         full_name: str = "Test User",
         role: str = "user",
         is_active: bool = True,
+        member_id=None,
     ) -> User:
         user = User(
             email=email,
@@ -85,6 +86,7 @@ def make_user(db_session):
             full_name=full_name,
             role=role,
             is_active=is_active,
+            member_id=member_id,
         )
         db_session.add(user)
         db_session.commit()
@@ -175,3 +177,11 @@ def treasurer_client(db_session, make_user):
 def user_client(db_session, make_user):
     user = make_user(email="user-fixture@example.com", role="user")
     return _build_authenticated_client(db_session, user)
+
+
+@pytest.fixture
+def build_client(db_session):
+    def _build(user: User) -> TestClient:
+        return _build_authenticated_client(db_session, user)
+
+    return _build

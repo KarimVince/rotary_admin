@@ -12,19 +12,42 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchMemberStatistics } from "../api/memberStatistics";
+import { fetchMemberStatistics, generateStatisticsReport } from "../api/memberStatistics";
 
 const PIE_COLORS = ["#17458f", "#f7a81b", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
 
 export default function MembersStatistics() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [reportFormat, setReportFormat] = useState("pdf");
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState(null);
 
   useEffect(() => {
     fetchMemberStatistics()
       .then(setStats)
       .catch((err) => setError(err.detail || "Failed to load statistics"));
   }, []);
+
+  async function handleGenerateReport() {
+    setIsGeneratingReport(true);
+    setReportError(null);
+    try {
+      const { blob, filename } = await generateStatisticsReport(reportFormat);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(err.detail || "Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }
 
   if (error) {
     return (
@@ -44,29 +67,62 @@ export default function MembersStatistics() {
     );
   }
 
-  const activeCount = stats.by_status.find((entry) => entry.label === "active")?.value ?? 0;
-  const pastCount = stats.by_status.find((entry) => entry.label === "past")?.value ?? 0;
-
   return (
     <div className="admin-page">
       <h1>Member statistics</h1>
 
-      <div className="stat-cards">
-        <div className="stat-card">
-          <span className="stat-value">{activeCount}</span>
-          <span className="stat-label">Active members</span>
+      <div className="report-controls">
+        <label htmlFor="report-format">Generate report</label>
+        <select
+          id="report-format"
+          value={reportFormat}
+          onChange={(event) => setReportFormat(event.target.value)}
+          disabled={isGeneratingReport}
+        >
+          <option value="pdf">PDF</option>
+          <option value="pptx">PowerPoint (PPTX)</option>
+        </select>
+        <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
+          {isGeneratingReport ? "Generating…" : "Generate Report"}
+        </button>
+        {reportError && <p role="alert">{reportError}</p>}
+      </div>
+
+      <div className="stat-cards-row">
+        <div className="stat-card stat-card-blue">
+          <span className="stat-value">{stats.total_members}</span>
+          <span className="stat-label">Total Members</span>
         </div>
-        <div className="stat-card">
-          <span className="stat-value">{pastCount}</span>
-          <span className="stat-label">Past members</span>
+        <div className="stat-card stat-card-blue">
+          <span className="stat-value">{stats.honorary_members}</span>
+          <span className="stat-label">Honorary Members</span>
         </div>
-        <div className="stat-card">
-          <span className="stat-value">{stats.average_tenure_years ?? "–"}</span>
-          <span className="stat-label">Average tenure (years)</span>
+        <div className="stat-card stat-card-lavender">
+          <span className="stat-value">{stats.new_members_this_rotary_year}</span>
+          <span className="stat-label">New Members (this Rotary year)</span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card stat-card-lavender">
+          <span className="stat-value">{stats.countries_represented}</span>
+          <span className="stat-label">Countries Represented</span>
+        </div>
+      </div>
+
+      <div className="stat-cards-row">
+        <div className="stat-card stat-card-teal">
+          <span className="stat-value">{stats.women_count}</span>
+          <span className="stat-label">Number of Women</span>
+        </div>
+        <div className="stat-card stat-card-teal">
+          <span className="stat-value">{stats.men_count}</span>
+          <span className="stat-label">Number of Men</span>
+        </div>
+        <div className="stat-card stat-card-amber">
           <span className="stat-value">{stats.average_age ?? "–"}</span>
-          <span className="stat-label">Average age</span>
+          <span className="stat-label">Average Age</span>
+        </div>
+        <div className="stat-card stat-card-amber">
+          <span className="stat-value">{stats.average_tenure_as_rotarian ?? "–"}</span>
+          <span className="stat-label">Average Tenure (as Rotarian)</span>
         </div>
       </div>
 
@@ -121,15 +177,36 @@ export default function MembersStatistics() {
         </div>
 
         <div className="chart-card">
-          <h2>Classification distribution</h2>
+          <h2>Tenure distribution (years as Rotarian)</h2>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={stats.by_classification} layout="vertical">
+            <BarChart data={stats.tenure_distribution}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" allowDecimals={false} />
-              <YAxis type="category" dataKey="label" width={120} />
+              <XAxis dataKey="label" />
+              <YAxis allowDecimals={false} />
               <Tooltip />
               <Bar dataKey="value" name="Members" fill="#17458f" />
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-card">
+          <h2>Gender distribution</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={stats.by_gender}
+                dataKey="value"
+                nameKey="label"
+                outerRadius={80}
+                label={(entry) => entry.label}
+              >
+                {stats.by_gender.map((entry, index) => (
+                  <Cell key={entry.label} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
           </ResponsiveContainer>
         </div>
 

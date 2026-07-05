@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.core.config import settings
 from app.core.sender_client import SenderAPIError, send_email
 from app.db.session import get_db
 from app.models import EmailLog, Member, User
@@ -25,6 +29,32 @@ def _resolve_recipients(payload: MemberEmailRequest, db: Session) -> list[Member
     return []
 
 
+@router.post("/members/email/attachments", status_code=status.HTTP_201_CREATED)
+async def upload_email_attachment(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_admin),
+):
+    contents = await file.read()
+    if len(contents) > settings.max_email_attachment_bytes:
+        max_mb = settings.max_email_attachment_bytes / (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Attachment must be smaller than {max_mb:.0f}MB",
+        )
+
+    original_name = file.filename or "attachment"
+    extension = Path(original_name).suffix
+    stored_name = f"{uuid.uuid4().hex}{extension}"
+    attachment_dir = Path(settings.upload_dir) / "email-attachments"
+    attachment_dir.mkdir(parents=True, exist_ok=True)
+    (attachment_dir / stored_name).write_bytes(contents)
+
+    return {
+        "filename": original_name,
+        "url": f"{settings.public_base_url}/static/email-attachments/{stored_name}",
+    }
+
+
 @router.post("/members/email", response_model=MemberEmailResult)
 def email_members(
     payload: MemberEmailRequest,
@@ -32,6 +62,11 @@ def email_members(
     current_user: User = Depends(require_admin),
 ):
     recipients = _resolve_recipients(payload, db)
+    attachments = (
+        {attachment.filename: attachment.url for attachment in payload.attachments}
+        if payload.attachments
+        else None
+    )
 
     success_count = 0
     failure_count = 0
@@ -43,6 +78,7 @@ def email_members(
                 to_name=f"{member.first_name} {member.last_name}",
                 subject=payload.subject,
                 html_body=payload.body,
+                attachments=attachments,
             )
             success_count += 1
         except SenderAPIError:
@@ -66,6 +102,7 @@ def email_members(
         recipient_group=recipient_group_label,
         recipient_count=recipient_count,
         status=log_status,
+        has_attachments=bool(payload.attachments),
     )
     db.add(email_log)
     db.commit()

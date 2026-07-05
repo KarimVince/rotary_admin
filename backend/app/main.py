@@ -1,5 +1,8 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import auth, dashboard, health, member_email, member_titles, members, users
 from app.core.config import settings
@@ -13,6 +16,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+os.makedirs(os.path.join(settings.upload_dir, "members"), exist_ok=True)
+os.makedirs(os.path.join(settings.upload_dir, "email-attachments"), exist_ok=True)
+app.mount("/static", StaticFiles(directory=settings.upload_dir), name="static")
 
 app.add_exception_handler(Exception, unhandled_exception_handler)
 

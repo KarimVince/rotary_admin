@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,3 +25,6 @@ class EmailLog(Base):
         DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
     )
     status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="sent")
+    has_attachments: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )

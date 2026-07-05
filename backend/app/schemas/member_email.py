@@ -7,11 +7,17 @@ from pydantic import BaseModel, ConfigDict, model_validator
 RecipientGroup = Literal["all", "active", "past"]
 
 
+class EmailAttachment(BaseModel):
+    filename: str
+    url: str
+
+
 class MemberEmailRequest(BaseModel):
     subject: str
     body: str
     recipient_group: RecipientGroup | None = None
     member_ids: list[uuid.UUID] | None = None
+    attachments: list[EmailAttachment] | None = None
 
     @model_validator(mode="after")
     def validate_recipients(self) -> "MemberEmailRequest":
@@ -39,3 +45,4 @@ class EmailLogRead(BaseModel):
     recipient_count: int
     status: str
     sent_at: datetime
+    has_attachments: bool

@@ -14,7 +14,14 @@ class SenderAPIError(Exception):
         self.status_code = status_code
 
 
-def send_email(*, to_email: str, to_name: str, subject: str, html_body: str) -> None:
+def send_email(
+    *,
+    to_email: str,
+    to_name: str,
+    subject: str,
+    html_body: str,
+    attachments: dict[str, str] | None = None,
+) -> None:
     if not settings.sender_api_key:
         raise SenderAPIError("Sender API key is not configured")
 
@@ -24,6 +31,10 @@ def send_email(*, to_email: str, to_name: str, subject: str, html_body: str) -> 
         "subject": subject,
         "html": html_body,
     }
+    # Sender's API takes attachments as {filename: publicly_accessible_url} —
+    # it fetches the file itself rather than accepting raw bytes/base64.
+    if attachments:
+        payload["attachments"] = attachments
 
     try:
         response = httpx.post(

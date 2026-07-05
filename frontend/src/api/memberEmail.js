@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiUpload } from "./client";
 
 export function sendMemberEmail(payload) {
   return apiFetch("/members/email", {
@@ -9,4 +9,10 @@ export function sendMemberEmail(payload) {
 
 export function listEmailLog() {
   return apiFetch("/members/email-log");
+}
+
+export function uploadEmailAttachment(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiUpload("/members/email/attachments", formData);
 }

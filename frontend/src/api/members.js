@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiUpload } from "./client";
 
 function buildQuery(params) {
   const query = new URLSearchParams();
@@ -37,4 +37,10 @@ export function markMemberPast(memberId) {
   return apiFetch(`/members/${memberId}`, {
     method: "DELETE",
   });
+}
+
+export function uploadMemberPhoto(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiUpload("/members/photo", formData);
 }

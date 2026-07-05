@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { listEmailLog, sendMemberEmail } from "../api/memberEmail";
+import { listEmailLog, sendMemberEmail, uploadEmailAttachment } from "../api/memberEmail";
 import { listMembers } from "../api/members";
 
 const GROUP_LABELS = {
@@ -19,6 +19,9 @@ export default function MembersEmail() {
   const [recipientMode, setRecipientMode] = useState("group");
   const [recipientGroup, setRecipientGroup] = useState("active");
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState(null);
 
   const [isConfirming, setIsConfirming] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -63,6 +66,27 @@ export default function MembersEmail() {
     );
   }
 
+  async function handleAttachmentChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAttachment(true);
+    setAttachmentError(null);
+    try {
+      const attachment = await uploadEmailAttachment(file);
+      setAttachments((current) => [...current, attachment]);
+    } catch (err) {
+      setAttachmentError(err.detail || "Failed to upload attachment");
+    } finally {
+      setIsUploadingAttachment(false);
+      event.target.value = "";
+    }
+  }
+
+  function removeAttachment(filename) {
+    setAttachments((current) => current.filter((attachment) => attachment.filename !== filename));
+  }
+
   function handleReview(event) {
     event.preventDefault();
     setSendError(null);
@@ -85,12 +109,16 @@ export default function MembersEmail() {
       } else {
         payload.recipient_group = recipientGroup;
       }
+      if (attachments.length > 0) {
+        payload.attachments = attachments;
+      }
       const result = await sendMemberEmail(payload);
       setLastResult(result);
       setIsConfirming(false);
       setSubject("");
       setBody("");
       setSelectedMemberIds([]);
+      setAttachments([]);
       await loadData();
     } catch (err) {
       setSendError(err.detail || "Failed to send email");
@@ -109,7 +137,7 @@ export default function MembersEmail() {
 
       {!isLoading && !loadError && (
         <>
-          <form className="admin-form" onSubmit={handleReview}>
+          <form className="admin-form email-compose-form" onSubmit={handleReview}>
             <h2>Compose</h2>
 
             <label htmlFor="email-subject">Subject</label>
@@ -124,35 +152,64 @@ export default function MembersEmail() {
             <label htmlFor="email-body">Body</label>
             <textarea
               id="email-body"
-              rows={6}
+              className="email-body-textarea"
               value={body}
               onChange={(event) => setBody(event.target.value)}
               required
             />
 
-            <label htmlFor="recipient-mode">Send to</label>
-            <select
-              id="recipient-mode"
-              value={recipientMode}
-              onChange={(event) => setRecipientMode(event.target.value)}
-            >
-              <option value="group">A group</option>
-              <option value="custom">Custom selection</option>
-            </select>
-
-            {recipientMode === "group" && (
-              <>
-                <label htmlFor="recipient-group">Group</label>
+            <div className="email-controls-row">
+              <div>
+                <label htmlFor="recipient-mode">Send to</label>
                 <select
-                  id="recipient-group"
-                  value={recipientGroup}
-                  onChange={(event) => setRecipientGroup(event.target.value)}
+                  id="recipient-mode"
+                  value={recipientMode}
+                  onChange={(event) => setRecipientMode(event.target.value)}
                 >
-                  <option value="all">All members</option>
-                  <option value="active">Active members</option>
-                  <option value="past">Past members</option>
+                  <option value="group">A group</option>
+                  <option value="custom">Custom selection</option>
                 </select>
-              </>
+              </div>
+
+              {recipientMode === "group" && (
+                <div>
+                  <label htmlFor="recipient-group">Group</label>
+                  <select
+                    id="recipient-group"
+                    value={recipientGroup}
+                    onChange={(event) => setRecipientGroup(event.target.value)}
+                  >
+                    <option value="all">All members</option>
+                    <option value="active">Active members</option>
+                    <option value="past">Past members</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="email-attachment">Attachments</label>
+                <input
+                  id="email-attachment"
+                  type="file"
+                  onChange={handleAttachmentChange}
+                  disabled={isUploadingAttachment}
+                />
+                {isUploadingAttachment && <span>Uploading…</span>}
+              </div>
+            </div>
+
+            {attachmentError && <p role="alert">{attachmentError}</p>}
+            {attachments.length > 0 && (
+              <ul className="email-attachment-list">
+                {attachments.map((attachment) => (
+                  <li key={attachment.filename}>
+                    {attachment.filename}{" "}
+                    <button type="button" onClick={() => removeAttachment(attachment.filename)}>
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
 
             {recipientMode === "custom" && (
@@ -204,8 +261,11 @@ export default function MembersEmail() {
               <p>
                 This will email <strong>{previewCount}</strong> recipient
                 {previewCount === 1 ? "" : "s"}
-                {recipientMode === "group" ? ` (${GROUP_LABELS[recipientGroup]})` : ""}. This
-                cannot be undone.
+                {recipientMode === "group" ? ` (${GROUP_LABELS[recipientGroup]})` : ""}
+                {attachments.length > 0
+                  ? ` with ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+                  : ""}
+                . This cannot be undone.
               </p>
               <button type="button" onClick={handleConfirmSend} disabled={isSending}>
                 {isSending ? "Sending…" : "Confirm send"}
@@ -224,6 +284,7 @@ export default function MembersEmail() {
                 <th>Recipient group</th>
                 <th>Recipients</th>
                 <th>Status</th>
+                <th>Attachments</th>
                 <th>Sent at</th>
               </tr>
             </thead>
@@ -234,6 +295,7 @@ export default function MembersEmail() {
                   <td>{entry.recipient_group}</td>
                   <td>{entry.recipient_count}</td>
                   <td>{entry.status}</td>
+                  <td>{entry.has_attachments ? "Yes" : "No"}</td>
                   <td>{new Date(entry.sent_at).toLocaleString()}</td>
                 </tr>
               ))}

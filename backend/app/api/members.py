@@ -1,13 +1,17 @@
 import uuid
 from collections import Counter
 from datetime import date
+from pathlib import Path
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
+from app.core.config import settings
 from app.core.rotary_year import rotary_year
+from app.core.statistics_report import build_pdf_report, build_pptx_report
 from app.db.session import get_db
 from app.models import Member, User
 from app.schemas.member import MemberCreate, MemberRead, MemberReadLimited, MemberUpdate
@@ -16,6 +20,15 @@ from app.schemas.member_statistics import JoinsLeavesByYear, LabelValue, Members
 router = APIRouter()
 
 AGE_BUCKETS = ["<30", "30-39", "40-49", "50-59", "60-69", "70+"]
+TENURE_BUCKETS = ["0-5", "5-10", "10-20", "20+"]
+
+PHOTO_CONTENT_TYPE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 
 def _age_bucket(age: int) -> str:
@@ -30,6 +43,16 @@ def _age_bucket(age: int) -> str:
     if age < 70:
         return "60-69"
     return "70+"
+
+
+def _tenure_bucket(years: float) -> str:
+    if years < 5:
+        return "0-5"
+    if years < 10:
+        return "5-10"
+    if years < 20:
+        return "10-20"
+    return "20+"
 
 
 def _serialize(member: Member, current_user: User) -> dict:
@@ -51,6 +74,14 @@ def create_member(
                 detail="Email already registered to another member",
             )
 
+    if payload.rotarian_id is not None:
+        existing = db.query(Member).filter(Member.rotarian_id == payload.rotarian_id).first()
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Rotarian ID already registered to another member",
+            )
+
     member = Member(**payload.model_dump())
     db.add(member)
     db.commit()
@@ -58,13 +89,71 @@ def create_member(
     return member
 
 
-@router.get("/members/statistics", response_model=MembersStatistics)
-def members_statistics(
-    db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+@router.post("/members/photo", status_code=status.HTTP_201_CREATED)
+async def upload_member_photo(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_admin),
 ):
+    extension = PHOTO_CONTENT_TYPE_EXTENSIONS.get(file.content_type)
+    if extension is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Photo must be a JPEG, PNG, WEBP, or GIF image",
+        )
+
+    contents = await file.read()
+    if len(contents) > MAX_PHOTO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Photo must be smaller than 5MB",
+        )
+
+    filename = f"{uuid.uuid4().hex}{extension}"
+    upload_dir = Path(settings.upload_dir) / "members"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    (upload_dir / filename).write_bytes(contents)
+
+    return {"photo_url": f"/static/members/{filename}"}
+
+
+def compute_members_statistics(db: Session) -> MembersStatistics:
+    """Shared by the JSON statistics endpoint and the report export (2b.14)."""
     members = db.query(Member).all()
     today = date.today()
+    current_rotary_year = rotary_year(today)
+
+    # Headline stat cards (Story 2b.11) are scoped to Active + Honorary
+    # members only — Past members are excluded from every one of these,
+    # not just hidden from their own card. Chart data below (age/tenure/
+    # nationality/gender distributions) is intentionally left unscoped —
+    # only the 8 headline figures changed scope for this story.
+    active_honorary_members = [m for m in members if m.status in ("active", "honorary")]
+    total_members = len(active_honorary_members)
+    honorary_members = sum(1 for m in members if m.status == "honorary")
+    new_members_this_rotary_year = sum(
+        1
+        for member in active_honorary_members
+        if member.join_date and rotary_year(member.join_date) == current_rotary_year
+    )
+    countries_represented = len(
+        {member.nationality for member in active_honorary_members if member.nationality}
+    )
+    women_count = sum(1 for member in active_honorary_members if member.gender == "Female")
+    men_count = sum(1 for member in active_honorary_members if member.gender == "Male")
+
+    ah_ages = [
+        (today - member.date_of_birth).days // 365
+        for member in active_honorary_members
+        if member.date_of_birth
+    ]
+    average_age = round(sum(ah_ages) / len(ah_ages), 1) if ah_ages else None
+
+    ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_honorary_members]
+    average_tenure_as_rotarian = (
+        round(sum(ah_tenures_as_rotarian) / len(ah_tenures_as_rotarian), 1)
+        if ah_tenures_as_rotarian
+        else None
+    )
 
     status_counts: Counter = Counter(member.status for member in members)
     join_year_counts: Counter = Counter(
@@ -73,23 +162,19 @@ def members_statistics(
     nationality_counts: Counter = Counter(
         member.nationality or "Unknown" for member in members
     )
-    classification_counts: Counter = Counter(
-        member.classification or "Unknown" for member in members
-    )
+    gender_counts: Counter = Counter(member.gender or "Unknown" for member in members)
 
-    tenures: list[float] = []
     growth: dict[int, dict[str, int]] = {}
-    ages: list[int] = []
     age_bucket_counts: Counter = Counter()
+    tenure_bucket_counts: Counter = Counter()
 
     for member in members:
         if member.join_date:
-            end = member.leave_date or today
-            tenures.append((end - member.join_date).days / 365.25)
-
             join_ry = rotary_year(member.join_date)
             growth.setdefault(join_ry, {"joins": 0, "leaves": 0})
             growth[join_ry]["joins"] += 1
+
+            tenure_bucket_counts[_tenure_bucket(member.years_as_rotarian)] += 1
 
         if member.leave_date:
             leave_ry = rotary_year(member.leave_date)
@@ -98,7 +183,6 @@ def members_statistics(
 
         if member.date_of_birth:
             age = (today - member.date_of_birth).days // 365
-            ages.append(age)
             age_bucket_counts[_age_bucket(age)] += 1
 
     return MembersStatistics(
@@ -109,7 +193,6 @@ def members_statistics(
             LabelValue(label=str(year), value=value)
             for year, value in sorted(join_year_counts.items())
         ],
-        average_tenure_years=round(sum(tenures) / len(tenures), 1) if tenures else None,
         growth_by_rotary_year=[
             JoinsLeavesByYear(label=str(year), joins=data["joins"], leaves=data["leaves"])
             for year, data in sorted(growth.items())
@@ -118,15 +201,58 @@ def members_statistics(
             LabelValue(label=label, value=value)
             for label, value in sorted(nationality_counts.items())
         ],
-        by_classification=[
-            LabelValue(label=label, value=value)
-            for label, value in sorted(classification_counts.items())
-        ],
         age_distribution=[
             LabelValue(label=bucket, value=age_bucket_counts.get(bucket, 0))
             for bucket in AGE_BUCKETS
         ],
-        average_age=round(sum(ages) / len(ages), 1) if ages else None,
+        tenure_distribution=[
+            LabelValue(label=bucket, value=tenure_bucket_counts.get(bucket, 0))
+            for bucket in TENURE_BUCKETS
+        ],
+        by_gender=[
+            LabelValue(label=label, value=value) for label, value in sorted(gender_counts.items())
+        ],
+        total_members=total_members,
+        honorary_members=honorary_members,
+        new_members_this_rotary_year=new_members_this_rotary_year,
+        countries_represented=countries_represented,
+        women_count=women_count,
+        men_count=men_count,
+        average_age=average_age,
+        average_tenure_as_rotarian=average_tenure_as_rotarian,
+    )
+
+
+@router.get("/members/statistics", response_model=MembersStatistics)
+def members_statistics(
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    return compute_members_statistics(db)
+
+
+@router.post("/members/statistics/report")
+def generate_statistics_report(
+    report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    stats = compute_members_statistics(db)
+    today_str = date.today().isoformat()
+
+    if report_format == "pdf":
+        content = build_pdf_report(stats)
+        media_type = "application/pdf"
+        filename = f"members-statistics-report-{today_str}.pdf"
+    else:
+        content = build_pptx_report(stats)
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        filename = f"members-statistics-report-{today_str}.pptx"
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -173,8 +299,15 @@ def update_member(
     member_id: uuid.UUID,
     payload: MemberUpdate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    is_self_linked = current_user.role == "user" and current_user.member_id == member_id
+    if current_user.role != "admin" and not is_self_linked:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit your own linked member record",
+        )
+
     member = db.get(Member, member_id)
     if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
@@ -191,6 +324,18 @@ def update_member(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already registered to another member",
+            )
+
+    if update_data.get("rotarian_id") is not None:
+        existing = (
+            db.query(Member)
+            .filter(Member.rotarian_id == update_data["rotarian_id"], Member.id != member_id)
+            .first()
+        )
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Rotarian ID already registered to another member",
             )
 
     for field, value in update_data.items():
