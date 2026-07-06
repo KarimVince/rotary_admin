@@ -221,7 +221,7 @@ describe("MembersEmail", () => {
     mockLoadHandlers();
     server.use(
       http.post(`${API_BASE_URL}/members/email`, () =>
-        HttpResponse.json({ detail: "Sender API key is not configured" }, { status: 500 }),
+        HttpResponse.json({ detail: "Resend API key is not configured" }, { status: 500 }),
       ),
     );
 
@@ -234,7 +234,7 @@ describe("MembersEmail", () => {
     await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /sender api key is not configured/i,
+      /resend api key is not configured/i,
     );
   });
 });

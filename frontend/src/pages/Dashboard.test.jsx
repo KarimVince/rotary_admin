@@ -18,6 +18,7 @@ describe("Dashboard", () => {
           active_members: 12,
           organisations_supported: 3,
           rotary_friends: 7,
+          donations_this_year: 4200,
         }),
       ),
     );
@@ -27,9 +28,11 @@ describe("Dashboard", () => {
     expect(await screen.findByText("12")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("4,200 €")).toBeInTheDocument();
     expect(screen.getByText("Active members")).toBeInTheDocument();
     expect(screen.getByText("NGOs supported")).toBeInTheDocument();
     expect(screen.getByText("Friends of Rotary")).toBeInTheDocument();
+    expect(screen.getByText("Donations this rotary year")).toBeInTheDocument();
   });
 
   it("shows an error message when the summary request fails", async () => {

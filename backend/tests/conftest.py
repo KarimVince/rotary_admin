@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, hash_password
 from app.db.session import get_db
 from app.main import app
-from app.models import Member, Organisation, RotaryFriend, User
+from app.models import ExchangeRate, Member, Organisation, RotaryFriend, User
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 TEST_DATABASE_URL = settings.database_url.rsplit("/", 1)[0] + "/rotary_admin_test"
@@ -120,7 +120,7 @@ def make_member(db_session):
 
 @pytest.fixture
 def make_organisation(db_session):
-    def _make_organisation(name: str = "Test Org", country: str = "FR") -> Organisation:
+    def _make_organisation(name: str = "Test Org", country: str = "France") -> Organisation:
         organisation = Organisation(name=name, country=country)
         db_session.add(organisation)
         db_session.commit()
@@ -128,6 +128,22 @@ def make_organisation(db_session):
         return organisation
 
     return _make_organisation
+
+
+@pytest.fixture
+def make_exchange_rate(db_session):
+    def _make_exchange_rate(
+        currency_code: str = "EUR", rate_to_hkd: float = 8.5, rate_to_usd: float = 1.09
+    ) -> ExchangeRate:
+        rate = ExchangeRate(
+            currency_code=currency_code, rate_to_hkd=rate_to_hkd, rate_to_usd=rate_to_usd
+        )
+        db_session.add(rate)
+        db_session.commit()
+        db_session.refresh(rate)
+        return rate
+
+    return _make_exchange_rate
 
 
 @pytest.fixture

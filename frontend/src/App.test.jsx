@@ -183,9 +183,10 @@ describe("App auth flow", () => {
 
     const nav = within(screen.getByRole("navigation"));
     expect(nav.getByText("Members")).toBeInTheDocument();
-    expect(nav.getByRole("link", { name: "Directory" })).toBeInTheDocument();
-    expect(nav.getByRole("link", { name: "Statistics" })).toBeInTheDocument();
+    expect(nav.getAllByRole("link", { name: "Directory" })).toHaveLength(2);
+    expect(nav.getAllByRole("link", { name: "Statistics" })).toHaveLength(3);
     expect(nav.getByRole("link", { name: "Email Members" })).toBeInTheDocument();
+    expect(nav.getByRole("link", { name: "Send Message" })).toBeInTheDocument();
     expect(nav.getByText("NGOs & Donations").closest("a")).toBeNull();
     expect(nav.getByText("Friends of Rotary").closest("a")).toBeNull();
     expect(nav.getByRole("link", { name: /manage users/i })).toBeInTheDocument();

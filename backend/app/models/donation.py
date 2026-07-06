@@ -40,7 +40,7 @@ class Donation(Base):
     )
     rotary_year: Mapped[int] = mapped_column(Integer, nullable=False)
     amount: Mapped["Numeric"] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="EUR")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="HKD")
     donation_date: Mapped["Date"] = mapped_column(Date, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(

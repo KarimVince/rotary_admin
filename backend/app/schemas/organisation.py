@@ -1,0 +1,48 @@
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
+from app.core.countries import COUNTRIES
+
+
+def _validate_country(value: str | None) -> str | None:
+    if value is not None and value not in COUNTRIES:
+        raise ValueError("country must be a value from the fixed country list")
+    return value
+
+
+class OrganisationBase(BaseModel):
+    name: str
+    description: str | None = None
+    contact_name: str | None = None
+    contact_email: EmailStr | None = None
+    contact_phone: str | None = None
+    country: str | None = None
+    first_supported_year: int | None = None
+
+    _validate_country = field_validator("country")(_validate_country)
+
+
+class OrganisationCreate(OrganisationBase):
+    pass
+
+
+class OrganisationUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    contact_name: str | None = None
+    contact_email: EmailStr | None = None
+    contact_phone: str | None = None
+    country: str | None = None
+    first_supported_year: int | None = None
+
+    _validate_country = field_validator("country")(_validate_country)
+
+
+class OrganisationRead(OrganisationBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime

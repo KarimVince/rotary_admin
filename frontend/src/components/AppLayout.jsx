@@ -13,8 +13,23 @@ const NAV_ITEMS = [
       { to: "/members/email", label: "Email Members", adminOnly: true },
     ],
   },
-  { to: "/ngos", label: "NGOs & Donations", enabled: false },
-  { to: "/friends", label: "Friends of Rotary", enabled: false },
+  {
+    section: "NGOs & Donations",
+    enabled: true,
+    children: [
+      { to: "/ngos", label: "Organisations", end: true },
+      { to: "/ngos/statistics", label: "Statistics" },
+    ],
+  },
+  {
+    section: "Friends of Rotary",
+    enabled: true,
+    children: [
+      { to: "/friends", label: "Directory", end: true },
+      { to: "/friends/statistics", label: "Statistics" },
+      { to: "/friends/email", label: "Send Message", adminOnly: true },
+    ],
+  },
 ];
 
 export default function AppLayout() {
@@ -79,6 +94,14 @@ export default function AppLayout() {
                 Member titles
               </NavLink>
             </>
+          )}
+          {(user?.role === "admin" || user?.role === "treasurer") && (
+            <NavLink
+              to="/admin/currencies"
+              className={({ isActive }) => (isActive ? "active" : undefined)}
+            >
+              Currencies
+            </NavLink>
           )}
         </nav>
         <main className="app-content">

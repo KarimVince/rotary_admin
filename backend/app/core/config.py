@@ -8,9 +8,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://user:password@localhost:5432/rotary_admin"
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
-    sender_api_key: str = ""
-    sender_from_email: str = "no-reply@rotaryadmin.app"
-    sender_from_name: str = "Rotary Club of Discovery Bay"
+    resend_api_key: str = ""
+    resend_from_email: str = "no-reply@rotaryadmin.app"
+    resend_from_name: str = "Rotary Club of Discovery Bay"
 
     admin_email: str = "admin@rotaryadmin.app"
     admin_password: str = "change-me"
@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     # Absolute origin the backend is reachable at, used to build fully-qualified
     # URLs for resources external services must fetch (e.g. email attachment
-    # URLs passed to Sender.net, which fetches attachments itself rather than
-    # accepting raw bytes).
+    # URLs passed to Resend via the attachment `path` field, which fetches the
+    # file itself rather than accepting raw bytes).
     public_base_url: str = "http://localhost:8000"
     max_email_attachment_bytes: int = 10 * 1024 * 1024
 

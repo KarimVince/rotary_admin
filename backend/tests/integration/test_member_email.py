@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from app.core.sender_client import SenderAPIError
+from app.core.email_client import EmailSendError
 from app.models import Member
 
 pytestmark = pytest.mark.integration
@@ -24,7 +24,7 @@ def _always_succeeds(**_kwargs):
 
 
 def _always_fails(**_kwargs):
-    raise SenderAPIError("simulated failure")
+    raise EmailSendError("simulated failure")
 
 
 def test_non_admin_cannot_send_email(user_client):
@@ -158,7 +158,7 @@ def test_email_all_recipients_failing_is_logged_as_failed(admin_client, monkeypa
 def test_partial_failure_is_logged_distinctly(admin_client, monkeypatch):
     def _fail_for_b(*, to_email, **_kwargs):
         if to_email == "b@example.com":
-            raise SenderAPIError("simulated failure")
+            raise EmailSendError("simulated failure")
 
     monkeypatch.setattr("app.api.member_email.send_email", _fail_for_b)
     _create_member(admin_client, email="a@example.com")

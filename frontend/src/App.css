@@ -202,6 +202,17 @@
   margin-top: 24px;
 }
 
+.stat-cards-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.stat-cards-row-3 .stat-card {
+  min-width: 0;
+}
+
 .report-controls {
   display: flex;
   align-items: center;
@@ -409,6 +420,12 @@
   margin: 0;
 }
 
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn-add-member {
   padding: 10px 20px;
   font-size: 15px;
@@ -612,4 +629,103 @@
   padding: 6px 10px;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* ── NGOs & Donations (Epic 3) ─────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+  background: var(--surface);
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.data-row {
+  cursor: pointer;
+}
+
+.data-row:hover {
+  background: var(--accent-bg);
+}
+
+.donation-row-current {
+  background: var(--tone-amber-bg);
+}
+
+.org-detail-meta {
+  margin: 8px 0 16px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.org-detail-meta p {
+  margin: 2px 0;
+}
+
+.donation-current-section,
+.donation-history-section,
+.donation-form-section,
+.chart-section,
+.donation-year-filter {
+  margin-top: 24px;
+}
+
+.donation-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  max-width: 640px;
+}
+
+.donation-form .field-full {
+  grid-column: 1 / -1;
+}
+
+.donation-form label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-h);
+  margin-bottom: 2px;
+}
+
+.donation-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.donation-form input[readonly] {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.donation-form .modal-actions {
+  grid-column: 1 / -1;
+}
+
+.donation-year-filter select {
+  margin-left: 8px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.donation-unconverted-warning {
+  margin-top: 8px;
+  font-size: 14px;
 }

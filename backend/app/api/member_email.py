@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
 from app.core.config import settings
-from app.core.sender_client import SenderAPIError, send_email
+from app.core.email_client import EmailSendError, send_email
 from app.db.session import get_db
 from app.models import EmailLog, Member, User
 from app.schemas.member_email import EmailLogRead, MemberEmailRequest, MemberEmailResult
@@ -81,7 +81,7 @@ def email_members(
                 attachments=attachments,
             )
             success_count += 1
-        except SenderAPIError:
+        except EmailSendError:
             failure_count += 1
 
     recipient_count = len(recipients)
