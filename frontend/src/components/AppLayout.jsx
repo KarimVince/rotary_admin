@@ -30,6 +30,26 @@ const NAV_ITEMS = [
       { to: "/friends/email", label: "Send Message", adminOnly: true },
     ],
   },
+  {
+    section: "Member Fees",
+    enabled: true,
+    requiredRoles: ["admin", "treasurer"],
+    children: [
+      { to: "/fees/settings", label: "Fee settings", end: true },
+      { to: "/fees/run", label: "Fee run" },
+      { to: "/fees/tracking", label: "Fee tracking" },
+      { to: "/fees/statistics", label: "Fee statistics" },
+    ],
+  },
+  {
+    section: "Admin",
+    enabled: true,
+    requiredRoles: ["admin"],
+    children: [
+      { to: "/admin/users", label: "Manage Users" },
+      { to: "/admin/member-titles", label: "Member Titles" },
+    ],
+  },
 ];
 
 export default function AppLayout() {
@@ -47,6 +67,9 @@ export default function AppLayout() {
         <nav className="app-nav">
           {NAV_ITEMS.map((item) => {
             if (item.children) {
+              if (item.requiredRoles && !item.requiredRoles.includes(user?.role)) {
+                return null;
+              }
               return (
                 <div key={item.section} className="nav-section">
                   <span className="nav-section-title">{item.section}</span>
@@ -79,22 +102,6 @@ export default function AppLayout() {
               </span>
             );
           })}
-          {user?.role === "admin" && (
-            <>
-              <NavLink
-                to="/admin/users"
-                className={({ isActive }) => (isActive ? "active" : undefined)}
-              >
-                Manage users
-              </NavLink>
-              <NavLink
-                to="/admin/member-titles"
-                className={({ isActive }) => (isActive ? "active" : undefined)}
-              >
-                Member titles
-              </NavLink>
-            </>
-          )}
           {(user?.role === "admin" || user?.role === "treasurer") && (
             <NavLink
               to="/admin/currencies"
