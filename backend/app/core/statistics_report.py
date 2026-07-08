@@ -275,10 +275,21 @@ def build_pptx_report(stats: MembersStatistics) -> bytes:
     blank_layout = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank_layout)
 
+    # The heading box starts right of the logo's actual rendered width (not a
+    # hardcoded guess) — the logo's aspect ratio makes its width at a fixed
+    # 0.6in height wider than the 0.8in gap a hardcoded left offset assumed,
+    # which is what caused the heading text to overlap the logo.
+    logo_right_edge = Inches(0.3)
     if LOGO_PATH.exists():
-        slide.shapes.add_picture(str(LOGO_PATH), Inches(0.3), Inches(0.2), height=Inches(0.6))
+        logo_pic = slide.shapes.add_picture(
+            str(LOGO_PATH), Inches(0.3), Inches(0.2), height=Inches(0.6)
+        )
+        logo_right_edge = logo_pic.left + logo_pic.width
 
-    heading_box = slide.shapes.add_textbox(Inches(1.1), Inches(0.18), Inches(11), Inches(0.65))
+    heading_left = logo_right_edge + Inches(0.2)
+    heading_box = slide.shapes.add_textbox(
+        heading_left, Inches(0.18), prs.slide_width - heading_left - Inches(0.3), Inches(0.65)
+    )
     heading_tf = heading_box.text_frame
     heading_tf.text = f"{CLUB_NAME} — Members Statistics Report"
     heading_tf.paragraphs[0].font.size = Pt(22)

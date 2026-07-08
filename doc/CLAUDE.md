@@ -70,11 +70,20 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
    unit tests (business logic), integration tests (API endpoints: happy path +
    at least one failure/permission case), and component tests (non-trivial UI).
    Tests run against an **isolated test DB — never dev/prod**.
-   **However — do NOT run the CI test suite or trigger CI automatically when
-   implementing a story. Write the tests as part of the story, but only RUN the
-   full CI test suite when I explicitly ask.** Likewise, **never `git push` or
-   push to GitHub unless I explicitly ask.** Implement, write tests, and stop —
-   wait for me to request running CI and pushing.
+   **Never run the test suites (backend `pytest`, frontend `npm run test`,
+   or even a single new test file) on your own initiative — not between
+   stories, not right after finishing a story to "check it works," not for
+   any reason.** Implement the story, write its tests, and stop. There are
+   only two exceptions: (1) I explicitly ask you to run tests, or (2) you are
+   working the epic's dedicated `x.99` "test & fix" story, whose whole job is
+   to run the full backend + frontend suites together, fix whatever the batch
+   run turns up, and only then is the epic considered ready to push. Likewise,
+   **never `git push` or push to GitHub unless I explicitly ask** — that still
+   only happens once I request it, normally right after that epic's test &
+   fix story.
+   **GitHub Actions CI no longer runs tests automatically** (see `.github/workflows/ci.yml` —
+   disabled for now, triggered manually via `workflow_dispatch` only) since test
+   running is handled by the epic-end test & fix story instead.
 7. **UI style:** compact/dense. Smaller fonts, tighter spacing, multi-column
    modal forms for data entry (2–3 cols). See Story 1.10 / 2b.3 for the pattern.
 8. **Confirm before irreversible/side-effectful actions** (sending email,
@@ -90,6 +99,29 @@ frontend clients (mobile web view, staging, prod domain) are a config change.
 - Work is tracked as **stories in ClickUp**, Space "Rotary Admin App"
   (Workspace 9018656865). Each story has its own detailed description +
   acceptance criteria — implement against the story, not from memory.
+
+## ClickUp workflow — story status transitions
+Keep ClickUp status in sync with actual work state as you go, without being asked:
+- **Starting an Epic:** move all of that Epic's stories to **Planning**.
+- **Starting work on a specific story:** move that story to **In Progress**.
+- **Story blocked** (can't continue, not finished): move it to **On Hold**.
+- **Story finished:** move it to **Complete**.
+- **Every epic must end with a "test & fix" story** (create it in ClickUp if
+  the epic doesn't already have one) — the one place the epic's full backend +
+  frontend test suites actually get run together and any breakage fixed. See
+  Story 5.9 for the template. Add the equivalent story to any epic that
+  doesn't have one yet before considering that epic's story list complete.
+Apply this in every session that touches ClickUp for this project — it's a
+standing rule, not a one-off instruction.
+
+**Epic 8 is a backlog, not a sequential epic — it does not get the
+"starting an epic → move all stories to Planning" treatment.** Its stories
+sit parked until individually called up. **Never pick up, plan, or implement
+any Epic 8 story on your own initiative — only work a story once I have
+explicitly moved that specific story to Planning myself** (or explicitly ask
+you to start it). If an Epic 8 story is still sitting in its default/backlog
+status, treat it as off-limits, no matter how quick or tempting the fix looks.
+This applies to every item in Epic 8, not just the WhatsApp block.
 
 ## Epics (build order)
 1. **Foundation & Auth** — scaffolding, schema/migrations (Epics 1-4 tables),
@@ -113,7 +145,9 @@ frontend clients (mobile web view, staging, prod domain) are a config change.
    8.6 fee-invoice automation). WhatsApp is deliberately deferred to the end:
    it's the most complex, external-dependency-heavy piece (provider account,
    number verification, Meta template approval) and nothing in the core site
-   depends on it.
+   depends on it. **Not worked as a sequential epic — see the Epic 8 rule
+   under "ClickUp workflow" above: only touch a story here once I've
+   explicitly moved it to Planning.**
 
 **WhatsApp:** do NOT implement any WhatsApp feature until the core site
 (Epics 1-5, 7) is functionally complete and I explicitly say to start Epic 8's
@@ -133,10 +167,22 @@ Recommended sequence: 1 → 2 → 2b → 3 → 4 → 5 → 7 → 6 (deploy). Epi
 
 ## Workflow when implementing a story (important)
 Implement the story, write its tests, then **STOP and wait**. Specifically:
-- **Do not run the full CI test suite automatically** — only run it when I ask.
-- **Do not `git push` / push to GitHub automatically** — only push when I ask.
-Running tests locally to check your own work is fine; the point is: no CI runs
-and no pushes happen on your initiative. I decide when to run CI and when to push.
+- **Never run tests on your own initiative** — not between stories, not right
+  after finishing a story "just to check it works," backend or frontend, full
+  suite or just the new files. Write them and move on. Running tests only
+  happens when (1) I explicitly ask, or (2) you're working the epic's
+  dedicated `x.99` test & fix story.
+- **Add a final "test & fix" story at the end of every epic's story list**
+  (create it in ClickUp if it doesn't already exist) whose job is: run the
+  full backend + frontend suites together, fix whatever breaks, and confirm
+  the epic is actually green before it's considered done.
+- **Do not run the full CI test suite automatically** — CI no longer runs
+  tests on its own anyway (see `.github/workflows/ci.yml`); only trigger it
+  manually when I ask.
+- **Do not `git push` / push to GitHub automatically** — only push when I ask,
+  normally once the epic's test & fix story is complete.
+No CI runs, no test runs, and no pushes happen on your initiative — I decide
+when to run tests/CI and when to push.
 
 ## Branching & commits (keeps rollback easy)
 - **At the start of each epic, create a dedicated git branch** for that epic
