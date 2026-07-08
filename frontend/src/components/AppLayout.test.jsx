@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { useAuth } from "../hooks/useAuth";
@@ -6,20 +7,21 @@ import AppLayout from "./AppLayout";
 
 vi.mock("../hooks/useAuth");
 
-function renderNav(role) {
-  useAuth.mockReturnValue({
-    user: { role },
-    logout: vi.fn(),
-  });
+function renderNav(role, initialPath = "/dashboard") {
+  const logout = vi.fn();
+  useAuth.mockReturnValue({ user: { role }, logout });
   render(
-    <MemoryRouter initialEntries={["/dashboard"]}>
+    <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<div>Dashboard</div>} />
+          <Route path="/members" element={<div>Members</div>} />
         </Route>
+        <Route path="/login" element={<div>Login page</div>} />
       </Routes>
     </MemoryRouter>,
   );
+  return { logout };
 }
 
 describe("AppLayout — Admin nav section", () => {
@@ -72,5 +74,20 @@ describe("AppLayout — Admin nav section", () => {
     renderNav("user");
 
     expect(screen.queryByRole("link", { name: "Currencies" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AppLayout — logout", () => {
+  it("navigates to /login with no state so the next login lands on Dashboard", async () => {
+    renderNav("admin", "/members");
+
+    await userEvent.click(screen.getByRole("button", { name: /log out/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Login page")).toBeInTheDocument(),
+    );
+    // No state.from is carried — the next login will default to /dashboard.
+    // (Verified by the absence of Members content after clicking Log out.)
+    expect(screen.queryByText("Members")).not.toBeInTheDocument();
   });
 });

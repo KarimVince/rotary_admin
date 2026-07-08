@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import BrandHeader from "./BrandHeader";
 
@@ -55,12 +55,18 @@ const NAV_ITEMS = [
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <BrandHeader size="small" />
-        <button type="button" onClick={logout}>
+        <button type="button" onClick={handleLogout}>
           Log out
         </button>
       </header>
