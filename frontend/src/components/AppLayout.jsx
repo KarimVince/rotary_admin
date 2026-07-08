@@ -44,10 +44,11 @@ const NAV_ITEMS = [
   {
     section: "Admin",
     enabled: true,
-    requiredRoles: ["admin"],
+    requiredRoles: ["admin", "treasurer"],
     children: [
-      { to: "/admin/users", label: "Manage Users" },
-      { to: "/admin/member-titles", label: "Member Titles" },
+      { to: "/admin/users", label: "Manage Users", adminOnly: true },
+      { to: "/admin/member-titles", label: "Member Titles", adminOnly: true },
+      { to: "/admin/currencies", label: "Currencies" },
     ],
   },
 ];
@@ -102,14 +103,6 @@ export default function AppLayout() {
               </span>
             );
           })}
-          {(user?.role === "admin" || user?.role === "treasurer") && (
-            <NavLink
-              to="/admin/currencies"
-              className={({ isActive }) => (isActive ? "active" : undefined)}
-            >
-              Currencies
-            </NavLink>
-          )}
         </nav>
         <main className="app-content">
           <Outlet />
