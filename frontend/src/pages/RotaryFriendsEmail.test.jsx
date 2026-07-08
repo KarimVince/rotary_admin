@@ -82,6 +82,10 @@ describe("RotaryFriendsEmail", () => {
       screen.getByRole("button", { name: /review send \(1 recipient\)/i }),
     ).toBeInTheDocument();
 
+    // Fill required fields before submitting the form
+    await userEvent.type(screen.getByLabelText(/subject/i), "Test");
+    await userEvent.type(screen.getByLabelText(/body/i), "Test");
+
     await userEvent.click(screen.getByRole("button", { name: /review send/i }));
     expect(screen.getByText(/this will email/i)).toHaveTextContent(/1 contact skipped/i);
   });

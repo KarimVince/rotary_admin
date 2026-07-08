@@ -140,13 +140,17 @@ describe("RotaryFriendsList", () => {
   it("lets an admin delete a friend after confirmation", async () => {
     useAuth.mockReturnValue({ user: { role: "admin" } });
     vi.spyOn(window, "confirm").mockReturnValue(true);
+    let friendDeleted = false;
     server.use(
-      http.delete(`${API_BASE_URL}/rotary-friends/${FRIEND_A.id}`, () =>
-        HttpResponse.json(null, { status: 204 }),
+      http.delete(`${API_BASE_URL}/rotary-friends/${FRIEND_A.id}`, () => {
+        friendDeleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+      // Single GET handler that returns the right list both before and after delete,
+      // preventing the two separate server.use() calls from shadowing each other.
+      http.get(`${API_BASE_URL}/rotary-friends`, () =>
+        HttpResponse.json(friendDeleted ? [FRIEND_B] : [FRIEND_A, FRIEND_B]),
       ),
-    );
-    server.use(
-      http.get(`${API_BASE_URL}/rotary-friends`, () => HttpResponse.json([FRIEND_B])),
     );
 
     render(<RotaryFriendsList />);
@@ -154,7 +158,10 @@ describe("RotaryFriendsList", () => {
 
     await userEvent.click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
 
-    await waitFor(() => expect(screen.queryByText("Sara Nguyen")).not.toBeInTheDocument());
+    // Wait for the post-delete reload to complete so no in-flight GET request remains
+    // when afterEach resets the MSW handlers.
+    await screen.findByText("Jamie Lee");
+    expect(screen.queryByText("Sara Nguyen")).not.toBeInTheDocument();
   });
 
   describe("CSV import", () => {

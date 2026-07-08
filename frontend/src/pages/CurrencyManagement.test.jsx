@@ -33,8 +33,10 @@ describe("CurrencyManagement", () => {
     );
 
     render(<CurrencyManagement />);
+    await waitForLoaded();
 
-    expect(await screen.findByText("HKD")).toBeInTheDocument();
+    // HKD appears in the table row (not in the "add" dropdown, where used currencies are filtered out)
+    expect(screen.getByRole("cell", { name: "HKD" })).toBeInTheDocument();
   });
 
   it("creates a new currency rate and refreshes the list", async () => {
@@ -123,11 +125,13 @@ describe("CurrencyManagement", () => {
     );
 
     render(<CurrencyManagement />);
-    await screen.findByText("HKD");
+    await screen.findByRole("cell", { name: "HKD" });
 
     await userEvent.click(screen.getByRole("button", { name: /delete/i }));
 
-    await waitFor(() => expect(screen.queryByText("HKD")).not.toBeInTheDocument());
+    // After deletion, HKD re-appears in the "add" dropdown (it's no longer used),
+    // so check the table cell specifically rather than any text in the document.
+    await waitFor(() => expect(screen.queryByRole("cell", { name: "HKD" })).not.toBeInTheDocument());
   });
 
   it("hides the management form for non-admin, non-treasurer users", async () => {
