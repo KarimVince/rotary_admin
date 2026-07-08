@@ -17,3 +17,10 @@ export function refreshRequest(refreshToken) {
 export function fetchCurrentUser() {
   return apiFetch("/auth/me");
 }
+
+export function confirmPasswordReset(token, newPassword) {
+  return apiFetch("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}

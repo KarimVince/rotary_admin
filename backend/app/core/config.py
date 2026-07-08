@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     admin_password: str = "change-me"
     admin_full_name: str = "Admin"
 
+    # Static v1 template — club bank details etc. Shown verbatim in fee invoice
+    # emails until fee_settings grows a per-year override (not needed yet).
+    fee_payment_instructions: str = (
+        "Please settle your membership fee by bank transfer to the club account. "
+        "Contact the treasurer for the account details."
+    )
+
+    # Origin the frontend is reachable at, used to build password-reset links
+    # sent by email (e.g. f"{frontend_base_url}/reset-password?token=...").
+    frontend_base_url: str = "http://localhost:5173"
+
     upload_dir: str = "uploads"
     # Absolute origin the backend is reachable at, used to build fully-qualified
     # URLs for resources external services must fetch (e.g. email attachment

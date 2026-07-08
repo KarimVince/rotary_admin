@@ -120,3 +120,94 @@ def test_protected_route_rejects_missing_and_invalid_tokens(client):
         "/api/v1/member-titles", headers={"Authorization": "Bearer garbage"}
     )
     assert invalid_token_response.status_code == 401
+
+
+def test_password_reset_confirm_sets_new_password_and_allows_login(
+    client, admin_client, make_user, monkeypatch
+):
+    make_user(email="reset-target@example.com", password="old-password123", role="user")
+    monkeypatch.setattr("app.api.users.send_email", lambda **kwargs: None)
+    monkeypatch.setattr("app.api.users.generate_refresh_token", lambda: "known-reset-token")
+
+    users = admin_client.get("/api/v1/users").json()
+    target = next(u for u in users if u["email"] == "reset-target@example.com")
+    reset_response = admin_client.post(f"/api/v1/users/{target['id']}/reset-password")
+    assert reset_response.status_code == 200
+
+    confirm_response = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "known-reset-token", "new_password": "brand-new-password123"},
+    )
+    assert confirm_response.status_code == 200
+
+    old_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "reset-target@example.com", "password": "old-password123"},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "reset-target@example.com", "password": "brand-new-password123"},
+    )
+    assert new_login.status_code == 200
+
+
+def test_password_reset_confirm_token_is_single_use(
+    client, admin_client, make_user, monkeypatch
+):
+    make_user(email="reset-once@example.com", password="old-password123", role="user")
+    monkeypatch.setattr("app.api.users.send_email", lambda **kwargs: None)
+    monkeypatch.setattr("app.api.users.generate_refresh_token", lambda: "single-use-token")
+
+    users = admin_client.get("/api/v1/users").json()
+    target = next(u for u in users if u["email"] == "reset-once@example.com")
+    admin_client.post(f"/api/v1/users/{target['id']}/reset-password")
+
+    first = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "single-use-token", "new_password": "first-new-password123"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "single-use-token", "new_password": "second-new-password123"},
+    )
+    assert second.status_code == 400
+
+
+def test_password_reset_confirm_with_unknown_token_returns_400(client):
+    response = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "not-a-real-token", "new_password": "whatever-new123"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_password_reset_invalidates_existing_refresh_tokens(
+    client, admin_client, make_user, monkeypatch
+):
+    make_user(email="reset-sessions@example.com", password="old-password123", role="user")
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "reset-sessions@example.com", "password": "old-password123"},
+    )
+    old_refresh_token = login_response.json()["refresh_token"]
+
+    monkeypatch.setattr("app.api.users.send_email", lambda **kwargs: None)
+    monkeypatch.setattr("app.api.users.generate_refresh_token", lambda: "session-reset-token")
+    users = admin_client.get("/api/v1/users").json()
+    target = next(u for u in users if u["email"] == "reset-sessions@example.com")
+    admin_client.post(f"/api/v1/users/{target['id']}/reset-password")
+
+    client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "session-reset-token", "new_password": "new-session-password123"},
+    )
+
+    refresh_response = client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": old_refresh_token}
+    )
+    assert refresh_response.status_code == 401

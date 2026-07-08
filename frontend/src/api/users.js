@@ -17,3 +17,9 @@ export function updateUser(userId, payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function resetUserPassword(userId) {
+  return apiFetch(`/users/${userId}/reset-password`, {
+    method: "POST",
+  });
+}

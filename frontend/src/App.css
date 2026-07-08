@@ -502,6 +502,17 @@
   border-radius: 999px;
 }
 
+.inline-badge {
+  display: inline-block;
+  background: var(--accent, #2f6f4f);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+}
+
 .member-card-avatar {
   width: 64px;
   height: 64px;
@@ -619,6 +630,38 @@
   width: auto;
 }
 
+.user-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 12px;
+}
+
+.user-form-grid .field-full {
+  grid-column: 1 / -1;
+}
+
+.user-form-grid label {
+  display: block;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.user-form-grid input,
+.user-form-grid select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.user-form-grid input[type="checkbox"] {
+  width: auto;
+}
+
 .modal-actions {
   display: flex;
   gap: 8px;
@@ -728,4 +771,51 @@
 .donation-unconverted-warning {
   margin-top: 8px;
   font-size: 14px;
+}
+
+.fee-year-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.fee-year-select {
+  font-size: 14px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 140px;
+  margin-bottom: 8px;
+}
+
+.fee-add-year-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.fee-add-year-form label {
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.fee-add-year-form input {
+  width: 100px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.fee-add-year-form button {
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fee-tracking-placeholder-row {
+  color: var(--text-h);
+  font-style: italic;
 }

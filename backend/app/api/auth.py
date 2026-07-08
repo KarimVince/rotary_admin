@@ -8,12 +8,14 @@ from app.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     create_access_token,
     generate_refresh_token,
+    hash_password,
     hash_token,
     verify_password,
 )
 from app.db.session import get_db
 from app.models import AuthToken, User
 from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse, UserRead
+from app.schemas.user import PasswordResetConfirm
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -82,3 +84,40 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
         )
 
     return _issue_tokens(db, user)
+
+
+@router.post("/reset-password")
+def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(get_db)):
+    hashed = hash_token(payload.token)
+    token_record = (
+        db.query(AuthToken)
+        .filter(AuthToken.token == hashed, AuthToken.purpose == "password_reset")
+        .first()
+    )
+
+    now = datetime.now(timezone.utc)
+    if token_record is None or token_record.used_at is not None or token_record.expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset link",
+        )
+
+    user = db.get(User, token_record.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset link",
+        )
+
+    user.hashed_password = hash_password(payload.new_password)
+    token_record.used_at = now
+    # Invalidate any outstanding refresh tokens so old sessions can't keep
+    # using the password that was just reset.
+    db.query(AuthToken).filter(
+        AuthToken.user_id == user.id,
+        AuthToken.purpose == "refresh",
+        AuthToken.used_at.is_(None),
+    ).update({"used_at": now})
+    db.commit()
+
+    return {"detail": "Password updated"}

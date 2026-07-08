@@ -1,14 +1,20 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
-from app.core.security import hash_password
+from app.core.config import settings
+from app.core.email_client import EmailSendError, send_email
+from app.core.security import generate_refresh_token, hash_password, hash_token
 from app.db.session import get_db
-from app.models import User
+from app.models import AuthToken, User
 from app.schemas.auth import UserRead
 from app.schemas.user import UserCreate, UserUpdate
 
 router = APIRouter(dependencies=[Depends(require_admin)])
+
+PASSWORD_RESET_EXPIRE_HOURS = 1
 
 
 @router.get("/users", response_model=list[UserRead])
@@ -37,15 +43,85 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/users/{user_id}", response_model=UserRead)
-def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)):
+def update_user(
+    user_id: str,
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    is_self = str(user.id) == str(current_admin.id)
+    if is_self and update_data.get("role") not in (None, "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot change your own role",
+        )
+    if is_self and update_data.get("is_active") is False:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot deactivate your own account",
+        )
+
+    if "email" in update_data and update_data["email"] != user.email:
+        email_taken = (
+            db.query(User)
+            .filter(User.email == update_data["email"], User.id != user.id)
+            .first()
+        )
+        if email_taken:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+            )
+
     for field, value in update_data.items():
         setattr(user, field, value)
 
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.post("/users/{user_id}/reset-password", status_code=status.HTTP_200_OK)
+def reset_user_password(user_id: str, db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    raw_token = generate_refresh_token()
+    db.add(
+        AuthToken(
+            user_id=user.id,
+            token=hash_token(raw_token),
+            purpose="password_reset",
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(hours=PASSWORD_RESET_EXPIRE_HOURS),
+        )
+    )
+    db.commit()
+
+    reset_link = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
+    try:
+        send_email(
+            to_email=user.email,
+            to_name=user.full_name,
+            subject="Reset your Rotary Admin password",
+            html_body=(
+                f"<p>Hello {user.full_name},</p>"
+                "<p>An administrator has requested a password reset for your account. "
+                f'Click <a href="{reset_link}">this link</a> to set a new password. '
+                f"This link expires in {PASSWORD_RESET_EXPIRE_HOURS} hour(s).</p>"
+                "<p>If you didn't expect this, you can safely ignore this email.</p>"
+            ),
+        )
+    except EmailSendError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to send password reset email",
+        ) from exc
+
+    return {"detail": "Password reset email sent"}

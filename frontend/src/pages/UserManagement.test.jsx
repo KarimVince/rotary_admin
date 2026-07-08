@@ -1,11 +1,18 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import UserManagement from "./UserManagement";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
+
+const SELF_ADMIN = {
+  id: "admin-self",
+  email: "admin-self@example.com",
+  full_name: "Admin Self",
+  role: "admin",
+};
 
 const BASE_USER = {
   id: "user-1",
@@ -17,12 +24,23 @@ const BASE_USER = {
   created_at: new Date().toISOString(),
 };
 
+const MEMBER = { id: "member-1", first_name: "Jane", last_name: "Doe" };
+
+vi.mock("../hooks/useAuth", () => ({
+  useAuth: () => ({ user: SELF_ADMIN }),
+}));
+
 async function waitForLoaded() {
   await waitFor(() => expect(screen.queryByText(/^loading…$/i)).not.toBeInTheDocument());
 }
 
+function mockMembers(members = [MEMBER]) {
+  server.use(http.get(`${API_BASE_URL}/members`, () => HttpResponse.json(members)));
+}
+
 describe("UserManagement", () => {
   it("lists users fetched from the API", async () => {
+    mockMembers();
     server.use(http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])));
 
     render(<UserManagement />);
@@ -31,6 +49,7 @@ describe("UserManagement", () => {
   });
 
   it("creates a user and refreshes the list", async () => {
+    mockMembers();
     let users = [];
     server.use(
       http.get(`${API_BASE_URL}/users`, () => HttpResponse.json(users)),
@@ -54,6 +73,7 @@ describe("UserManagement", () => {
   });
 
   it("shows an error and keeps the form when creation fails", async () => {
+    mockMembers();
     server.use(
       http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([])),
       http.post(`${API_BASE_URL}/users`, () =>
@@ -73,6 +93,7 @@ describe("UserManagement", () => {
   });
 
   it("toggles a user's active status", async () => {
+    mockMembers();
     let currentUser = { ...BASE_USER };
     server.use(
       http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([currentUser])),
@@ -92,6 +113,7 @@ describe("UserManagement", () => {
   });
 
   it("changes a user's role", async () => {
+    mockMembers();
     let currentUser = { ...BASE_USER };
     server.use(
       http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([currentUser])),
@@ -112,5 +134,129 @@ describe("UserManagement", () => {
     await waitFor(() =>
       expect(screen.getByLabelText(/role for user1@example.com/i)).toHaveValue("treasurer"),
     );
+  });
+
+  describe("editing a user", () => {
+    it("opens the edit modal pre-filled and saves changes", async () => {
+      mockMembers();
+      let currentUser = { ...BASE_USER };
+      server.use(
+        http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([currentUser])),
+        http.patch(`${API_BASE_URL}/users/${BASE_USER.id}`, async ({ request }) => {
+          currentUser = { ...currentUser, ...(await request.json()) };
+          return HttpResponse.json(currentUser);
+        }),
+      );
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+      const dialog = screen.getByRole("dialog", { name: /edit user/i });
+
+      expect(within(dialog).getByLabelText(/full name/i)).toHaveValue("User One");
+      expect(within(dialog).getByLabelText(/^email$/i)).toHaveValue("user1@example.com");
+
+      const nameInput = within(dialog).getByLabelText(/full name/i);
+      await userEvent.clear(nameInput);
+      await userEvent.type(nameInput, "Updated Name");
+
+      await userEvent.selectOptions(within(dialog).getByLabelText(/linked member/i), "member-1");
+
+      await userEvent.click(within(dialog).getByRole("button", { name: /update user/i }));
+
+      expect(await screen.findByText("Updated Name")).toBeInTheDocument();
+    });
+
+    it("shows an error when the update fails", async () => {
+      mockMembers();
+      server.use(
+        http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])),
+        http.patch(`${API_BASE_URL}/users/${BASE_USER.id}`, () =>
+          HttpResponse.json({ detail: "Email already registered" }, { status: 409 }),
+        ),
+      );
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+      const dialog = screen.getByRole("dialog", { name: /edit user/i });
+      await userEvent.click(within(dialog).getByRole("button", { name: /update user/i }));
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        /email already registered/i,
+      );
+    });
+
+    it("disables role and active controls when editing your own account", async () => {
+      mockMembers();
+      const selfAsUser = { ...BASE_USER, id: SELF_ADMIN.id, email: SELF_ADMIN.email };
+      server.use(http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([selfAsUser])));
+
+      render(<UserManagement />);
+      await screen.findByText(SELF_ADMIN.email);
+
+      expect(screen.getByLabelText(new RegExp(`role for ${SELF_ADMIN.email}`, "i"))).toBeDisabled();
+
+      await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+      const dialog = screen.getByRole("dialog", { name: /edit user/i });
+
+      expect(within(dialog).getByLabelText(/^role$/i)).toBeDisabled();
+      expect(within(dialog).getByLabelText(/active/i)).toBeDisabled();
+    });
+  });
+
+  describe("resetting a password", () => {
+    it("shows a confirmation before sending the reset email", async () => {
+      mockMembers();
+      server.use(http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])));
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /reset password/i }));
+
+      expect(screen.getByRole("alertdialog")).toHaveTextContent("user1@example.com");
+    });
+
+    it("sends the reset email after confirmation", async () => {
+      mockMembers();
+      let resetCalled = false;
+      server.use(
+        http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])),
+        http.post(`${API_BASE_URL}/users/${BASE_USER.id}/reset-password`, () => {
+          resetCalled = true;
+          return HttpResponse.json({ detail: "Password reset email sent" });
+        }),
+      );
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /reset password/i }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
+
+      await waitFor(() => expect(resetCalled).toBe(true));
+      expect(await screen.findByText(/reset email sent/i)).toBeInTheDocument();
+    });
+
+    it("shows an error when the reset email fails to send", async () => {
+      mockMembers();
+      server.use(
+        http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])),
+        http.post(`${API_BASE_URL}/users/${BASE_USER.id}/reset-password`, () =>
+          HttpResponse.json({ detail: "Failed to send password reset email" }, { status: 502 }),
+        ),
+      );
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /reset password/i }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/failed to send/i);
+    });
   });
 });

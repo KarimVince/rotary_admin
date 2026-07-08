@@ -102,3 +102,132 @@ def test_admin_created_user_can_log_in_but_is_blocked_from_admin_routes(client, 
         "/api/v1/users", headers={"Authorization": f"Bearer {access_token}"}
     )
     assert users_response.status_code == 403
+
+
+def test_admin_can_edit_user_name_email_and_member_link(admin_client, make_member):
+    member = make_member(first_name="Linked", last_name="Member")
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+
+    response = admin_client.patch(
+        f"/api/v1/users/{created['id']}",
+        json={
+            "full_name": "Updated Name",
+            "email": "updated.user@example.com",
+            "member_id": str(member.id),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["full_name"] == "Updated Name"
+    assert body["email"] == "updated.user@example.com"
+    assert body["member_id"] == str(member.id)
+
+
+def test_admin_can_unlink_member_by_setting_member_id_null(admin_client, make_member):
+    member = make_member(first_name="Linked", last_name="Member")
+    created = admin_client.post(
+        "/api/v1/users", json=_create_payload(member_id=str(member.id))
+    ).json()
+    assert created["member_id"] == str(member.id)
+
+    response = admin_client.patch(
+        f"/api/v1/users/{created['id']}", json={"member_id": None}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["member_id"] is None
+
+
+def test_editing_user_email_to_existing_address_returns_409(admin_client):
+    admin_client.post("/api/v1/users", json=_create_payload(email="taken@example.com"))
+    other = admin_client.post(
+        "/api/v1/users", json=_create_payload(email="other@example.com")
+    ).json()
+
+    response = admin_client.patch(
+        f"/api/v1/users/{other['id']}", json={"email": "taken@example.com"}
+    )
+
+    assert response.status_code == 409
+
+
+def test_admin_cannot_demote_own_role(admin_client, make_user):
+    # admin_client is authenticated as the "admin-fixture@example.com" user;
+    # fetch that user's id via /auth/me equivalent — list_users and match by email.
+    users = admin_client.get("/api/v1/users").json()
+    self_user = next(u for u in users if u["email"] == "admin-fixture@example.com")
+
+    response = admin_client.patch(f"/api/v1/users/{self_user['id']}", json={"role": "user"})
+
+    assert response.status_code == 400
+
+
+def test_admin_cannot_deactivate_own_account(admin_client):
+    users = admin_client.get("/api/v1/users").json()
+    self_user = next(u for u in users if u["email"] == "admin-fixture@example.com")
+
+    response = admin_client.patch(
+        f"/api/v1/users/{self_user['id']}", json={"is_active": False}
+    )
+
+    assert response.status_code == 400
+
+
+def test_admin_can_still_edit_own_name_and_email(admin_client):
+    users = admin_client.get("/api/v1/users").json()
+    self_user = next(u for u in users if u["email"] == "admin-fixture@example.com")
+
+    response = admin_client.patch(
+        f"/api/v1/users/{self_user['id']}", json={"full_name": "New Name For Self"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["full_name"] == "New Name For Self"
+
+
+def _always_succeeds(**kwargs):
+    return None
+
+
+def _always_fails(**kwargs):
+    from app.core.email_client import EmailSendError
+
+    raise EmailSendError("boom")
+
+
+def test_admin_can_trigger_password_reset_email(admin_client, monkeypatch):
+    monkeypatch.setattr("app.api.users.send_email", _always_succeeds)
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+
+    response = admin_client.post(f"/api/v1/users/{created['id']}/reset-password")
+
+    assert response.status_code == 200
+
+
+def test_password_reset_for_unknown_user_returns_404(admin_client, monkeypatch):
+    monkeypatch.setattr("app.api.users.send_email", _always_succeeds)
+
+    response = admin_client.post(
+        "/api/v1/users/00000000-0000-0000-0000-000000000000/reset-password"
+    )
+
+    assert response.status_code == 404
+
+
+def test_password_reset_email_failure_returns_502(admin_client, monkeypatch):
+    monkeypatch.setattr("app.api.users.send_email", _always_fails)
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+
+    response = admin_client.post(f"/api/v1/users/{created['id']}/reset-password")
+
+    assert response.status_code == 502
+
+
+def test_non_admin_cannot_trigger_password_reset(user_client, admin_client, monkeypatch):
+    monkeypatch.setattr("app.api.users.send_email", _always_succeeds)
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+
+    response = user_client.post(f"/api/v1/users/{created['id']}/reset-password")
+
+    assert response.status_code == 403

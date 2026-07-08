@@ -10,6 +10,15 @@ import Login from "./Login";
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
 const MOCK_TOKENS = { access_token: "tok", refresh_token: "ref", token_type: "bearer" };
+const MOCK_USER = {
+  id: "user-1",
+  email: "admin@rotaryadmin.app",
+  full_name: "Admin",
+  role: "admin",
+  member_id: null,
+  is_active: true,
+  created_at: new Date().toISOString(),
+};
 
 function renderLogin(initialPath = "/login", initialState = undefined) {
   render(
@@ -35,6 +44,7 @@ describe("Login — post-login redirect", () => {
   it("redirects to /dashboard after a plain login with no prior location", async () => {
     server.use(
       http.post(`${API_BASE_URL}/auth/login`, () => HttpResponse.json(MOCK_TOKENS)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
     );
 
     renderLogin();
@@ -48,6 +58,7 @@ describe("Login — post-login redirect", () => {
   it("redirects back to the originally requested page when login was triggered by a redirect", async () => {
     server.use(
       http.post(`${API_BASE_URL}/auth/login`, () => HttpResponse.json(MOCK_TOKENS)),
+      http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
     );
 
     // Simulate ProtectedRoute setting state.from before redirecting to /login

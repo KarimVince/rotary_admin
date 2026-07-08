@@ -15,5 +15,13 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    full_name: str | None = None
+    email: EmailStr | None = None
     role: Role | None = None
+    member_id: uuid.UUID | None = None
     is_active: bool | None = None
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
