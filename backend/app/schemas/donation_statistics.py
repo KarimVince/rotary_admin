@@ -19,6 +19,10 @@ class CurrencyStatistics(BaseModel):
     total_by_organisation: list[LabelValueFloat]
     organisations_by_rotary_year: list[LabelCount]
     grand_total: float
+    # Story 11.6: totals for selected_rotary_year only, grouped by NGO
+    # classification. "Unclassified" is its own label for organisations
+    # with no classification_id.
+    total_by_classification: list[LabelValueFloat]
 
 
 class ConvertedTotals(BaseModel):

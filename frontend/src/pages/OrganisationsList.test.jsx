@@ -60,6 +60,9 @@ describe("OrganisationsList", () => {
   beforeEach(() => {
     server.use(
       http.get(`${API_BASE_URL}/organisations`, () => HttpResponse.json([ORG_A, ORG_B])),
+      // Story 11.4/11.5 — fetched non-fatally on mount for the badge/filter;
+      // default to empty so existing tests don't need to know about it.
+      http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
     );
   });
 

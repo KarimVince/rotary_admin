@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { fetchDonationStatistics } from "../api/donations";
+import { listNgoClassifications } from "../api/ngoClassifications";
 import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { currencyLabel } from "../data/currencies";
@@ -32,6 +33,8 @@ export default function DonationsStatistics() {
   const [selectedYear, setSelectedYear] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
   const [reportError, setReportError] = useState(null);
+  const [classifications, setClassifications] = useState([]);
+  const [classificationFilter, setClassificationFilter] = useState("");
 
   // Placeholder — report generation isn't implemented yet for NGO statistics.
   function handleGenerateReport() {
@@ -39,8 +42,18 @@ export default function DonationsStatistics() {
   }
 
   useEffect(() => {
+    // Non-fatal — the filter just doesn't render if this fails.
+    listNgoClassifications()
+      .then(setClassifications)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!canRead) return;
-    fetchDonationStatistics(selectedYear !== null ? { rotary_year: selectedYear } : {})
+    const filters = {};
+    if (selectedYear !== null) filters.rotary_year = selectedYear;
+    if (classificationFilter) filters.classification_id = classificationFilter;
+    fetchDonationStatistics(filters)
       .then((data) => {
         setStats(data);
         setSelectedCurrency((current) => current ?? data.by_currency[0]?.currency ?? null);
@@ -48,16 +61,7 @@ export default function DonationsStatistics() {
       })
       .catch((err) => setError(err.detail || "Failed to load donation statistics"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRead, selectedYear]);
-
-  if (!canRead) {
-    return (
-      <div className="admin-page">
-        <h1>Donation statistics</h1>
-        <p role="alert">You do not have permission to view Donation statistics.</p>
-      </div>
-    );
-  }
+  }, [canRead, selectedYear, classificationFilter]);
 
   const currentStats = useMemo(
     () => stats?.by_currency.find((block) => block.currency === selectedCurrency) ?? null,
@@ -70,6 +74,15 @@ export default function DonationsStatistics() {
     years.add(currentRotaryYear());
     return [...years].sort((a, b) => b - a);
   }, [currentStats]);
+
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Donation statistics</h1>
+        <p role="alert">You do not have permission to view Donation statistics.</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -103,6 +116,12 @@ export default function DonationsStatistics() {
     total: row.value,
   }));
   const topOrgs = currentStats.total_by_organisation.slice(0, 10).map((row) => ({
+    name: row.label,
+    total: row.value,
+  }));
+  // Story 11.6 — totals for the selected rotary year only, grouped by
+  // classification ("Unclassified" included as its own bar).
+  const classificationChartData = currentStats.total_by_classification.map((row) => ({
     name: row.label,
     total: row.value,
   }));
@@ -147,6 +166,24 @@ export default function DonationsStatistics() {
         </button>
         {reportError && <p role="alert">{reportError}</p>}
       </div>
+
+      {classifications.length > 0 && (
+        <section className="donation-classification-filter">
+          <label htmlFor="stats-classification">Classification</label>
+          <select
+            id="stats-classification"
+            value={classificationFilter}
+            onChange={(event) => setClassificationFilter(event.target.value)}
+          >
+            <option value="">All classifications</option>
+            {classifications.map((classification) => (
+              <option key={classification.id} value={classification.id}>
+                {classification.name}
+              </option>
+            ))}
+          </select>
+        </section>
+      )}
 
       {stats.by_currency.length > 1 && (
         <section className="donation-currency-filter">
@@ -271,6 +308,26 @@ export default function DonationsStatistics() {
                 <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
                 <Bar dataKey="total" fill="#0f9d9f" name="Total donated" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="chart-card">
+          <h2>By classification — {rotaryYearLabel(stats.selected_rotary_year)}</h2>
+          {classificationChartData.length === 0 ? (
+            <p className="member-empty-state">No donations recorded for this year yet.</p>
+          ) : (
+            <ResponsiveContainer
+              width="100%"
+              height={Math.max(240, classificationChartData.length * 28)}
+            >
+              <BarChart data={classificationChartData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+                <Bar dataKey="total" fill="#f7a81b" name="Total donated" />
               </BarChart>
             </ResponsiveContainer>
           )}

@@ -57,9 +57,23 @@ DEFAULT_MATRIX = {
     "board": ("read", {"*": "write"}),
     "board.members": ("read", {"*": "write"}),
     "board.positions": ("no_access", {"*": "no_access"}),
-    "admin": ("no_access", {"*": "no_access"}),
+    # Story 11.2 needs Secretary/President/President Elect to reach the new
+    # NGO Classifications submenu, so the "admin" menu itself must be at
+    # least as permissive as that submenu for those 3 positions too (a
+    # Submenu's access can never exceed its parent Menu's) — Manage Users/
+    # Member Titles/Currencies stay admin-role-only via their own "*": "no_access".
+    "admin": (
+        "no_access",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
+    ),
     "admin.member_titles": ("no_access", {"*": "no_access"}),
     "admin.currencies": ("no_access", {"*": "no_access"}),
+    # Story 11.2 — Secretary/President/President Elect manage the list;
+    # everyone else (incl. Treasurer) has no access at all.
+    "admin.ngo_classifications": (
+        "no_access",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
+    ),
     # Story 10.10 — Secretary / President / President Elect can create events
     # and mark attendance; every other board position and the default
     # (non-board) user get read-only, per Story 10.6's permission matrix.

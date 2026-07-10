@@ -9,7 +9,7 @@ from app.api.deps import require_access
 from app.core.config import settings
 from app.core.currency_conversion import convert_totals
 from app.db.session import get_db
-from app.models import Donation, ExchangeRate, Organisation
+from app.models import Donation, ExchangeRate, NgoClassification, Organisation
 from app.schemas.organisation import OrganisationCreate, OrganisationRead, OrganisationUpdate
 
 router = APIRouter()
@@ -24,6 +24,15 @@ LOGO_CONTENT_TYPE_EXTENSIONS = {
 MAX_LOGO_BYTES = 2 * 1024 * 1024
 
 
+def _validate_classification_exists(db: Session, classification_id: uuid.UUID | None) -> None:
+    if classification_id is None:
+        return
+    if db.get(NgoClassification, classification_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Classification not found"
+        )
+
+
 @router.get("/organisations", response_model=list[OrganisationRead])
 def list_organisations(
     search: str | None = Query(None, description="Case-insensitive match on name or country"),
@@ -31,6 +40,9 @@ def list_organisations(
         None,
         description="Only include organisations with a donation in this rotary year; "
         "each result gets a year_total (HKD, best-effort converted)",
+    ),
+    classification_id: uuid.UUID | None = Query(
+        None, description="Story 11.5: only include organisations with this classification"
     ),
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(NGOS_ORGANISATIONS, "read")),
@@ -42,6 +54,9 @@ def list_organisations(
         query = db.query(Organisation).filter(Organisation.id.in_(org_ids_with_donation))
     else:
         query = db.query(Organisation)
+
+    if classification_id is not None:
+        query = query.filter(Organisation.classification_id == classification_id)
 
     if search:
         term = f"%{search}%"
@@ -79,6 +94,7 @@ def create_organisation(
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(NGOS_ORGANISATIONS, "write")),
 ):
+    _validate_classification_exists(db, payload.classification_id)
     organisation = Organisation(**payload.model_dump())
     db.add(organisation)
     db.commit()
@@ -140,7 +156,11 @@ def update_organisation(
             status_code=status.HTTP_404_NOT_FOUND, detail="Organisation not found"
         )
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    update_data = payload.model_dump(exclude_unset=True)
+    if "classification_id" in update_data:
+        _validate_classification_exists(db, update_data["classification_id"])
+
+    for field, value in update_data.items():
         setattr(organisation, field, value)
 
     db.commit()

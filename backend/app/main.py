@@ -18,6 +18,7 @@ from app.api import (
     member_fees,
     member_titles,
     members,
+    ngo_classifications,
     organisations,
     rotary_friend_email,
     rotary_friend_import,
@@ -48,6 +49,7 @@ app.include_router(member_titles.router, prefix="/api/v1", tags=["member-titles"
 app.include_router(member_email.router, prefix="/api/v1", tags=["members"])
 app.include_router(members.router, prefix="/api/v1", tags=["members"])
 app.include_router(organisations.router, prefix="/api/v1", tags=["organisations"])
+app.include_router(ngo_classifications.router, prefix="/api/v1", tags=["ngo-classifications"])
 app.include_router(donations.router, prefix="/api/v1", tags=["donations"])
 app.include_router(exchange_rates.router, prefix="/api/v1", tags=["exchange-rates"])
 app.include_router(fee_settings.router, prefix="/api/v1", tags=["fee-settings"])

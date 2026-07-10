@@ -19,6 +19,7 @@ import MemberTitleManagement from "./pages/MemberTitleManagement";
 import MembersEmail from "./pages/MembersEmail";
 import MembersList from "./pages/MembersList";
 import MembersStatistics from "./pages/MembersStatistics";
+import NgoClassificationManagement from "./pages/NgoClassificationManagement";
 import OrganisationDetail from "./pages/OrganisationDetail";
 import OrganisationsList from "./pages/OrganisationsList";
 import PermissionMatrixManagement from "./pages/PermissionMatrixManagement";
@@ -45,6 +46,13 @@ function App() {
               <Route path="/ngos/statistics" element={<DonationsStatistics />} />
               <Route path="/ngos/:organisationId" element={<OrganisationDetail />} />
               <Route path="/admin/currencies" element={<CurrencyManagement />} />
+              {/* Not inside the requiredRole="admin" block below — Story
+                  11.2 needs Secretary/President/President Elect to reach
+                  this via the permission matrix, same as Currencies. */}
+              <Route
+                path="/admin/ngo-classifications"
+                element={<NgoClassificationManagement />}
+              />
               <Route path="/fees/settings" element={<FeeSettingsManagement />} />
               <Route path="/fees/run" element={<FeeRunManagement />} />
               <Route path="/fees/tracking" element={<FeeTracking />} />

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import DonationsStatistics from "./DonationsStatistics";
@@ -43,6 +43,7 @@ const STATS = {
         { label: String(THIS_YEAR), value: 2 },
       ],
       grand_total: 1300,
+      total_by_classification: [{ label: "Unclassified", value: 900 }],
     },
   ],
   selected_rotary_year: THIS_YEAR,
@@ -56,6 +57,14 @@ const STATS = {
 // provide, so we assert on the deterministic surface: the summary card, the
 // section headings, and the year-filter callout.
 describe("DonationsStatistics", () => {
+  beforeEach(() => {
+    server.use(
+      // Story 11.6 — fetched non-fatally on mount for the classification
+      // filter; default to empty so existing tests don't need to know about it.
+      http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
+    );
+  });
+
   it("renders the grand total and section headings from live data", async () => {
     server.use(
       http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
@@ -94,6 +103,7 @@ describe("DonationsStatistics", () => {
               total_by_organisation: [{ label: "Gamma", value: 200 }],
               organisations_by_rotary_year: [{ label: String(THIS_YEAR), value: 1 }],
               grand_total: 200,
+              total_by_classification: [{ label: "Unclassified", value: 200 }],
             },
           ],
         }),

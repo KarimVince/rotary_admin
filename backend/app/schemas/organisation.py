@@ -21,6 +21,11 @@ class OrganisationBase(BaseModel):
     country: str | None = None
     first_supported_year: int | None = None
     logo_url: str | None = None
+    # Story 11.3: optional FK, denormalized like every other FK in this app
+    # (e.g. Member.title_id) — the frontend joins against the classifications
+    # list it already fetches, rather than the API nesting a classification
+    # object.
+    classification_id: uuid.UUID | None = None
 
     _validate_country = field_validator("country")(_validate_country)
 
@@ -38,6 +43,7 @@ class OrganisationUpdate(BaseModel):
     country: str | None = None
     first_supported_year: int | None = None
     logo_url: str | None = None
+    classification_id: uuid.UUID | None = None
 
     _validate_country = field_validator("country")(_validate_country)
 

@@ -2,6 +2,7 @@ import { Building2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { API_ORIGIN } from "../api/client";
+import { listNgoClassifications } from "../api/ngoClassifications";
 import { getOrganisation } from "../api/organisations";
 import {
   createDonation,
@@ -10,6 +11,7 @@ import {
   updateDonation,
 } from "../api/donations";
 import { useAccess } from "../hooks/useAccess";
+import { classificationColorClass } from "../utils/classificationColors";
 import { currentRotaryYear, rotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 
@@ -34,8 +36,22 @@ export default function OrganisationDetail() {
 
   const [organisation, setOrganisation] = useState(null);
   const [donations, setDonations] = useState([]);
+  const [classifications, setClassifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+
+  useEffect(() => {
+    // Non-fatal — the badge just doesn't render if this fails.
+    listNgoClassifications()
+      .then(setClassifications)
+      .catch(() => {});
+  }, []);
+
+  const classificationsById = useMemo(() => {
+    const map = new Map();
+    classifications.forEach((classification) => map.set(classification.id, classification));
+    return map;
+  }, [classifications]);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
@@ -196,6 +212,15 @@ export default function OrganisationDetail() {
           </div>
         )}
         <h1>{organisation.name}</h1>
+        {organisation.classification_id && classificationsById.has(organisation.classification_id) && (
+          <span
+            className={`inline-badge ${classificationColorClass(
+              classificationsById.get(organisation.classification_id).name,
+            )}`}
+          >
+            {classificationsById.get(organisation.classification_id).name}
+          </span>
+        )}
       </div>
       <div className="org-detail-meta">
         {organisation.country && <p>Country: {organisation.country}</p>}

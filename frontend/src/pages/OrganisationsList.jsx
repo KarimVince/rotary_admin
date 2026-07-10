@@ -2,6 +2,7 @@ import { Building2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_ORIGIN } from "../api/client";
+import { listNgoClassifications } from "../api/ngoClassifications";
 import {
   createOrganisation,
   listOrganisations,
@@ -11,6 +12,7 @@ import {
 import Card from "../components/Card";
 import { COUNTRIES } from "../data/countries";
 import { useAccess } from "../hooks/useAccess";
+import { classificationColorClass } from "../utils/classificationColors";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 
 const YEAR_FILTER_OPTIONS = Array.from({ length: 5 }, (_, i) => currentRotaryYear() - i);
@@ -31,6 +33,7 @@ const EMPTY_FORM = {
   country: "",
   first_supported_year: "",
   logo_url: "",
+  classification_id: "",
 };
 
 function toPayload(form) {
@@ -61,16 +64,45 @@ export default function OrganisationsList() {
 
   useEffect(() => {
     if (yearParam === null) {
-      setSearchParams({ year: "all" }, { replace: true });
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.set("year", "all");
+          return next;
+        },
+        { replace: true },
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [yearParam]);
 
   function setYearFilter(value) {
-    setSearchParams(value === null ? { year: "all" } : { year: String(value) });
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (value === null) next.set("year", "all");
+        else next.set("year", String(value));
+        return next;
+      },
+      { replace: false },
+    );
+  }
+
+  // Story 11.5: classification filter, persisted in the URL the same way as
+  // the year filter — absent/empty means "all classifications".
+  const classificationFilter = searchParams.get("classification") || "";
+
+  function setClassificationFilter(value) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set("classification", value);
+      else next.delete("classification");
+      return next;
+    });
   }
 
   const [organisations, setOrganisations] = useState([]);
+  const [classifications, setClassifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState("");
@@ -83,12 +115,26 @@ export default function OrganisationsList() {
   const [saveError, setSaveError] = useState(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
+  useEffect(() => {
+    // Non-fatal — the badges/filter just don't render if this fails.
+    listNgoClassifications()
+      .then(setClassifications)
+      .catch(() => {});
+  }, []);
+
+  const classificationsById = useMemo(() => {
+    const map = new Map();
+    classifications.forEach((classification) => map.set(classification.id, classification));
+    return map;
+  }, [classifications]);
+
   async function loadOrganisations() {
     setIsLoading(true);
     try {
-      const data = await listOrganisations(
-        yearFilter === null ? {} : { rotary_year: yearFilter },
-      );
+      const filters = {};
+      if (yearFilter !== null) filters.rotary_year = yearFilter;
+      if (classificationFilter) filters.classification_id = classificationFilter;
+      const data = await listOrganisations(filters);
       setOrganisations(data);
       setLoadError(null);
     } catch (err) {
@@ -105,7 +151,7 @@ export default function OrganisationsList() {
     }
     loadOrganisations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRead, yearFilter]);
+  }, [canRead, yearFilter, classificationFilter]);
 
   const visibleOrganisations = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -140,6 +186,7 @@ export default function OrganisationsList() {
       country: org.country ?? "",
       first_supported_year: org.first_supported_year ?? "",
       logo_url: org.logo_url ?? "",
+      classification_id: org.classification_id ?? "",
     });
     setSaveError(null);
     setIsModalOpen(true);
@@ -252,6 +299,23 @@ export default function OrganisationsList() {
                       <option key={country} value={country} />
                     ))}
                   </datalist>
+                </div>
+                <div>
+                  <label htmlFor="org-classification">Classification</label>
+                  <select
+                    id="org-classification"
+                    value={form.classification_id}
+                    onChange={(event) =>
+                      setForm({ ...form, classification_id: event.target.value })
+                    }
+                  >
+                    <option value="">— No classification —</option>
+                    {classifications.map((classification) => (
+                      <option key={classification.id} value={classification.id}>
+                        {classification.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="org-first-year">First supported year</label>
@@ -378,6 +442,21 @@ export default function OrganisationsList() {
             </option>
           ))}
         </select>
+        {classifications.length > 0 && (
+          <select
+            id="filter-classification"
+            aria-label="Classification"
+            value={classificationFilter}
+            onChange={(event) => setClassificationFilter(event.target.value)}
+          >
+            <option value="">All classifications</option>
+            {classifications.map((classification) => (
+              <option key={classification.id} value={classification.id}>
+                {classification.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {isLoading && <p>Loading…</p>}
@@ -385,9 +464,11 @@ export default function OrganisationsList() {
 
       {!isLoading && !loadError && visibleOrganisations.length === 0 && (
         <p className="member-empty-state">
-          {yearFilter !== null
-            ? `No organisations had donations in ${rotaryYearLabel(yearFilter)}.`
-            : "No organisations match your search or filters."}
+          {classificationFilter
+            ? "No organisations match the selected classification."
+            : yearFilter !== null
+              ? `No organisations had donations in ${rotaryYearLabel(yearFilter)}.`
+              : "No organisations match your search or filters."}
         </p>
       )}
 
@@ -422,6 +503,15 @@ export default function OrganisationsList() {
               <div className="text-xs text-gray-400">
                 {org.first_supported_year ? `Supported since ${org.first_supported_year}` : "—"}
               </div>
+              {org.classification_id && classificationsById.has(org.classification_id) && (
+                <span
+                  className={`inline-badge ${classificationColorClass(
+                    classificationsById.get(org.classification_id).name,
+                  )}`}
+                >
+                  {classificationsById.get(org.classification_id).name}
+                </span>
+              )}
               {yearFilter !== null && org.year_total !== null && org.year_total !== undefined && (
                 <span className="inline-badge">
                   {formatHkd(org.year_total)} · {rotaryYearLabel(yearFilter)}

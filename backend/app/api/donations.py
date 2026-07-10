@@ -10,7 +10,7 @@ from app.core.currency_conversion import convert_totals
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
-from app.models import Donation, ExchangeRate, Organisation, User
+from app.models import Donation, ExchangeRate, NgoClassification, Organisation, User
 from app.schemas.donation import DonationCreate, DonationRead, DonationUpdate
 from app.schemas.donation_statistics import (
     ConvertedTotals,
@@ -108,19 +108,57 @@ def donation_statistics(
         description="Rotary year to compute the selected-year figures for; "
         "defaults to the current rotary year",
     ),
+    classification_id: uuid.UUID | None = Query(
+        None, description="Story 11.6: scope every figure to this NGO classification"
+    ),
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
 ):
+    selected_year = rotary_year if rotary_year is not None else compute_current_rotary_year(
+        date.today()
+    )
+
+    classification_org_ids = None
+    if classification_id is not None:
+        classification_org_ids = db.query(Organisation.id).filter(
+            Organisation.classification_id == classification_id
+        )
+
     # Donation amounts are never summed across currencies (Story 3.7) — each
     # currency actually used gets its own independent breakdown.
-    currencies = [
-        row[0]
-        for row in db.query(Donation.currency).distinct().order_by(Donation.currency).all()
-    ]
+    currency_query = db.query(Donation.currency).distinct()
+    if classification_org_ids is not None:
+        currency_query = currency_query.filter(
+            Donation.organisation_id.in_(classification_org_ids)
+        )
+    currencies = [row[0] for row in currency_query.order_by(Donation.currency).all()]
+
+    classification_names = dict(
+        db.query(NgoClassification.id, NgoClassification.name).all()
+    )
 
     by_currency = []
     for currency in currencies:
         base_query = db.query(Donation).filter(Donation.currency == currency)
+        if classification_org_ids is not None:
+            base_query = base_query.filter(Donation.organisation_id.in_(classification_org_ids))
+
+        classification_rows = (
+            db.query(Organisation.classification_id, func.sum(Donation.amount))
+            .join(Donation, Donation.organisation_id == Organisation.id)
+            .filter(Donation.currency == currency, Donation.rotary_year == selected_year)
+            .group_by(Organisation.classification_id)
+            .all()
+        )
+        total_by_classification = [
+            LabelValueFloat(
+                label=classification_names.get(class_id, "Unclassified")
+                if class_id is not None
+                else "Unclassified",
+                value=float(total),
+            )
+            for class_id, total in classification_rows
+        ]
 
         total_by_year = (
             base_query.with_entities(Donation.rotary_year, func.sum(Donation.amount))
@@ -137,11 +175,17 @@ def donation_statistics(
             .order_by(Donation.rotary_year)
             .all()
         )
-        total_by_org = (
+        total_by_org_query = (
             db.query(Organisation.name, func.sum(Donation.amount))
             .join(Donation, Donation.organisation_id == Organisation.id)
             .filter(Donation.currency == currency)
-            .group_by(Organisation.id, Organisation.name)
+        )
+        if classification_org_ids is not None:
+            total_by_org_query = total_by_org_query.filter(
+                Donation.organisation_id.in_(classification_org_ids)
+            )
+        total_by_org = (
+            total_by_org_query.group_by(Organisation.id, Organisation.name)
             .order_by(func.sum(Donation.amount).desc())
             .all()
         )
@@ -163,29 +207,36 @@ def donation_statistics(
                     LabelCount(label=str(year), value=count) for year, count in orgs_by_year
                 ],
                 grand_total=grand_total,
+                total_by_classification=total_by_classification,
             )
         )
-
-    selected_year = rotary_year if rotary_year is not None else compute_current_rotary_year(
-        date.today()
-    )
 
     rates = {
         rate.currency_code: (float(rate.rate_to_hkd), float(rate.rate_to_usd))
         for rate in db.query(ExchangeRate).all()
     }
 
-    all_donations_rows = db.query(Donation.currency, Donation.amount).all()
+    all_time_query = db.query(Donation)
+    if classification_org_ids is not None:
+        all_time_query = all_time_query.filter(
+            Donation.organisation_id.in_(classification_org_ids)
+        )
+    all_donations_rows = all_time_query.with_entities(Donation.currency, Donation.amount).all()
     all_time = ConvertedTotals(
         **convert_totals(
             ((currency, float(amount)) for currency, amount in all_donations_rows), rates
         )
     )
     all_time_organisations_count = (
-        db.query(func.count(func.distinct(Donation.organisation_id))).scalar() or 0
+        all_time_query.with_entities(func.count(func.distinct(Donation.organisation_id))).scalar()
+        or 0
     )
 
     selected_year_query = db.query(Donation).filter(Donation.rotary_year == selected_year)
+    if classification_org_ids is not None:
+        selected_year_query = selected_year_query.filter(
+            Donation.organisation_id.in_(classification_org_ids)
+        )
     selected_year_rows = selected_year_query.with_entities(
         Donation.currency, Donation.amount
     ).all()

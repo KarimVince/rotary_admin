@@ -145,6 +145,11 @@ const NAV_ITEMS = [
         requiredPermission: "admin.member_titles",
       },
       { to: "/admin/currencies", label: "Currencies", requiredPermission: "admin.currencies" },
+      {
+        to: "/admin/ngo-classifications",
+        label: "NGO Classifications",
+        requiredPermission: "admin.ngo_classifications",
+      },
     ],
   },
 ];
@@ -184,6 +189,7 @@ export default function AppLayout() {
   const { canRead: canViewAdmin } = useAccess("admin");
   const { canRead: canViewAdminMemberTitles } = useAccess("admin.member_titles");
   const { canRead: canViewAdminCurrencies } = useAccess("admin.currencies");
+  const { canRead: canViewAdminNgoClassifications } = useAccess("admin.ngo_classifications");
   const { canRead: canViewAttendance } = useAccess("attendance");
   const { canRead: canViewAttendanceHistory } = useAccess("attendance.history");
 
@@ -210,6 +216,7 @@ export default function AppLayout() {
     admin: canViewAdmin,
     "admin.member_titles": canViewAdminMemberTitles,
     "admin.currencies": canViewAdminCurrencies,
+    "admin.ngo_classifications": canViewAdminNgoClassifications,
     attendance: canViewAttendance,
     "attendance.history": canViewAttendanceHistory,
   };

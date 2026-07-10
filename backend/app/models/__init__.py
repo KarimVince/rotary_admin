@@ -11,6 +11,7 @@ from app.models.fee_settings import FeeSettings
 from app.models.member import Member
 from app.models.member_fee import MemberFee
 from app.models.member_title import MemberTitle
+from app.models.ngo_classification import NgoClassification
 from app.models.organisation import Organisation
 from app.models.permission_matrix import PermissionMatrix
 from app.models.rotary_friend import RotaryFriend
@@ -30,6 +31,7 @@ __all__ = [
     "Member",
     "MemberFee",
     "MemberTitle",
+    "NgoClassification",
     "Organisation",
     "PermissionMatrix",
     "RotaryFriend",

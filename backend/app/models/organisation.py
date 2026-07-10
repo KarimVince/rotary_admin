@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import DateTime, Integer, String, Text, func, text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,11 @@ class Organisation(Base):
     country: Mapped[str | None] = mapped_column(String(100))
     first_supported_year: Mapped[int | None] = mapped_column(Integer)
     logo_url: Mapped[str | None] = mapped_column(String(500))
+    # Story 11.1: nullable — deleting the classification sets this NULL
+    # rather than blocking the delete or removing the organisation.
+    classification_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ngo_classifications.id", ondelete="SET NULL")
+    )
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

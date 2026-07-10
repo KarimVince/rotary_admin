@@ -80,6 +80,9 @@ describe("OrganisationDetail", () => {
       http.get(`${API_BASE_URL}/organisations/org-1/donations`, () =>
         HttpResponse.json([CURRENT_DONATION, PAST_DONATION]),
       ),
+      // Story 11.4 — fetched non-fatally on mount for the classification
+      // badge; default to empty so existing tests don't need to know about it.
+      http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
     );
   });
 

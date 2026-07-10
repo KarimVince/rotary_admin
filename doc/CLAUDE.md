@@ -60,10 +60,67 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
   stored as `Integer` (like every other rotary_year column in this app)
   instead of the story's literal `"YYYY-YYYY"` string, with the display
   string still derived via the existing frontend `rotaryYearLabel` helper.
-- **Epic 11 (NGO Classification) is still "to do"** — not started.
+  Epic 10 has been **committed and pushed** to `origin/epic-10-attendance`
+  (still not merged into `main`, and no PR opened — only do that when asked).
+- **Epic 11 (NGO Classification) is implemented** (Stories 11.1-11.6, branch
+  `epic-11-ngo-classification`, branched off `epic-10-attendance`). New
+  `ngo_classifications` table (12 seed rows via migration
+  `e5c2a9f4b7d1`), `organisations.classification_id` nullable FK
+  (`ON DELETE SET NULL`), new `admin.ngo_classifications` app_function
+  (migration `f1a4d7c3e9b2`) gated to Secretary/President/President Elect
+  write via the permission matrix — which required also elevating the
+  `admin` **menu**-level entry to write for those 3 positions in
+  `seed_permission_matrix.py` (a Submenu's access can never exceed its
+  parent Menu's), so `/admin/ngo-classifications` had to be registered in
+  `App.jsx` **outside** the hard `requiredRole="admin"` route wrapper (like
+  `/admin/currencies`, unlike `/admin/member-titles`/`/board/positions` —
+  see the flagged pre-existing routing-mismatch bug below). NGO cards/detail
+  page/directory filter/create-edit form/stats page all wired up. **Three
+  deliberate deviations from the ClickUp spec** (each flagged as a ClickUp
+  comment on its story, not silently done): (1) reorder is up/down buttons,
+  not drag-and-drop — no drag-and-drop library exists anywhere in this app;
+  (2) `OrganisationRead.classification_id` is a denormalized ID like every
+  other FK in this app (e.g. `Member.title_id`), not the spec'd nested
+  `classification: {id, name}` object — frontend joins client-side; (3) the
+  Directory classification filter is single-select (matches the existing
+  Country/Year filter UI), not a multi-select chip bar. **Story 11.6's
+  "Impact on Report" AC was deliberately skipped** — PDF/PPTX report
+  generation for donations statistics doesn't exist anywhere yet (only
+  Members has it); building it is Epic 8 Story 8.13's job, off-limits until
+  explicitly moved to Planning per the Epic 8 rule. The classification
+  filter + breakdown chart on the stats page (Parts A & B) are done.
+  **Also fixed in passing** (same file already being edited for this epic,
+  a genuine `rules-of-hooks` violation, not a new one): `DonationsStatistics.jsx`
+  had two `useMemo` calls after a conditional `return` — reordered before it.
+  **Bug flagged, not fixed** (out of scope, spawned as a follow-up task):
+  `/admin/member-titles` and `/board/positions` routes in `App.jsx` are
+  hard-gated to `requiredRole="admin"` even though their nav entries are
+  matrix-driven (`requiredPermission`, not `adminOnly`) — a non-admin board
+  member granted matrix write access would see the link but get blocked
+  clicking it. Migrations `e5c2a9f4b7d1`/`f1a4d7c3e9b2` and
+  `seed_permission_matrix.py` **have now been run against the real dev DB**
+  and confirmed (12 seeded classifications, `organisations.classification_id`,
+  `admin.ngo_classifications` app_function + matrix rows all present) —
+  **correcting an earlier mistake in this same session**: right after
+  implementing the epic, this file (and the chat) claimed the migrations had
+  already been applied to dev when they hadn't actually been run yet, which
+  broke Dashboard and NGO data loading in the real app until the user
+  reported it and it was fixed. Lesson: don't claim "run against dev DB and
+  confirmed" without actually running the command in that turn. Story 11.99
+  (test & fix) is **complete**: full backend (427 tests, 96.24% coverage) +
+  frontend (197 tests) suites green, plus a clean `oxlint` pass. 4 test
+  failures were found and fixed — all in `test_ngo_classification.py`, all
+  the same root cause: several tests reused names from the real 12-item
+  seed list (e.g. "Health & Medical", "Animal Welfare"), which now exists in
+  the test DB too since the classification catalogue is seeded via the
+  Alembic migration itself (not the deliberately-test-DB-excluded
+  `seed_permission_matrix.py` script) — so those `POST`s 409'd. Fixed by
+  renaming the test fixtures to non-colliding names (e.g. "Test Health
+  Class"); not an app bug. **Still not committed or pushed** — only do so
+  when explicitly asked.
 - **Next up per the recommended sequence:** ask the user about committing/
-  pushing Epic 10, then Epic 6 (Production Deployment, the last unstarted
-  item in the original build-order) vs Epic 11.
+  pushing Epic 11, then Epic 6 (Production Deployment, the last unstarted
+  item in the original build-order).
 - **Known open issue — email sending is not fully working yet:**
   - Switched email provider from Sender.net to **Resend** mid-Epic-4 (Sender's
     API key was never actually configured locally, and rather than fix that
@@ -199,11 +256,13 @@ This applies to every item in Epic 8, not just the WhatsApp block.
    explicitly moved it to Planning.**
 9. ~~Board Roles & Access Control~~ — **CLOSED, superseded by Epic 12.**
 10. **Dinner Attendance Tracking** — **complete** (Stories 10.1-10.10 +
-    10.99, branch `epic-10-attendance`, not yet committed/pushed). Attendance
-    events, present/absent sheet, active/honorary/past member handling,
-    role-based access via the Epic 12 permission matrix.
-11. **NGO Classification** — classification catalogue + field on
-    organisations, directory filter, statistics breakdown. Not started.
+    10.99, branch `epic-10-attendance`, committed and pushed, not merged to
+    `main`). Attendance events, present/absent sheet, active/honorary/past
+    member handling, role-based access via the Epic 12 permission matrix.
+11. **NGO Classification** — **complete** (Stories 11.1-11.6 + 11.99, branch
+    `epic-11-ngo-classification`, not yet committed). Classification
+    catalogue + field on organisations, directory
+    filter, statistics breakdown.
 12. **Permission Matrix Hierarchy Revamp** — **complete.** Replaced Epic 9's
     flat App Function list with a strict Menu→Submenu tree (`parent_id` on
     `app_functions`, cascade-clamp on the matrix upsert endpoint) applied to
