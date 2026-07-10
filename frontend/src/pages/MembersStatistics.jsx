@@ -13,10 +13,12 @@ import {
   YAxis,
 } from "recharts";
 import { fetchMemberStatistics, generateStatisticsReport } from "../api/memberStatistics";
+import { useAccess } from "../hooks/useAccess";
 
 const PIE_COLORS = ["#17458f", "#f7a81b", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
 
 export default function MembersStatistics() {
+  const { canRead } = useAccess("members.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
@@ -24,10 +26,20 @@ export default function MembersStatistics() {
   const [reportError, setReportError] = useState(null);
 
   useEffect(() => {
+    if (!canRead) return;
     fetchMemberStatistics()
       .then(setStats)
       .catch((err) => setError(err.detail || "Failed to load statistics"));
-  }, []);
+  }, [canRead]);
+
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Member statistics</h1>
+        <p role="alert">You do not have permission to view Member statistics.</p>
+      </div>
+    );
+  }
 
   async function handleGenerateReport() {
     setIsGeneratingReport(true);

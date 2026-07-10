@@ -62,3 +62,36 @@ Recommended build order: **Epic 1 → Epic 2 → Epic 3 → Epic 4 → Epic 5** 
 
 ## Reference files
 - `schema.sql` — full consolidated database schema (all epics), also embedded directly in ClickUp Story 1.2 (Epics 1-4 scope) and Story 5.1 (Epic 5 scope)
+
+## Permission matrix: registering a new module (Epic 12)
+
+Access control (Epic 9, restructured by Epic 12) is a strict two-level
+**Menu → Submenu** tree of `app_functions` rows, each with a `no_access` /
+`read` / `write` level per Board Position or the fallback "Default User"
+row, enforced by `require_access()` (backend) / `useAccess()` (frontend).
+When a new module or nav item is added, register it the same way every time:
+
+1. **Add `app_functions` rows in a migration** — one Menu row (`parent_id
+   IS NULL`) per new sidebar section, one Submenu row (`parent_id` = the
+   Menu's id) per literal sidebar item under it. Follow the existing
+   `key` convention: `module` (menu) / `module.page` (submenu), e.g.
+   `attendance`, `attendance.events`.
+2. **Seed sane defaults in the same migration** — a Default User row
+   (`board_position_id IS NULL, is_default_user = true`) and one row per
+   named Board Position, for every new function key. A Submenu's seeded
+   level must never exceed its Menu's seeded level for the same column
+   (enforced at write-time by the matrix upsert endpoint, but get it right
+   at seed time too).
+3. **Gate the backend endpoints** with `require_access(KEY, "read"|"write")`
+   from `app.api.deps` — never hand-roll a role check for a new module.
+4. **Gate the frontend page** with `useAccess(key)` from
+   `hooks/useAccess.js`, and add the section/items to `NAV_ITEMS` in
+   `AppLayout.jsx` with `requiredPermission` — one `useAccess()` call per
+   key, added to the `permissionChecks` map in the same component.
+5. **The only permanent exceptions** are Manage Users and the Permissions
+   matrix editor itself — hardcoded `adminOnly`/`require_admin`, never
+   matrix rows. Don't add a third exception without updating this doc.
+
+This is what Story 9.9's original seed drifted out of sync on (it never
+matched what Epic 9 actually shipped) — Story 12.10 replaced it and this
+section exists so the next module doesn't repeat that mistake.

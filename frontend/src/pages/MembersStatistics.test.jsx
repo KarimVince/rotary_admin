@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import MembersStatistics from "./MembersStatistics";
 
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: true, canWrite: true }),
+}));
+
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
 const STATS = {

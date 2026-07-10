@@ -2,9 +2,42 @@ from datetime import date, timedelta
 
 import pytest
 
+from app.core.rotary_year import rotary_year
 from app.models import MemberTitle
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+def members_directory_function(make_app_function):
+    return make_app_function(key="members.directory", label="Members — Directory")
+
+
+@pytest.fixture(autouse=True)
+def _grant_default_directory_read(members_directory_function, make_permission_matrix_entry):
+    # Story 12.3: reads are matrix-gated now, so every non-admin client
+    # (user_client, treasurer_client, build_client) needs a Default User row
+    # to see the members directory at all — matches the 12.10 seed default
+    # (Default User = Read on members.directory).
+    make_permission_matrix_entry(
+        members_directory_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
+def _grant_directory_write_via_board_position(
+    members_directory_function, make_board_position, make_board_position_assignment,
+    make_permission_matrix_entry, member_id,
+):
+    # A board position's matrix entry is independent of the Default User row,
+    # and takes precedence for a member holding that position (Story 9.4's
+    # resolver ignores the default-user fallback once a position is held).
+    position = make_board_position(name="Membership Secretary")
+    make_board_position_assignment(
+        position.id, member_id, rotary_year=rotary_year(date.today())
+    )
+    make_permission_matrix_entry(
+        members_directory_function.id, board_position_id=position.id, access_level="write"
+    )
 
 
 def _create_payload(**overrides):
@@ -346,31 +379,58 @@ def test_treasurer_cannot_update_member(admin_client, treasurer_client):
     assert response.status_code == 403
 
 
-def test_user_can_update_own_linked_member_record(admin_client, make_user, build_client):
+def test_user_with_directory_write_access_can_update_any_member(
+    admin_client,
+    make_user,
+    build_client,
+    members_directory_function,
+    make_board_position,
+    make_board_position_assignment,
+    make_permission_matrix_entry,
+):
+    # Story 12.3 retires the old "self-linked user can edit their own record"
+    # bespoke logic in favor of one consistent rule: write access on
+    # members.directory, granted via the matrix (e.g. a board position),
+    # governs edits — for any member, not just the editor's own record.
     created = admin_client.post("/api/v1/members", json=_create_payload()).json()
+    other = admin_client.post(
+        "/api/v1/members", json=_create_payload(email="third-party@example.com")
+    ).json()
     linked_user = make_user(email="linked@example.com", role="user", member_id=created["id"])
+    _grant_directory_write_via_board_position(
+        members_directory_function,
+        make_board_position,
+        make_board_position_assignment,
+        make_permission_matrix_entry,
+        linked_user.member_id,
+    )
+    linked_client = build_client(linked_user)
+
+    own_response = linked_client.patch(
+        f"/api/v1/members/{created['id']}", json={"phone": "555-0000"}
+    )
+    other_response = linked_client.patch(
+        f"/api/v1/members/{other['id']}", json={"phone": "555-1111"}
+    )
+
+    assert own_response.status_code == 200
+    assert own_response.json()["phone"] == "555-0000"
+    assert other_response.status_code == 200
+    assert other_response.json()["phone"] == "555-1111"
+
+
+def test_user_without_write_access_cannot_update_even_their_own_linked_member_record(
+    admin_client, make_user, build_client
+):
+    # Confirms the old self-link bypass is really gone: being linked to the
+    # member record is no longer sufficient on its own — matrix write access
+    # is required, same as for any other member.
+    created = admin_client.post("/api/v1/members", json=_create_payload()).json()
+    linked_user = make_user(email="linked3@example.com", role="user", member_id=created["id"])
     linked_client = build_client(linked_user)
 
     response = linked_client.patch(
         f"/api/v1/members/{created['id']}", json={"phone": "555-0000"}
-    )
-
-    assert response.status_code == 200
-    assert response.json()["phone"] == "555-0000"
-
-
-def test_user_cannot_update_a_different_members_record(admin_client, make_user, build_client):
-    own_member = admin_client.post(
-        "/api/v1/members", json=_create_payload(email="own@example.com")
-    ).json()
-    other_member = admin_client.post(
-        "/api/v1/members", json=_create_payload(email="other@example.com")
-    ).json()
-    linked_user = make_user(email="linked2@example.com", role="user", member_id=own_member["id"])
-    linked_client = build_client(linked_user)
-
-    response = linked_client.patch(
-        f"/api/v1/members/{other_member['id']}", json={"phone": "555-0000"}
     )
 
     assert response.status_code == 403

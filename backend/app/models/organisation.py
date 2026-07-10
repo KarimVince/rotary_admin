@@ -20,6 +20,7 @@ class Organisation(Base):
     contact_phone: Mapped[str | None] = mapped_column(String(30))
     country: Mapped[str | None] = mapped_column(String(100))
     first_supported_year: Mapped[int | None] = mapped_column(Integer)
+    logo_url: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

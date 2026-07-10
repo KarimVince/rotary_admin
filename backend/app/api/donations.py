@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import require_access
 from app.core.currency_conversion import convert_totals
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
@@ -21,6 +21,9 @@ from app.schemas.donation_statistics import (
 )
 
 router = APIRouter()
+
+NGOS_ORGANISATIONS = "ngos.organisations"
+NGOS_STATISTICS = "ngos.statistics"
 
 
 def _get_organisation_or_404(db: Session, organisation_id: uuid.UUID) -> Organisation:
@@ -45,7 +48,7 @@ def _get_donation_or_404(db: Session, donation_id: uuid.UUID) -> Donation:
 def list_organisation_donations(
     organisation_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(NGOS_ORGANISATIONS, "read")),
 ):
     _get_organisation_or_404(db, organisation_id)
     return (
@@ -65,7 +68,7 @@ def create_donation(
     organisation_id: uuid.UUID,
     payload: DonationCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_access(NGOS_ORGANISATIONS, "write")),
 ):
     _get_organisation_or_404(db, organisation_id)
 
@@ -88,7 +91,7 @@ def list_donations(
         None, description="Filter to a single rotary year (across all organisations)"
     ),
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(NGOS_ORGANISATIONS, "read")),
 ):
     query = db.query(Donation)
     if rotary_year is not None:
@@ -106,7 +109,7 @@ def donation_statistics(
         "defaults to the current rotary year",
     ),
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
 ):
     # Donation amounts are never summed across currencies (Story 3.7) — each
     # currency actually used gets its own independent breakdown.
@@ -212,7 +215,7 @@ def update_donation(
     donation_id: uuid.UUID,
     payload: DonationUpdate,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(NGOS_ORGANISATIONS, "write")),
 ):
     donation = _get_donation_or_404(db, donation_id)
 
@@ -234,7 +237,7 @@ def update_donation(
 def delete_donation(
     donation_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(NGOS_ORGANISATIONS, "write")),
 ):
     donation = _get_donation_or_404(db, donation_id)
     db.delete(donation)

@@ -7,6 +7,14 @@ from app.core.rotary_year import rotary_year
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _grant_default_ngos_statistics_read(make_app_function, make_permission_matrix_entry):
+    app_function = make_app_function(key="ngos.statistics", label="NGOs & Donations — Statistics")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
 def _seed(admin_client, org_id, amount, donation_date, currency=None):
     payload = {"amount": amount, "donation_date": donation_date}
     if currency is not None:

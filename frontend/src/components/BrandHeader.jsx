@@ -15,7 +15,7 @@ export default function BrandHeader({ size = "medium" }) {
 
   return (
     <div className={`brand-header brand-header--${size}`}>
-      <img src={logo} alt="Rotary Club of Discovery Bay logo" className="brand-logo" />
+      <img src={logo} alt="Rotary Club of Discovery Bay Hong Kong" className="brand-logo" />
       <TitleTag className="brand-title">{APP_TITLE}</TitleTag>
     </div>
   );

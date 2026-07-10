@@ -5,10 +5,12 @@ import {
   listMemberTitles,
   updateMemberTitle,
 } from "../api/memberTitles";
+import { useAccess } from "../hooks/useAccess";
 
 const EMPTY_FORM = { code: "", label: "", sort_order: 0 };
 
 export default function MemberTitleManagement() {
+  const { canRead, canWrite } = useAccess("admin.member_titles");
   const [titles, setTitles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -31,8 +33,13 @@ export default function MemberTitleManagement() {
   }
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadTitles();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
 
   function startEdit(title) {
     setEditingId(title.id);
@@ -76,10 +83,20 @@ export default function MemberTitleManagement() {
     await loadTitles();
   }
 
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Member titles</h1>
+        <p role="alert">You do not have permission to view Member titles.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-page">
       <h1>Member titles</h1>
 
+      {canWrite && (
       <form className="admin-form" onSubmit={handleSubmit}>
         <h2>{editingId ? "Edit title" : "Add title"}</h2>
         <label htmlFor="title-code">Code</label>
@@ -115,6 +132,7 @@ export default function MemberTitleManagement() {
           </button>
         )}
       </form>
+      )}
 
       <h2>Titles</h2>
       {isLoading && <p>Loading…</p>}
@@ -138,12 +156,16 @@ export default function MemberTitleManagement() {
                 <td>{title.sort_order}</td>
                 <td>{title.is_active ? "Active" : "Inactive"}</td>
                 <td>
+                  {canWrite && (
                   <button type="button" onClick={() => startEdit(title)}>
                     Edit
                   </button>
+                  )}
+                  {canWrite && (
                   <button type="button" onClick={() => handleToggleActive(title)}>
                     {title.is_active ? "Deactivate" : "Activate"}
                   </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -1,9 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import RotaryFriendsEmail from "./RotaryFriendsEmail";
+
+let mockCanRead = true;
+let mockCanWrite = true;
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanWrite }),
+}));
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -216,5 +222,28 @@ describe("RotaryFriendsEmail", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /resend api key is not configured/i,
     );
+  });
+
+  it("denies access for a user with no friends.send_email access", () => {
+    mockCanRead = false;
+    mockCanWrite = false;
+
+    render(<RotaryFriendsEmail />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/do not have permission/i);
+  });
+
+  it("disables the send button for a user with read but not write access", async () => {
+    mockCanRead = true;
+    mockCanWrite = false;
+    mockLoadHandlers();
+
+    render(<RotaryFriendsEmail />);
+    await waitForLoaded();
+
+    expect(screen.getByText("Old newsletter")).toBeInTheDocument();
+    const sendButton = screen.getByRole("button", { name: /review send/i });
+    expect(sendButton).toBeDisabled();
+    expect(sendButton).toHaveAttribute("title", expect.stringMatching(/do not have permission/i));
   });
 });

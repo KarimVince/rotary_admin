@@ -3,6 +3,14 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _grant_default_ngos_read(make_app_function, make_permission_matrix_entry):
+    app_function = make_app_function(key="ngos.organisations", label="NGOs & Donations — Organisations")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
 def _donation(amount=100.0, donation_date="2025-03-01", **extra):
     return {"amount": amount, "donation_date": donation_date, **extra}
 

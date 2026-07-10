@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listEmailLog, sendMemberEmail, uploadEmailAttachment } from "../api/memberEmail";
 import { listMembers } from "../api/members";
+import { useAccess } from "../hooks/useAccess";
 
 const GROUP_LABELS = {
   all: "All members",
@@ -9,6 +10,7 @@ const GROUP_LABELS = {
 };
 
 export default function MembersEmail() {
+  const { canRead, canWrite } = useAccess("members.email");
   const [members, setMembers] = useState([]);
   const [emailLog, setEmailLog] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +33,9 @@ export default function MembersEmail() {
   async function loadData() {
     setIsLoading(true);
     try {
-      const [membersData, logData] = await Promise.all([listMembers({}), listEmailLog()]);
+      const [membersData, logData] = canWrite
+        ? await Promise.all([listMembers({}), listEmailLog()])
+        : [[], await listEmailLog()];
       setMembers(membersData);
       setEmailLog(logData);
       setLoadError(null);
@@ -43,8 +47,13 @@ export default function MembersEmail() {
   }
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead, canWrite]);
 
   const membersWithEmail = useMemo(() => members.filter((member) => member.email), [members]);
 
@@ -128,6 +137,15 @@ export default function MembersEmail() {
     }
   }
 
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Email members</h1>
+        <p role="alert">You do not have permission to view member email.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-page">
       <h1>Email members</h1>
@@ -135,7 +153,7 @@ export default function MembersEmail() {
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
-      {!isLoading && !loadError && (
+      {!isLoading && !loadError && canWrite && (
         <>
           <form className="admin-form email-compose-form" onSubmit={handleReview}>
             <h2>Compose</h2>
@@ -275,7 +293,11 @@ export default function MembersEmail() {
               </button>
             </div>
           )}
+        </>
+      )}
 
+      {!isLoading && !loadError && canRead && (
+        <>
           <h2>Email log</h2>
           <table className="admin-table">
             <thead>

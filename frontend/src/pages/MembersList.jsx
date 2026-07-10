@@ -9,6 +9,8 @@ import {
   updateMember,
   uploadMemberPhoto,
 } from "../api/members";
+import Card from "../components/Card";
+import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
 
 const STATUS_LABELS = { active: "Active", honorary: "Honorary", past: "Past" };
@@ -69,10 +71,7 @@ function toPayload(form) {
 export default function MembersList() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-
-  function canEditMemberId(memberId) {
-    return isAdmin || (user?.role === "user" && user?.member_id === memberId);
-  }
+  const { canRead, canWrite } = useAccess("members.directory");
 
   const [members, setMembers] = useState([]);
   const [titles, setTitles] = useState([]);
@@ -126,13 +125,19 @@ export default function MembersList() {
   }
 
   useEffect(() => {
+    if (!canRead) return;
     loadTitles();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, titleFilter, nationalityFilter]);
+  }, [canRead, statusFilter, titleFilter, nationalityFilter]);
 
   const visibleMembers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -253,18 +258,27 @@ export default function MembersList() {
     await loadMembers();
   }
 
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Members Directory</h1>
+        <p role="alert">You do not have permission to view the Members directory.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-page">
       <div className="page-header-row">
         <h1>Members Directory</h1>
-        {isAdmin && (
+        {canWrite && (
           <button type="button" className="btn-add-member" onClick={openAddModal}>
             + Add Member
           </button>
         )}
       </div>
 
-      {isModalOpen && (editingId ? canEditMemberId(editingId) : isAdmin) && (
+      {isModalOpen && canWrite && (
         <div className="modal-overlay" onClick={cancelEdit}>
           <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
             <form onSubmit={handleSubmit}>
@@ -550,34 +564,63 @@ export default function MembersList() {
       {loadError && <p role="alert">{loadError}</p>}
 
       {selectedMember && (
-        <div className="member-detail-panel">
-          <h2>
+        <div className="mb-4 max-w-3xl">
+          <h2 className="mb-2 text-lg font-semibold text-[var(--color-brand-blue-dark)]">
             {selectedMember.first_name} {selectedMember.last_name}
           </h2>
-          <p>Status: {STATUS_LABELS[selectedMember.status] ?? selectedMember.status}</p>
-          {selectedMember.email && <p>Email: {selectedMember.email}</p>}
-          {selectedMember.phone && <p>Phone: {selectedMember.phone}</p>}
-          <p>Join date: {selectedMember.join_date}</p>
-          {selectedMember.profession && <p>Profession: {selectedMember.profession}</p>}
-          {selectedMember.address && <p>Address: {selectedMember.address}</p>}
-          {selectedMember.date_of_birth && (
-            <p>Date of birth: {selectedMember.date_of_birth}</p>
-          )}
-          {selectedMember.rotarian_id && <p>Rotarian ID: {selectedMember.rotarian_id}</p>}
-          {selectedMember.notes && <p>Notes: {selectedMember.notes}</p>}
-          <button type="button" onClick={closeDetail}>
-            Close
-          </button>
-          {canEditMemberId(selectedMember.id) && (
-            <button type="button" onClick={() => startEdit(selectedMember)}>
-              Edit
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Card variant="default">
+              <h3 className="mb-2 text-sm font-semibold text-[var(--color-brand-blue)]">
+                Personal info
+              </h3>
+              <div className="flex flex-col gap-1 text-sm">
+                <p>Status: {STATUS_LABELS[selectedMember.status] ?? selectedMember.status}</p>
+                {selectedMember.email && <p>Email: {selectedMember.email}</p>}
+                {selectedMember.phone && <p>Phone: {selectedMember.phone}</p>}
+                {selectedMember.date_of_birth && (
+                  <p>Date of birth: {selectedMember.date_of_birth}</p>
+                )}
+                {selectedMember.address && <p>Address: {selectedMember.address}</p>}
+              </div>
+            </Card>
+            <Card variant="default">
+              <h3 className="mb-2 text-sm font-semibold text-[var(--color-brand-blue)]">
+                Membership &amp; tenure
+              </h3>
+              <div className="flex flex-col gap-1 text-sm">
+                <p>Join date: {selectedMember.join_date}</p>
+                {selectedMember.profession && <p>Profession: {selectedMember.profession}</p>}
+                {selectedMember.rotarian_id && <p>Rotarian ID: {selectedMember.rotarian_id}</p>}
+              </div>
+            </Card>
+            <Card variant="default">
+              <h3 className="mb-2 text-sm font-semibold text-[var(--color-brand-blue)]">Notes</h3>
+              <p className="text-sm">{selectedMember.notes || "—"}</p>
+            </Card>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button type="button" className="px-4 py-2 text-sm font-semibold cursor-pointer" onClick={closeDetail}>
+              Close
             </button>
-          )}
-          {isAdmin && selectedMember.status !== "past" && (
-            <button type="button" onClick={() => handleMarkPast(selectedMember)}>
-              Mark as past
-            </button>
-          )}
+            {canWrite && (
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-semibold cursor-pointer"
+                onClick={() => startEdit(selectedMember)}
+              >
+                Edit
+              </button>
+            )}
+            {isAdmin && selectedMember.status !== "past" && (
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-semibold cursor-pointer"
+                onClick={() => handleMarkPast(selectedMember)}
+              >
+                Mark as past
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -586,39 +629,50 @@ export default function MembersList() {
       )}
 
       {!isLoading && !loadError && visibleMembers.length > 0 && (
-        <div className="member-card-grid">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {visibleMembers.map((member) => {
             const title = member.title_id ? titleById.get(member.title_id) : null;
             const age = computeAge(member.date_of_birth);
             return (
-              <div
+              <Card
                 key={member.id}
-                className="member-card"
+                variant="default"
+                className="flex flex-col items-center text-center gap-1 cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => openDetail(member)}
               >
-                {title && <span className="member-card-badge">{title.code}</span>}
                 {member.photo_url ? (
-                  <img className="member-card-avatar" src={resolvePhotoUrl(member.photo_url)} alt="" />
+                  <img
+                    className="w-14 h-14 rounded-full object-cover bg-[var(--color-card-border)] shrink-0"
+                    src={resolvePhotoUrl(member.photo_url)}
+                    alt=""
+                  />
                 ) : (
-                  <div className="member-card-avatar">{initials(member)}</div>
+                  <div className="w-14 h-14 rounded-full bg-[var(--color-card-border)] flex items-center justify-center text-sm font-semibold text-[var(--color-brand-blue-dark)] shrink-0">
+                    {initials(member)}
+                  </div>
                 )}
-                <div className="member-card-name">
-                  {member.first_name} {member.last_name}
+                <div className="min-w-0 w-full">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="font-semibold text-[var(--color-brand-blue-dark)] truncate">
+                      {member.first_name} {member.last_name}
+                    </span>
+                    {title && <span className="inline-badge shrink-0">{title.code}</span>}
+                  </div>
+                  <div className="text-sm text-gray-500 truncate">
+                    {[
+                      age !== null ? `${age}y old` : null,
+                      member.gender,
+                      member.nationality,
+                      member.classification,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
                 </div>
-                <div className="member-card-meta">
-                  {[
-                    age !== null ? `${age}y old` : null,
-                    member.gender,
-                    member.nationality,
-                    member.classification,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-                <div className="member-card-tenure">
+                <div className="text-xs text-gray-400">
                   {member.years_in_this_club}y in club · {member.years_as_rotarian}y as Rotarian
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

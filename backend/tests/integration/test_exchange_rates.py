@@ -3,6 +3,15 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _grant_default_currencies_read(make_app_function, make_permission_matrix_entry):
+    # Story 12.7: reads are matrix-gated now (admin.currencies).
+    app_function = make_app_function(key="admin.currencies", label="Admin — Currencies")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
 def test_hkd_and_usd_are_seeded_with_self_rate(admin_client):
     response = admin_client.get("/api/v1/exchange-rates")
     assert response.status_code == 200
@@ -33,8 +42,39 @@ def test_admin_can_create_exchange_rate(admin_client):
     assert body["rate_to_hkd"] == 8.5
 
 
-def test_treasurer_can_create_exchange_rate(treasurer_client):
+def test_treasurer_role_alone_can_no_longer_create_exchange_rate(treasurer_client):
+    # Story 12.7 retires the legacy require_treasurer_or_admin role check —
+    # a "treasurer" role user has no special privilege now; only a matrix
+    # grant (e.g. holding the Treasurer board position with Write on
+    # admin.currencies) does.
     response = treasurer_client.post(
+        "/api/v1/exchange-rates",
+        json={"currency_code": "SGD", "rate_to_hkd": 5.8, "rate_to_usd": 0.74},
+    )
+    assert response.status_code == 403
+
+
+def test_board_position_with_write_access_can_create_exchange_rate(
+    build_client,
+    make_user,
+    make_member,
+    make_board_position,
+    make_board_position_assignment,
+    make_app_function,
+    make_permission_matrix_entry,
+):
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year
+
+    member = make_member()
+    user = make_user(email="treasurer-position@example.com", role="user", member_id=member.id)
+    position = make_board_position(name="Treasurer")
+    make_board_position_assignment(position.id, member.id, rotary_year=rotary_year(date.today()))
+    app_function = make_app_function(key="admin.currencies", label="Admin — Currencies")
+    make_permission_matrix_entry(app_function.id, board_position_id=position.id, access_level="write")
+
+    response = build_client(user).post(
         "/api/v1/exchange-rates",
         json={"currency_code": "SGD", "rate_to_hkd": 5.8, "rate_to_usd": 0.74},
     )

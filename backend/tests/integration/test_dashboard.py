@@ -18,6 +18,7 @@ def test_dashboard_summary_returns_zero_counts_when_empty(user_client):
         "organisations_supported": 0,
         "rotary_friends": 0,
         "donations_this_year": 0,
+        "fees_collected_this_year": 0,
     }
 
 
@@ -62,3 +63,36 @@ def test_dashboard_summary_sums_current_rotary_year_donations(
 
     assert response.status_code == 200
     assert response.json()["donations_this_year"] == 120.5
+
+
+def test_dashboard_summary_sums_current_rotary_year_paid_fees(
+    user_client, make_member, make_member_fee
+):
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year
+
+    this_year = rotary_year(date.today())
+    prior_year = this_year - 2
+
+    member = make_member()
+    make_member_fee(member_id=member.id, rotary_year=this_year, amount_due=500, is_paid=True)
+    # Unpaid fee this year must NOT be counted.
+    make_member_fee(
+        member_id=make_member(first_name="Unpaid").id,
+        rotary_year=this_year,
+        amount_due=600,
+        is_paid=False,
+    )
+    # Paid fee from a prior rotary year must NOT be counted.
+    make_member_fee(
+        member_id=make_member(first_name="Prior").id,
+        rotary_year=prior_year,
+        amount_due=999,
+        is_paid=True,
+    )
+
+    response = user_client.get("/api/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    assert response.json()["fees_collected_this_year"] == 500

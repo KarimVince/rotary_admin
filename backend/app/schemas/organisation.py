@@ -20,6 +20,7 @@ class OrganisationBase(BaseModel):
     contact_phone: str | None = None
     country: str | None = None
     first_supported_year: int | None = None
+    logo_url: str | None = None
 
     _validate_country = field_validator("country")(_validate_country)
 
@@ -36,6 +37,7 @@ class OrganisationUpdate(BaseModel):
     contact_phone: str | None = None
     country: str | None = None
     first_supported_year: int | None = None
+    logo_url: str | None = None
 
     _validate_country = field_validator("country")(_validate_country)
 
@@ -46,3 +48,8 @@ class OrganisationRead(OrganisationBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    # Only populated when the list endpoint is called with ?rotary_year=... —
+    # the org's donations for that year, converted to HKD (best-effort; a
+    # donation in a currency with no exchange rate on file is excluded from
+    # this total, same non-silent-drop behaviour as the statistics endpoint).
+    year_total: float | None = None

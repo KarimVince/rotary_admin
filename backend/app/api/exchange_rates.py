@@ -3,7 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_treasurer_or_admin
+from app.api.deps import require_access
+
+ADMIN_CURRENCIES = "admin.currencies"
 from app.db.session import get_db
 from app.models import ExchangeRate, User
 from app.schemas.exchange_rate import ExchangeRateCreate, ExchangeRateRead, ExchangeRateUpdate
@@ -14,7 +16,7 @@ router = APIRouter()
 @router.get("/exchange-rates", response_model=list[ExchangeRateRead])
 def list_exchange_rates(
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(ADMIN_CURRENCIES, "read")),
 ):
     return db.query(ExchangeRate).order_by(ExchangeRate.currency_code).all()
 
@@ -23,7 +25,7 @@ def list_exchange_rates(
 def create_exchange_rate(
     payload: ExchangeRateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_treasurer_or_admin),
+    current_user: User = Depends(require_access(ADMIN_CURRENCIES, "write")),
 ):
     existing = (
         db.query(ExchangeRate)
@@ -48,7 +50,7 @@ def update_exchange_rate(
     rate_id: uuid.UUID,
     payload: ExchangeRateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_treasurer_or_admin),
+    current_user: User = Depends(require_access(ADMIN_CURRENCIES, "write")),
 ):
     rate = db.get(ExchangeRate, rate_id)
     if rate is None:
@@ -67,7 +69,7 @@ def update_exchange_rate(
 def delete_exchange_rate(
     rate_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_treasurer_or_admin),
+    _current_user: User = Depends(require_access(ADMIN_CURRENCIES, "write")),
 ):
     rate = db.get(ExchangeRate, rate_id)
     if rate is None:

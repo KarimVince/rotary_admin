@@ -8,11 +8,36 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-07-06)
-- **Epics 1, 2, 2b, 3 are complete.** **Epic 4 (Rotary Friends) is complete**:
-  4.1-4.4 and 4.6-4.8 built; 4.5 (WhatsApp) was reassigned to Story 8.5.
-- **Next up per the recommended sequence: Epic 5 (Annual Fees & Invoicing)**,
-  unless told otherwise at the start of the next session.
+## Current status / resume from here (2026-07-10)
+- **Epics 1, 2, 2b, 3, 4, 5, 7 are complete.** Epic 8 items are worked
+  piecemeal from the backlog as requested (several already done — see
+  ClickUp for current state, not this file).
+- **Epic 9 (Board Roles & Access Control) is CLOSED — superseded by Epic 12**
+  (Permission Matrix Hierarchy Revamp). Epic 9's flat App Function list
+  never matched a real per-module rollout; Epic 12 replaced it with a strict
+  Menu→Submenu tree applied to every module, not just 3 of ~8.
+- **Epic 12 is complete** (Stories 12.1-12.11, branch
+  `epic-12-permission-matrix-hierarchy`): Menu/Submenu permission matrix
+  data model + admin UI, every module (Members, NGOs & Donations, Member
+  Fees, Friends of Rotary, Board, Admin) wired to it, unified nav gating,
+  default board positions (President/Treasurer/Secretary) + default matrix
+  seeded via a standalone idempotent script
+  (`backend/scripts/seed_permission_matrix.py` — **not** a migration,
+  deliberately, so the test DB stays seed-free), full backend (408) +
+  frontend (182) suites green, and a manual smoke pass against the real dev
+  DB confirmed matrix-driven access resolves correctly end-to-end. **Not
+  pushed to GitHub yet** — only push when explicitly asked.
+- **Housekeeping from the Epic 12 session:** the dev-DB user
+  `karim_vincent@yahoo.fr`'s password was reset to `REDACTED-TEST-PASSWORD` for
+  the manual smoke test (its original password is unknown/unrecoverable) —
+  tell the user so they can reset it to something real, or reset it again
+  yourself if asked.
+- **Epics 10 (Dinner Attendance) and 11 (NGO Classification) are still
+  "to do"** — not started. Recommended next: whichever the user picks up;
+  neither depends on the other.
+- **Next up per the recommended sequence:** ask the user — Epic 6
+  (Production Deployment) is the last unstarted item in the original
+  build-order and now unblocked, but Epics 10/11 may take priority instead.
 - **Known open issue — email sending is not fully working yet:**
   - Switched email provider from Sender.net to **Resend** mid-Epic-4 (Sender's
     API key was never actually configured locally, and rather than fix that
@@ -76,11 +101,9 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
    any reason.** Implement the story, write its tests, and stop. There are
    only two exceptions: (1) I explicitly ask you to run tests, or (2) you are
    working the epic's dedicated `x.99` "test & fix" story, whose whole job is
-   to run the full backend + frontend suites together, fix whatever the batch
-   run turns up, and only then is the epic considered ready to push. Likewise,
-   **never `git push` or push to GitHub unless I explicitly ask** — that still
-   only happens once I request it, normally right after that epic's test &
-   fix story.
+   to run the full backend + frontend suites together and fix whatever the
+   batch run turns up. Likewise, **never commit or push to GitHub unless I
+   explicitly ask** — see "Branching & commits" below.
    **GitHub Actions CI no longer runs tests automatically** (see `.github/workflows/ci.yml` —
    disabled for now, triggered manually via `workflow_dispatch` only) since test
    running is handled by the epic-end test & fix story instead.
@@ -148,14 +171,33 @@ This applies to every item in Epic 8, not just the WhatsApp block.
    depends on it. **Not worked as a sequential epic — see the Epic 8 rule
    under "ClickUp workflow" above: only touch a story here once I've
    explicitly moved it to Planning.**
+9. ~~Board Roles & Access Control~~ — **CLOSED, superseded by Epic 12.**
+10. **Dinner Attendance Tracking** — attendance events, present/absent
+    sheet, active/honorary/past member handling, role-based access. Not
+    started.
+11. **NGO Classification** — classification catalogue + field on
+    organisations, directory filter, statistics breakdown. Not started.
+12. **Permission Matrix Hierarchy Revamp** — **complete.** Replaced Epic 9's
+    flat App Function list with a strict Menu→Submenu tree (`parent_id` on
+    `app_functions`, cascade-clamp on the matrix upsert endpoint) applied to
+    every module — Members, NGOs & Donations, Member Fees (re-pointed from
+    9.7), Friends of Rotary (re-pointed from 9.8), Board, Admin. Nav
+    (`AppLayout.jsx`) fully unified on one `requiredPermission` mechanism;
+    Manage Users + the Permissions editor are the only two permanent
+    `adminOnly` exceptions. Default board positions/matrix seeded via
+    `backend/scripts/seed_permission_matrix.py` (a standalone idempotent
+    script, not a migration — see that file's docstring and the
+    "Permission matrix: registering a new module" section of
+    `ARCHITECTURE.md` before adding another module's permissions).
 
 **WhatsApp:** do NOT implement any WhatsApp feature until the core site
 (Epics 1-5, 7) is functionally complete and I explicitly say to start Epic 8's
 WhatsApp block. Everywhere the app "sends," email is the only real channel for
 now; treat WhatsApp as a placeholder until then.
 
-Recommended sequence: 1 → 2 → 2b → 3 → 4 → 5 → 7 → 6 (deploy). Epic 8 items
-(incl. all WhatsApp) come last, only when asked.
+Recommended sequence: 1 → 2 → 2b → 3 → 4 → 5 → 7 → 12 → 6 (deploy). Epics
+10/11 slot in wherever asked; Epic 8 items (incl. all WhatsApp) come last,
+only when asked.
 
 ## Fee module specifics (Epic 5) — easy to get wrong
 - **4 prices per rotary year**: Early Bird Single, Early Bird Couple, Full Single,
@@ -179,20 +221,23 @@ Implement the story, write its tests, then **STOP and wait**. Specifically:
 - **Do not run the full CI test suite automatically** — CI no longer runs
   tests on its own anyway (see `.github/workflows/ci.yml`); only trigger it
   manually when I ask.
-- **Do not `git push` / push to GitHub automatically** — only push when I ask,
-  normally once the epic's test & fix story is complete.
-No CI runs, no test runs, and no pushes happen on your initiative — I decide
-when to run tests/CI and when to push.
+- **Do not commit or `git push` automatically** — see "Branching & commits"
+  below; both only happen when I explicitly ask.
+No CI runs, no test runs, no commits, and no pushes happen on your
+initiative — I decide when each of those happens.
 
 ## Branching & commits (keeps rollback easy)
 - **At the start of each epic, create a dedicated git branch** for that epic
   (e.g. `epic-2b-members-improvement`) and do all of that epic's work on it.
-- **Commit locally at the end of each story** with a clear message referencing
-  the story (e.g. `Story 2b.2: members card grid view`). Also commit mid-story
-  if I ask, or at a sensible checkpoint before a risky/large change — small,
-  labelled commits make it easy to roll back to a known-good point.
-- These are **local commits only** — remember the push rule above: do NOT push
-  the branch to GitHub until I explicitly ask.
+- **Do not commit on your own initiative — not automatically at the end of a
+  story, not mid-story, not at a checkpoint before a risky change.** Implement
+  the story, write its tests, and stop with the changes sitting uncommitted.
+  Only commit when I explicitly ask (e.g. "commit that" / "commit Story 2b.2"),
+  and only what I ask for — don't sweep in unrelated pre-existing uncommitted
+  changes unless told to.
+- **Never `git push` / push to GitHub on your own initiative either** — same
+  rule, only on explicit request, normally once an epic's test & fix story is
+  complete.
 - Keep one branch per epic so a whole epic can be reviewed, merged, or reverted
   as a unit.
 

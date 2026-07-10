@@ -1,5 +1,7 @@
+import { Building2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { API_ORIGIN } from "../api/client";
 import { getOrganisation } from "../api/organisations";
 import {
   createDonation,
@@ -7,7 +9,7 @@ import {
   listOrganisationDonations,
   updateDonation,
 } from "../api/donations";
-import { useAuth } from "../hooks/useAuth";
+import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 
@@ -20,10 +22,14 @@ function formatAmount(amount, currency) {
   })} ${currency}`;
 }
 
+function resolveLogoUrl(logoUrl) {
+  if (!logoUrl) return null;
+  return /^https?:\/\//.test(logoUrl) ? logoUrl : `${API_ORIGIN}${logoUrl}`;
+}
+
 export default function OrganisationDetail() {
   const { organisationId } = useParams();
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const { canRead, canWrite: isAdmin } = useAccess("ngos.organisations");
   const thisRotaryYear = currentRotaryYear();
 
   const [organisation, setOrganisation] = useState(null);
@@ -55,9 +61,13 @@ export default function OrganisationDetail() {
   }
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organisationId]);
+  }, [canRead, organisationId]);
 
   const formRotaryYear = useMemo(() => rotaryYear(form.donation_date), [form.donation_date]);
 
@@ -145,6 +155,14 @@ export default function OrganisationDetail() {
     );
   }
 
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <p role="alert">You do not have permission to view this organisation.</p>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="admin-page">
@@ -165,7 +183,20 @@ export default function OrganisationDetail() {
   return (
     <div className="admin-page">
       <Link to="/ngos">← Back to organisations</Link>
-      <h1>{organisation.name}</h1>
+      <div className="org-detail-header">
+        {organisation.logo_url ? (
+          <img
+            className="org-detail-logo"
+            src={resolveLogoUrl(organisation.logo_url)}
+            alt=""
+          />
+        ) : (
+          <div className="org-detail-logo org-detail-logo-fallback">
+            <Building2 className="w-6 h-6" aria-hidden="true" />
+          </div>
+        )}
+        <h1>{organisation.name}</h1>
+      </div>
       <div className="org-detail-meta">
         {organisation.country && <p>Country: {organisation.country}</p>}
         {organisation.description && <p>{organisation.description}</p>}

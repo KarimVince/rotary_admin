@@ -277,6 +277,28 @@ def test_non_admin_cannot_view_email_log(user_client):
     assert response.status_code == 403
 
 
+def test_read_access_can_view_log_but_not_send(
+    build_client, make_user, make_app_function, make_permission_matrix_entry
+):
+    # Story 12.3: members.email follows the Read-sees-history/Write-can-send
+    # pattern established in Story 9.8 for Friends of Rotary.
+    user = make_user(email="read-only@example.com", role="user", member_id=None)
+    app_function = make_app_function(key="members.email", label="Members — Email")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+    read_client = build_client(user)
+
+    log_response = read_client.get("/api/v1/members/email-log")
+    send_response = read_client.post(
+        "/api/v1/members/email",
+        json={"subject": "Hi", "body": "Hello", "recipient_group": "all"},
+    )
+
+    assert log_response.status_code == 200
+    assert send_response.status_code == 403
+
+
 def test_email_log_lists_past_sends_most_recent_first(admin_client, monkeypatch):
     monkeypatch.setattr("app.api.member_email.send_email", _always_succeeds)
     _create_member(admin_client, email="a@example.com")

@@ -3,7 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import require_access
+
+ADMIN_MEMBER_TITLES = "admin.member_titles"
 from app.db.session import get_db
 from app.models import MemberTitle
 from app.schemas.member_title import MemberTitleCreate, MemberTitleRead, MemberTitleUpdate
@@ -15,7 +17,7 @@ router = APIRouter()
 def list_member_titles(
     include_inactive: bool = Query(False),
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(ADMIN_MEMBER_TITLES, "read")),
 ):
     query = db.query(MemberTitle)
     if not include_inactive:
@@ -27,7 +29,7 @@ def list_member_titles(
 def create_member_title(
     payload: MemberTitleCreate,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(ADMIN_MEMBER_TITLES, "write")),
 ):
     existing = db.query(MemberTitle).filter(MemberTitle.code == payload.code).first()
     if existing is not None:
@@ -47,7 +49,7 @@ def update_member_title(
     title_id: uuid.UUID,
     payload: MemberTitleUpdate,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(ADMIN_MEMBER_TITLES, "write")),
 ):
     title = db.get(MemberTitle, title_id)
     if title is None:
@@ -78,7 +80,7 @@ def update_member_title(
 def delete_member_title(
     title_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(ADMIN_MEMBER_TITLES, "write")),
 ):
     """Soft delete: deactivates the title rather than removing the row, since
     historical members may still reference it via title_id."""

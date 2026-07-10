@@ -10,6 +10,17 @@ import OrganisationDetail from "./OrganisationDetail";
 
 vi.mock("../hooks/useAuth");
 
+let mockCanRead = true;
+let mockCanWrite = false;
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanWrite }),
+}));
+
+function mockRole(role) {
+  mockCanRead = true;
+  mockCanWrite = role === "admin";
+}
+
 const API_BASE_URL = "http://localhost:8000/api/v1";
 const THIS_YEAR = currentRotaryYear();
 
@@ -74,6 +85,7 @@ describe("OrganisationDetail", () => {
 
   it("shows org info, total, and buckets current vs past donations", async () => {
     useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     renderDetail();
     await waitForLoaded();
 
@@ -86,6 +98,7 @@ describe("OrganisationDetail", () => {
 
   it("highlights the current rotary-year donation row", async () => {
     useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     const { container } = renderDetail();
     await waitForLoaded();
 
@@ -96,6 +109,7 @@ describe("OrganisationDetail", () => {
 
   it("hides the add-donation form from non-admins", async () => {
     useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     renderDetail();
     await waitForLoaded();
 
@@ -104,6 +118,7 @@ describe("OrganisationDetail", () => {
 
   it("lets an admin add a donation", async () => {
     useAuth.mockReturnValue({ user: { role: "admin" } });
+    mockRole("admin");
     const posted = [];
     server.use(
       http.post(`${API_BASE_URL}/organisations/org-1/donations`, async ({ request }) => {

@@ -6,7 +6,7 @@ describe("BrandHeader", () => {
   it("renders the logo and app title as the page heading when size is large", () => {
     render(<BrandHeader size="large" />);
 
-    expect(screen.getByAltText(/rotary club of discovery bay logo/i)).toBeInTheDocument();
+    expect(screen.getByAltText(/rotary club of discovery bay hong kong/i)).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /rotary club of discovery bay database/i }),
     ).toBeInTheDocument();

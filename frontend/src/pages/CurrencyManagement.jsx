@@ -6,13 +6,14 @@ import {
   updateExchangeRate,
 } from "../api/exchangeRates";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
-import { useAuth } from "../hooks/useAuth";
+import { useAccess } from "../hooks/useAccess";
 
 const EMPTY_FORM = { currency_code: "", rate_to_hkd: "", rate_to_usd: "" };
 
 export default function CurrencyManagement() {
-  const { user } = useAuth();
-  const canManage = user?.role === "admin" || user?.role === "treasurer";
+  // Story 12.7: retires the legacy require_treasurer_or_admin role check —
+  // matrix-driven now via admin.currencies.
+  const { canRead, canWrite: canManage } = useAccess("admin.currencies");
 
   const [rates, setRates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,8 +37,13 @@ export default function CurrencyManagement() {
   }
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadRates();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
 
   const usedCurrencyCodes = new Set(rates.map((rate) => rate.currency_code));
   const availableCurrencyOptions = CURRENCIES.filter(
@@ -93,6 +99,15 @@ export default function CurrencyManagement() {
     }
     await deleteExchangeRate(rate.id);
     await loadRates();
+  }
+
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Currencies &amp; exchange rates</h1>
+        <p role="alert">You do not have permission to view Currencies.</p>
+      </div>
+    );
   }
 
   return (

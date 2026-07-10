@@ -3,6 +3,13 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
+def _grant_friends_view_access(make_app_function, make_permission_matrix_entry, access_level="read"):
+    app_function = make_app_function(key="friends.directory", label="Friends of Rotary — Directory")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level=access_level, is_default_user=True
+    )
+
+
 def test_create_then_get_rotary_friend_round_trip(admin_client):
     create_response = admin_client.post(
         "/api/v1/rotary-friends",
@@ -53,12 +60,21 @@ def test_list_rotary_friends_requires_authentication(client):
     assert response.status_code == 401
 
 
-def test_user_can_read_rotary_friends(user_client, make_rotary_friend):
+def test_user_with_view_access_can_read_rotary_friends(
+    user_client, make_rotary_friend, make_app_function, make_permission_matrix_entry
+):
+    _grant_friends_view_access(make_app_function, make_permission_matrix_entry)
     make_rotary_friend(first_name="Readable")
     response = user_client.get("/api/v1/rotary-friends")
     assert response.status_code == 200
     names = [f["first_name"] for f in response.json()]
     assert "Readable" in names
+
+
+def test_user_without_view_access_cannot_read_rotary_friends(user_client, make_rotary_friend):
+    make_rotary_friend(first_name="Hidden")
+    response = user_client.get("/api/v1/rotary-friends")
+    assert response.status_code == 403
 
 
 def test_non_admin_cannot_create_rotary_friend(user_client):
@@ -73,6 +89,28 @@ def test_treasurer_cannot_create_rotary_friend(treasurer_client):
     response = treasurer_client.post(
         "/api/v1/rotary-friends",
         json={"first_name": "No", "last_name": "Perm", "email": "no@example.com"},
+    )
+    assert response.status_code == 403
+
+
+def test_user_with_write_access_can_create_rotary_friend(
+    user_client, make_app_function, make_permission_matrix_entry
+):
+    _grant_friends_view_access(make_app_function, make_permission_matrix_entry, "write")
+    response = user_client.post(
+        "/api/v1/rotary-friends",
+        json={"first_name": "New", "last_name": "Friend", "email": "new@example.com"},
+    )
+    assert response.status_code == 201
+
+
+def test_user_with_read_only_access_cannot_create_rotary_friend(
+    user_client, make_app_function, make_permission_matrix_entry
+):
+    _grant_friends_view_access(make_app_function, make_permission_matrix_entry, "read")
+    response = user_client.post(
+        "/api/v1/rotary-friends",
+        json={"first_name": "No", "last_name": "Write", "email": "no-write@example.com"},
     )
     assert response.status_code == 403
 

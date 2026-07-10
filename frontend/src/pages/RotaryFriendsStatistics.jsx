@@ -1,18 +1,37 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fetchRotaryFriendStatistics } from "../api/rotaryFriends";
+import { useAccess } from "../hooks/useAccess";
 
 const PIE_COLORS = ["#17458f", "#f7a81b", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
 
 export default function RotaryFriendsStatistics() {
+  const { canRead } = useAccess("friends.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [reportFormat, setReportFormat] = useState("pdf");
+  const [reportError, setReportError] = useState(null);
+
+  // Placeholder — report generation isn't implemented yet for this page.
+  function handleGenerateReport() {
+    setReportError("Report generation is coming soon.");
+  }
 
   useEffect(() => {
+    if (!canRead) return;
     fetchRotaryFriendStatistics()
       .then(setStats)
       .catch((err) => setError(err.detail || "Failed to load statistics"));
-  }, []);
+  }, [canRead]);
+
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Rotary Friends statistics</h1>
+        <p role="alert">You do not have permission to view Friends of Rotary.</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -35,6 +54,22 @@ export default function RotaryFriendsStatistics() {
   return (
     <div className="admin-page">
       <h1>Rotary Friends statistics</h1>
+
+      <div className="report-controls">
+        <label htmlFor="report-format">Generate report</label>
+        <select
+          id="report-format"
+          value={reportFormat}
+          onChange={(event) => setReportFormat(event.target.value)}
+        >
+          <option value="pdf">PDF</option>
+          <option value="pptx">PowerPoint (PPTX)</option>
+        </select>
+        <button type="button" onClick={handleGenerateReport}>
+          Generate Report
+        </button>
+        {reportError && <p role="alert">{reportError}</p>}
+      </div>
 
       <div className="stat-cards-row-3">
         <div className="stat-card stat-card-blue">

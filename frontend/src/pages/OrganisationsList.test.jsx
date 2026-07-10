@@ -9,6 +9,17 @@ import OrganisationsList from "./OrganisationsList";
 
 vi.mock("../hooks/useAuth");
 
+let mockCanRead = true;
+let mockCanWrite = false;
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanWrite }),
+}));
+
+function mockRole(role) {
+  mockCanRead = true;
+  mockCanWrite = role === "admin";
+}
+
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
 const ORG_A = {
@@ -54,6 +65,7 @@ describe("OrganisationsList", () => {
 
   it("lists organisations for an authenticated user", async () => {
     useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     renderList();
     await waitForLoaded();
 
@@ -63,6 +75,7 @@ describe("OrganisationsList", () => {
 
   it("does not show the Add button for non-admins", async () => {
     useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     renderList();
     await waitForLoaded();
 
@@ -71,6 +84,7 @@ describe("OrganisationsList", () => {
 
   it("filters organisations by the search box", async () => {
     useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     renderList();
     await waitForLoaded();
 
@@ -82,6 +96,7 @@ describe("OrganisationsList", () => {
 
   it("lets an admin create an organisation", async () => {
     useAuth.mockReturnValue({ user: { role: "admin" } });
+    mockRole("admin");
     const posted = [];
     server.use(
       http.post(`${API_BASE_URL}/organisations`, async ({ request }) => {

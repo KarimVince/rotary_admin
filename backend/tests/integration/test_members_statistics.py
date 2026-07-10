@@ -7,6 +7,16 @@ from app.core.rotary_year import rotary_year
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _grant_default_statistics_read(make_app_function, make_permission_matrix_entry):
+    # Story 12.3: members.statistics is matrix-gated now — matches the 12.10
+    # seed default (Default User = Read on members.statistics).
+    app_function = make_app_function(key="members.statistics", label="Members — Statistics")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
 def _age_bucket(age: int) -> str:
     if age < 30:
         return "<30"

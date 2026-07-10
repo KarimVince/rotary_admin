@@ -23,6 +23,15 @@ def _always_fails(**_kwargs):
     raise EmailSendError("simulated failure")
 
 
+def _grant_send_email_access(make_app_function, make_permission_matrix_entry, access_level):
+    app_function = make_app_function(
+        key="friends.send_message", label="Friends of Rotary — Send Message"
+    )
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level=access_level, is_default_user=True
+    )
+
+
 def test_non_admin_cannot_send_email(user_client):
     response = user_client.post(
         "/api/v1/rotary-friends/email",
@@ -37,6 +46,40 @@ def test_treasurer_cannot_send_email(treasurer_client):
         json={"subject": "Hi", "body": "Hello", "recipient_group": "all"},
     )
     assert response.status_code == 403
+
+
+def test_user_with_write_access_can_send_email(
+    user_client, make_app_function, make_permission_matrix_entry, monkeypatch
+):
+    _grant_send_email_access(make_app_function, make_permission_matrix_entry, "write")
+    monkeypatch.setattr("app.api.rotary_friend_email.send_email", _always_succeeds)
+
+    response = user_client.post(
+        "/api/v1/rotary-friends/email",
+        json={"subject": "Hi", "body": "Hello", "recipient_group": "all"},
+    )
+    assert response.status_code == 200
+
+
+def test_user_with_read_only_access_cannot_send_email(
+    user_client, make_app_function, make_permission_matrix_entry
+):
+    _grant_send_email_access(make_app_function, make_permission_matrix_entry, "read")
+
+    response = user_client.post(
+        "/api/v1/rotary-friends/email",
+        json={"subject": "Hi", "body": "Hello", "recipient_group": "all"},
+    )
+    assert response.status_code == 403
+
+
+def test_user_with_read_only_access_can_view_email_log(
+    user_client, make_app_function, make_permission_matrix_entry
+):
+    _grant_send_email_access(make_app_function, make_permission_matrix_entry, "read")
+
+    response = user_client.get("/api/v1/rotary-friends/email-log")
+    assert response.status_code == 200
 
 
 def test_requires_a_recipient_selector(admin_client):

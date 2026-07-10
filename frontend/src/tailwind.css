@@ -1,0 +1,28 @@
+/* Tailwind utilities for the new/redesigned surfaces (nav, Card, Dashboard,
+   Members list). Deliberately omits Preflight (tailwindcss/preflight.css) —
+   that layer resets global `button`/`h1`/`h2`/`a` styles, which would clobber
+   the existing plain-CSS pages (see index.css) that still rely on their own
+   element-level styling. Only theme + utilities are imported. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme {
+  /* Mirrors the brand tokens in index.css so Tailwind-based components stay
+     visually consistent with the rest of the app. Doubles as the documented
+     colour palette for Story 8.10. */
+  --color-brand-blue: #17458f;
+  --color-brand-blue-dark: #0c2340;
+  /* Lightened for the detached nav card (redesign) — was #e3edfb */
+  --color-brand-blue-light: #eef3fb;
+  /* Chip background for nav rows (top-level + sub-items) so both render as
+     the same "pill" treatment instead of sub-items looking like plain links */
+  --color-brand-blue-chip: #dce8f8;
+  /* Stronger chip for the collapsible section headers (Members, NGOs &
+     Donations, etc.) only — Dashboard and the expanded sub-items keep the
+     lighter --color-brand-blue-chip. */
+  --color-brand-blue-chip-strong: #b9d1f2;
+  --color-brand-gold: #f7a81b;
+  --color-card-border: #dde3ec;
+  --shadow-card: 0 4px 12px -2px rgba(12, 35, 64, 0.08);
+  --shadow-nav-card: 0 6px 20px -4px rgba(12, 35, 64, 0.12);
+}

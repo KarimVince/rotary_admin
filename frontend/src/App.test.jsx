@@ -22,6 +22,37 @@ const DASHBOARD_SUMMARY_HANDLER = http.get(`${API_BASE_URL}/dashboard/summary`, 
   HttpResponse.json({ active_members: 0, organisations_supported: 0, rotary_friends: 0 }),
 );
 
+// Every nav section/item is matrix-gated now (Epic 12) — grant Write on
+// every key AppLayout checks so these auth-flow tests exercise the nav as
+// an admin realistically would see it, without needing to know Epic 12's
+// internals beyond "admin sees everything".
+const ALL_PERMISSIONS_WRITE_HANDLER = http.get(`${API_BASE_URL}/board/permissions/me`, () =>
+  HttpResponse.json({
+    members: "write",
+    "members.directory": "write",
+    "members.statistics": "write",
+    "members.email": "write",
+    ngos: "write",
+    "ngos.organisations": "write",
+    "ngos.statistics": "write",
+    friends: "write",
+    "friends.directory": "write",
+    "friends.statistics": "write",
+    "friends.send_message": "write",
+    fees: "write",
+    "fees.tracking": "write",
+    "fees.run": "write",
+    "fees.settings": "write",
+    "fees.statistics": "write",
+    board: "write",
+    "board.members": "write",
+    "board.positions": "write",
+    admin: "write",
+    "admin.member_titles": "write",
+    "admin.currencies": "write",
+  }),
+);
+
 function renderApp(initialRoute) {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
@@ -176,13 +207,17 @@ describe("App auth flow", () => {
       ),
       http.get(`${API_BASE_URL}/auth/me`, () => HttpResponse.json(MOCK_USER)),
       DASHBOARD_SUMMARY_HANDLER,
+      ALL_PERMISSIONS_WRITE_HANDLER,
     );
 
     renderApp("/dashboard");
     await screen.findByText(/welcome, admin/i);
 
     const nav = within(screen.getByRole("navigation"));
-    expect(nav.getByText("Members")).toBeInTheDocument();
+    // The permissions fetch (PermissionsContext) resolves asynchronously,
+    // separately from the auth/user fetch — wait for it rather than
+    // asserting synchronously right after the "welcome" text appears.
+    expect(await nav.findByText("Members")).toBeInTheDocument();
     expect(nav.getAllByRole("link", { name: "Directory" })).toHaveLength(2);
     expect(nav.getAllByRole("link", { name: "Statistics" })).toHaveLength(3);
     expect(nav.getByRole("link", { name: "Email Members" })).toBeInTheDocument();
@@ -206,6 +241,7 @@ describe("App auth flow", () => {
         HttpResponse.json({ ...MOCK_USER, role: "user" }),
       ),
       DASHBOARD_SUMMARY_HANDLER,
+      ALL_PERMISSIONS_WRITE_HANDLER,
     );
 
     renderApp("/dashboard");

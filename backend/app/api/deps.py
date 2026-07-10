@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.access_control import AccessLevel, get_access
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models import User
@@ -48,3 +49,22 @@ def require_role(*allowed_roles: str):
 require_admin = require_role("admin")
 require_treasurer_or_admin = require_role("treasurer", "admin")
 require_user = require_role("user", "treasurer", "admin")
+
+
+def require_access(function_key: str, level: AccessLevel = "read"):
+    """Gate an endpoint on the permission matrix (Story 9.4). `level` is the
+    minimum required: 'read' also passes for users with 'write'."""
+
+    def dependency(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        resolved = get_access(db, current_user, function_key)
+        order = {"no_access": 0, "read": 1, "write": 2}
+        if order[resolved] < order[level]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+            )
+        return current_user
+
+    return dependency

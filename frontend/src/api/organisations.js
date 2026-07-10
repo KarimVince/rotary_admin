@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiUpload } from "./client";
 
 function buildQuery(params) {
   const query = new URLSearchParams();
@@ -37,4 +37,10 @@ export function deleteOrganisation(organisationId) {
   return apiFetch(`/organisations/${organisationId}`, {
     method: "DELETE",
   });
+}
+
+export function uploadOrganisationLogo(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiUpload("/organisations/logo", formData);
 }

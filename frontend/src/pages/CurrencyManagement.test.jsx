@@ -17,8 +17,8 @@ const BASE_RATE = {
 };
 
 let mockRole = "admin";
-vi.mock("../hooks/useAuth", () => ({
-  useAuth: () => ({ user: { role: mockRole } }),
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: true, canWrite: mockRole === "admin" || mockRole === "treasurer" }),
 }));
 
 async function waitForLoaded() {

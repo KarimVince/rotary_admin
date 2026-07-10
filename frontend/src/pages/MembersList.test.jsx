@@ -7,6 +7,17 @@ import { useAuth } from "../hooks/useAuth";
 import { server } from "../test/mocks/server";
 import MembersList from "./MembersList";
 
+let mockCanRead = true;
+let mockCanWrite = false;
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanWrite }),
+}));
+
+function mockRole(role) {
+  mockCanRead = true;
+  mockCanWrite = role === "admin";
+}
+
 function renderMembersList() {
   return render(
     <MemoryRouter>
@@ -65,6 +76,7 @@ describe("MembersList", () => {
   describe("as admin", () => {
     beforeEach(() => {
       useAuth.mockReturnValue({ user: { role: "admin", full_name: "Admin" } });
+      mockRole("admin");
     });
 
     it("shows the member card with title badge and an Add Member button", async () => {
@@ -97,6 +109,23 @@ describe("MembersList", () => {
       expect(screen.getByRole("heading", { name: /jane doe/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /mark as past/i })).toBeInTheDocument();
+    });
+
+    it("groups member detail info into Personal info / Membership & tenure / Notes cards", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([MEMBER])),
+      );
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByText("Jane Doe"));
+
+      expect(screen.getByText("Personal info")).toBeInTheDocument();
+      expect(screen.getByText(/membership & tenure/i)).toBeInTheDocument();
+      expect(screen.getByText("Notes")).toBeInTheDocument();
+      expect(screen.getByText(/email: jane@example\.com/i)).toBeInTheDocument();
+      expect(screen.getByText(/join date: 2020-01-15/i)).toBeInTheDocument();
     });
 
     it("filters the visible list by the search box", async () => {
@@ -429,6 +458,7 @@ describe("MembersList", () => {
   describe("as a non-admin user", () => {
     beforeEach(() => {
       useAuth.mockReturnValue({ user: { role: "user", full_name: "Regular User" } });
+      mockRole("user");
     });
 
     it("shows the directory without any write controls", async () => {
@@ -446,14 +476,16 @@ describe("MembersList", () => {
     });
   });
 
-  describe("as a user linked to their own member record", () => {
+  describe("as a user with matrix write access (e.g. a board position)", () => {
     beforeEach(() => {
       useAuth.mockReturnValue({
-        user: { role: "user", full_name: "Self Service", member_id: MEMBER.id },
+        user: { role: "user", full_name: "Board Member", member_id: MEMBER.id },
       });
+      mockCanRead = true;
+      mockCanWrite = true;
     });
 
-    it("can edit their own record but still has no Add Member or Mark as past", async () => {
+    it("can edit a member record but still has no Mark as past (admin-only)", async () => {
       let capturedBody;
       server.use(
         http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([MEMBER])),
@@ -466,7 +498,7 @@ describe("MembersList", () => {
       renderMembersList();
       await waitForLoaded();
 
-      expect(screen.queryByRole("button", { name: /add member/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /add member/i })).toBeInTheDocument();
 
       await userEvent.click(screen.getByText("Jane Doe"));
       expect(screen.queryByRole("button", { name: /mark as past/i })).not.toBeInTheDocument();

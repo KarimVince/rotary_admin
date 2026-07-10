@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_admin
+from app.api.deps import require_access
 from app.core.email_client import EmailSendError, send_email
 from app.core.tags import split_tags
 from app.db.session import get_db
@@ -13,6 +13,8 @@ from app.schemas.rotary_friend_email import (
 )
 
 router = APIRouter()
+
+FRIENDS_SEND_MESSAGE = "friends.send_message"
 
 
 def _resolve_matching_friends(
@@ -43,7 +45,7 @@ def _resolve_matching_friends(
 def email_rotary_friends(
     payload: RotaryFriendEmailRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_access(FRIENDS_SEND_MESSAGE, "write")),
 ):
     matching = _resolve_matching_friends(payload, db)
     recipients = [friend for friend in matching if friend.email]
@@ -108,7 +110,7 @@ def email_rotary_friends(
 @router.get("/rotary-friends/email-log", response_model=list[RotaryFriendEmailLogRead])
 def list_rotary_friend_email_log(
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_access(FRIENDS_SEND_MESSAGE, "read")),
 ):
     return (
         db.query(EmailLog)

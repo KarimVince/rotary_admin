@@ -3,6 +3,15 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _grant_default_statistics_read(make_app_function, make_permission_matrix_entry):
+    # Story 12.3: the report endpoint shares members.statistics gating.
+    app_function = make_app_function(key="members.statistics", label="Members — Statistics")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
 def test_report_requires_authentication(client):
     response = client.post("/api/v1/members/statistics/report", params={"format": "pdf"})
 

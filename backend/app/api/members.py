@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import require_access, require_admin
 from app.core.config import settings
 from app.core.rotary_year import rotary_year
 from app.core.statistics_report import build_pdf_report, build_pptx_report
@@ -18,6 +18,9 @@ from app.schemas.member import MemberCreate, MemberRead, MemberReadLimited, Memb
 from app.schemas.member_statistics import JoinsLeavesByYear, LabelValue, MembersStatistics
 
 router = APIRouter()
+
+MEMBERS_DIRECTORY = "members.directory"
+MEMBERS_STATISTICS = "members.statistics"
 
 AGE_BUCKETS = ["<30", "30-39", "40-49", "50-59", "60-69", "70+"]
 TENURE_BUCKETS = ["0-5", "5-10", "10-20", "20+"]
@@ -64,7 +67,7 @@ def _serialize(member: Member, current_user: User) -> dict:
 def create_member(
     payload: MemberCreate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "write")),
 ):
     if payload.email is not None:
         existing = db.query(Member).filter(Member.email == payload.email).first()
@@ -226,7 +229,7 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
 @router.get("/members/statistics", response_model=MembersStatistics)
 def members_statistics(
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_access(MEMBERS_STATISTICS, "read")),
 ):
     return compute_members_statistics(db)
 
@@ -235,7 +238,7 @@ def members_statistics(
 def generate_statistics_report(
     report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_access(MEMBERS_STATISTICS, "read")),
 ):
     stats = compute_members_statistics(db)
     today_str = date.today().isoformat()
@@ -264,7 +267,7 @@ def list_members(
     nationality: str | None = Query(None),
     classification: str | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "read")),
 ):
     query = db.query(Member)
     if status_filter is not None:
@@ -286,7 +289,7 @@ def list_members(
 def get_member(
     member_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "read")),
 ):
     member = db.get(Member, member_id)
     if member is None:
@@ -299,15 +302,8 @@ def update_member(
     member_id: uuid.UUID,
     payload: MemberUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "write")),
 ):
-    is_self_linked = current_user.role == "user" and current_user.member_id == member_id
-    if current_user.role != "admin" and not is_self_linked:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only edit your own linked member record",
-        )
-
     member = db.get(Member, member_id)
     if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")

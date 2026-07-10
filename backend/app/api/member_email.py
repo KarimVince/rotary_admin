@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_admin
+from app.api.deps import require_access
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
 from app.db.session import get_db
@@ -12,6 +12,8 @@ from app.models import EmailLog, Member, User
 from app.schemas.member_email import EmailLogRead, MemberEmailRequest, MemberEmailResult
 
 router = APIRouter()
+
+MEMBERS_EMAIL = "members.email"
 
 
 def _resolve_recipients(payload: MemberEmailRequest, db: Session) -> list[Member]:
@@ -32,7 +34,7 @@ def _resolve_recipients(payload: MemberEmailRequest, db: Session) -> list[Member
 @router.post("/members/email/attachments", status_code=status.HTTP_201_CREATED)
 async def upload_email_attachment(
     file: UploadFile = File(...),
-    _current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_access(MEMBERS_EMAIL, "write")),
 ):
     contents = await file.read()
     if len(contents) > settings.max_email_attachment_bytes:
@@ -59,7 +61,7 @@ async def upload_email_attachment(
 def email_members(
     payload: MemberEmailRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_access(MEMBERS_EMAIL, "write")),
 ):
     recipients = _resolve_recipients(payload, db)
     attachments = (
@@ -120,7 +122,7 @@ def email_members(
 @router.get("/members/email-log", response_model=list[EmailLogRead])
 def list_email_log(
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_admin),
+    _current_user: User = Depends(require_access(MEMBERS_EMAIL, "read")),
 ):
     return (
         db.query(EmailLog)

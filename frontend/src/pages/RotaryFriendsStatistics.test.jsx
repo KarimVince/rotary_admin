@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import RotaryFriendsStatistics from "./RotaryFriendsStatistics";
+
+let mockCanRead = true;
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanRead }),
+}));
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -22,6 +27,7 @@ const STATS = {
 
 describe("RotaryFriendsStatistics", () => {
   it("renders the total friends card and chart headings", async () => {
+    mockCanRead = true;
     server.use(
       http.get(`${API_BASE_URL}/rotary-friends/statistics`, () => HttpResponse.json(STATS)),
     );
@@ -36,6 +42,7 @@ describe("RotaryFriendsStatistics", () => {
   });
 
   it("shows an empty state when there are no friends", async () => {
+    mockCanRead = true;
     server.use(
       http.get(`${API_BASE_URL}/rotary-friends/statistics`, () =>
         HttpResponse.json({
@@ -53,6 +60,7 @@ describe("RotaryFriendsStatistics", () => {
   });
 
   it("shows an error when the statistics request fails", async () => {
+    mockCanRead = true;
     server.use(
       http.get(`${API_BASE_URL}/rotary-friends/statistics`, () =>
         HttpResponse.json({ detail: "Server error" }, { status: 500 }),
@@ -62,5 +70,13 @@ describe("RotaryFriendsStatistics", () => {
     render(<RotaryFriendsStatistics />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/server error/i);
+  });
+
+  it("denies access for a user with no friends.view access", () => {
+    mockCanRead = false;
+
+    render(<RotaryFriendsStatistics />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 });

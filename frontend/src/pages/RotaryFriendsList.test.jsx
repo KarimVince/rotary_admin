@@ -2,11 +2,19 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useAuth } from "../hooks/useAuth";
 import { server } from "../test/mocks/server";
 import RotaryFriendsList from "./RotaryFriendsList";
 
-vi.mock("../hooks/useAuth");
+let mockCanRead = true;
+let mockCanWrite = false;
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanWrite }),
+}));
+
+function mockRole(role) {
+  mockCanRead = true;
+  mockCanWrite = role === "admin";
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -47,7 +55,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("lists Rotary friends for an authenticated user", async () => {
-    useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     render(<RotaryFriendsList />);
     await waitForLoaded();
 
@@ -56,7 +64,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("does not show the Add button for non-admins", async () => {
-    useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     render(<RotaryFriendsList />);
     await waitForLoaded();
 
@@ -64,7 +72,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("filters friends by the search box", async () => {
-    useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     render(<RotaryFriendsList />);
     await waitForLoaded();
 
@@ -75,7 +83,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("filters friends by tag", async () => {
-    useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     render(<RotaryFriendsList />);
     await waitForLoaded();
 
@@ -86,7 +94,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("filters friends by source", async () => {
-    useAuth.mockReturnValue({ user: { role: "user" } });
+    mockRole("user");
     render(<RotaryFriendsList />);
     await waitForLoaded();
 
@@ -97,7 +105,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("blocks submission when neither email nor whatsapp is provided", async () => {
-    useAuth.mockReturnValue({ user: { role: "admin" } });
+    mockRole("admin");
     render(<RotaryFriendsList />);
     await waitForLoaded();
 
@@ -112,7 +120,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("lets an admin create a friend", async () => {
-    useAuth.mockReturnValue({ user: { role: "admin" } });
+    mockRole("admin");
     const posted = [];
     server.use(
       http.post(`${API_BASE_URL}/rotary-friends`, async ({ request }) => {
@@ -138,7 +146,7 @@ describe("RotaryFriendsList", () => {
   });
 
   it("lets an admin delete a friend after confirmation", async () => {
-    useAuth.mockReturnValue({ user: { role: "admin" } });
+    mockRole("admin");
     vi.spyOn(window, "confirm").mockReturnValue(true);
     let friendDeleted = false;
     server.use(
@@ -166,7 +174,7 @@ describe("RotaryFriendsList", () => {
 
   describe("CSV import", () => {
     it("previews a CSV file, flags errors/duplicates, and imports the valid rows", async () => {
-      useAuth.mockReturnValue({ user: { role: "admin" } });
+      mockRole("admin");
       let committedBody;
       server.use(
         http.post(`${API_BASE_URL}/rotary-friends/import/preview`, () =>
@@ -258,7 +266,7 @@ describe("RotaryFriendsList", () => {
     });
 
     it("shows an error when the CSV fails to parse", async () => {
-      useAuth.mockReturnValue({ user: { role: "admin" } });
+      mockRole("admin");
       server.use(
         http.post(`${API_BASE_URL}/rotary-friends/import/preview`, () =>
           HttpResponse.json({ detail: "CSV file is empty" }, { status: 422 }),
@@ -293,7 +301,7 @@ describe("RotaryFriendsList", () => {
     });
 
     it("downloads a CSV export", async () => {
-      useAuth.mockReturnValue({ user: { role: "admin" } });
+      mockRole("admin");
       server.use(
         http.get(`${API_BASE_URL}/rotary-friends/export`, () =>
           new HttpResponse("first_name,last_name,email\nSara,Nguyen,sara@example.com", {
@@ -313,5 +321,15 @@ describe("RotaryFriendsList", () => {
       await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
       expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
     });
+  });
+
+  it("denies access for a user with no friends.view access", async () => {
+    mockCanRead = false;
+    mockCanWrite = false;
+
+    render(<RotaryFriendsList />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
+    expect(screen.queryByText("Sara Nguyen")).not.toBeInTheDocument();
   });
 });

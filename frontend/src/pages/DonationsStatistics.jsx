@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { fetchDonationStatistics } from "../api/donations";
+import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { currencyLabel } from "../data/currencies";
 
@@ -21,13 +22,24 @@ function formatCurrency(value, currency) {
   })} ${currency}`;
 }
 
+const STAT_TONES = ["blue", "lavender", "teal", "amber"];
+
 export default function DonationsStatistics() {
+  const { canRead } = useAccess("ngos.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState(null);
   const [selectedYear, setSelectedYear] = useState(null);
+  const [reportFormat, setReportFormat] = useState("pdf");
+  const [reportError, setReportError] = useState(null);
+
+  // Placeholder — report generation isn't implemented yet for NGO statistics.
+  function handleGenerateReport() {
+    setReportError("Report generation is coming soon.");
+  }
 
   useEffect(() => {
+    if (!canRead) return;
     fetchDonationStatistics(selectedYear !== null ? { rotary_year: selectedYear } : {})
       .then((data) => {
         setStats(data);
@@ -36,7 +48,16 @@ export default function DonationsStatistics() {
       })
       .catch((err) => setError(err.detail || "Failed to load donation statistics"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedYear]);
+  }, [canRead, selectedYear]);
+
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Donation statistics</h1>
+        <p role="alert">You do not have permission to view Donation statistics.</p>
+      </div>
+    );
+  }
 
   const currentStats = useMemo(
     () => stats?.by_currency.find((block) => block.currency === selectedCurrency) ?? null,
@@ -86,9 +107,46 @@ export default function DonationsStatistics() {
     total: row.value,
   }));
 
+  const allTimeCards = [
+    { value: formatCurrency(stats.all_time.total_hkd, "HKD"), label: "Total donated (all-time)" },
+    { value: formatCurrency(stats.all_time.total_usd, "USD"), label: "Total donated (all-time)" },
+    { value: stats.all_time_organisations_count, label: "Organisations supported (all-time)" },
+  ];
+
+  const selectedYearCards = [
+    {
+      value: formatCurrency(stats.selected_year.total_hkd, "HKD"),
+      label: `Total donated — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+    },
+    {
+      value: formatCurrency(stats.selected_year.total_usd, "USD"),
+      label: `Total donated — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+    },
+    {
+      value: stats.selected_year_organisations_count,
+      label: `Organisations supported — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+    },
+  ];
+
   return (
     <div className="admin-page">
       <h1>Donation statistics</h1>
+
+      <div className="report-controls">
+        <label htmlFor="report-format">Generate report</label>
+        <select
+          id="report-format"
+          value={reportFormat}
+          onChange={(event) => setReportFormat(event.target.value)}
+        >
+          <option value="pdf">PDF</option>
+          <option value="pptx">PowerPoint (PPTX)</option>
+        </select>
+        <button type="button" onClick={handleGenerateReport}>
+          Generate Report
+        </button>
+        {reportError && <p role="alert">{reportError}</p>}
+      </div>
 
       {stats.by_currency.length > 1 && (
         <section className="donation-currency-filter">
@@ -111,19 +169,13 @@ export default function DonationsStatistics() {
         </section>
       )}
 
-      <div className="stat-cards-row-3">
-        <div className="stat-card">
-          <span className="stat-value">{formatCurrency(stats.all_time.total_hkd, "HKD")}</span>
-          <span className="stat-label">Total donated (all-time)</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-value">{formatCurrency(stats.all_time.total_usd, "USD")}</span>
-          <span className="stat-label">Total donated (all-time)</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-value">{stats.all_time_organisations_count}</span>
-          <span className="stat-label">Organisations supported (all-time)</span>
-        </div>
+      <div className="stat-cards-row-3 stat-cards-row-3-compact">
+        {allTimeCards.map((card, index) => (
+          <div key={card.label + index} className={`stat-card stat-card-${STAT_TONES[index % STAT_TONES.length]}`}>
+            <span className="stat-value">{card.value}</span>
+            <span className="stat-label">{card.label}</span>
+          </div>
+        ))}
       </div>
 
       {stats.all_time.unconverted_count > 0 && (
@@ -135,29 +187,16 @@ export default function DonationsStatistics() {
         </p>
       )}
 
-      <div className="stat-cards-row-3">
-        <div className="stat-card">
-          <span className="stat-value">
-            {formatCurrency(stats.selected_year.total_hkd, "HKD")}
-          </span>
-          <span className="stat-label">
-            Total donated — {rotaryYearLabel(stats.selected_rotary_year)}
-          </span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-value">
-            {formatCurrency(stats.selected_year.total_usd, "USD")}
-          </span>
-          <span className="stat-label">
-            Total donated — {rotaryYearLabel(stats.selected_rotary_year)}
-          </span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-value">{stats.selected_year_organisations_count}</span>
-          <span className="stat-label">
-            Organisations supported — {rotaryYearLabel(stats.selected_rotary_year)}
-          </span>
-        </div>
+      <div className="stat-cards-row-3 stat-cards-row-3-compact">
+        {selectedYearCards.map((card, index) => (
+          <div
+            key={card.label + index}
+            className={`stat-card stat-card-${STAT_TONES[(index + 1) % STAT_TONES.length]}`}
+          >
+            <span className="stat-value">{card.value}</span>
+            <span className="stat-label">{card.label}</span>
+          </div>
+        ))}
       </div>
 
       {stats.selected_year.unconverted_count > 0 && (
@@ -185,56 +224,58 @@ export default function DonationsStatistics() {
         </select>
       </section>
 
-      <section className="chart-section">
-        <h2>Total donated per rotary year</h2>
-        {yearChartData.length === 0 ? (
-          <p className="member-empty-state">No donations recorded yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={yearChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-              <Bar dataKey="total" fill="#17458f" name="Total donated" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </section>
+      <div className="chart-grid">
+        <div className="chart-card">
+          <h2>Total donated per rotary year</h2>
+          {yearChartData.length === 0 ? (
+            <p className="member-empty-state">No donations recorded yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={yearChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+                <Bar dataKey="total" fill="#17458f" name="Total donated" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-      <section className="chart-section">
-        <h2>Year-over-year trend</h2>
-        {yearChartData.length === 0 ? (
-          <p className="member-empty-state">No donations recorded yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={yearChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-              <Line type="monotone" dataKey="total" stroke="#f7a81b" name="Total donated" />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </section>
+        <div className="chart-card">
+          <h2>Year-over-year trend</h2>
+          {yearChartData.length === 0 ? (
+            <p className="member-empty-state">No donations recorded yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={yearChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+                <Line type="monotone" dataKey="total" stroke="#f7a81b" name="Total donated" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-      <section className="chart-section">
-        <h2>Top organisations by total donation</h2>
-        {topOrgs.length === 0 ? (
-          <p className="member-empty-state">No donations recorded yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={Math.max(300, topOrgs.length * 40)}>
-            <BarChart data={topOrgs} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="name" width={140} />
-              <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-              <Bar dataKey="total" fill="#0f9d9f" name="Total donated" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </section>
+        <div className="chart-card">
+          <h2>Top organisations by total donation</h2>
+          {topOrgs.length === 0 ? (
+            <p className="member-empty-state">No donations recorded yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(240, topOrgs.length * 28)}>
+              <BarChart data={topOrgs} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+                <Bar dataKey="total" fill="#0f9d9f" name="Total donated" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

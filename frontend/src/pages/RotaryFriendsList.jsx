@@ -10,7 +10,7 @@ import {
   listRotaryFriends,
   updateRotaryFriend,
 } from "../api/rotaryFriends";
-import { useAuth } from "../hooks/useAuth";
+import { useAccess } from "../hooks/useAccess";
 import { splitTags } from "../utils/tags";
 
 const EMPTY_FORM = {
@@ -32,8 +32,7 @@ function toPayload(form) {
 }
 
 export default function RotaryFriendsList() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const { canRead, canWrite: isAdmin } = useAccess("friends.directory");
 
   const [friends, setFriends] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,8 +70,13 @@ export default function RotaryFriendsList() {
   }
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadFriends();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
 
   const tagOptions = useMemo(
     () => [...new Set(friends.flatMap((friend) => splitTags(friend.tags)))].sort(),
@@ -243,16 +247,25 @@ export default function RotaryFriendsList() {
     }
   }
 
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Friends of Rotary</h1>
+        <p role="alert">You do not have permission to view Friends of Rotary.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-page">
       <div className="page-header-row">
         <h1>Friends of Rotary</h1>
         {isAdmin && (
           <div className="page-header-actions">
-            <button type="button" onClick={handleExport} disabled={isExporting}>
+            <button type="button" className="btn-add-member" onClick={handleExport} disabled={isExporting}>
               {isExporting ? "Exporting…" : "Export CSV"}
             </button>
-            <button type="button" onClick={openImportModal}>
+            <button type="button" className="btn-add-member" onClick={openImportModal}>
               Import CSV
             </button>
             <button type="button" className="btn-add-member" onClick={openAddModal}>
@@ -514,10 +527,10 @@ export default function RotaryFriendsList() {
                 <td>{friend.source ?? "—"}</td>
                 {isAdmin && (
                   <td>
-                    <button type="button" onClick={() => startEdit(friend)}>
+                    <button type="button" className="btn-row-action" onClick={() => startEdit(friend)}>
                       Edit
                     </button>
-                    <button type="button" onClick={() => handleDelete(friend)}>
+                    <button type="button" className="btn-row-action" onClick={() => handleDelete(friend)}>
                       Delete
                     </button>
                   </td>

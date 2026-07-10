@@ -1,9 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import DonationsStatistics from "./DonationsStatistics";
+
+vi.mock("../hooks/useAccess", () => ({
+  useAccess: () => ({ canRead: true, canWrite: true }),
+}));
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 const THIS_YEAR = currentRotaryYear();

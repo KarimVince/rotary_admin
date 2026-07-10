@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import require_access
 from app.db.session import get_db
 from app.core.tags import split_tags
 from app.models import RotaryFriend
@@ -18,6 +18,9 @@ from app.schemas.rotary_friend_statistics import RotaryFriendStatistics
 
 router = APIRouter()
 
+FRIENDS_DIRECTORY = "friends.directory"
+FRIENDS_STATISTICS = "friends.statistics"
+
 
 @router.get("/rotary-friends", response_model=list[RotaryFriendRead])
 def list_rotary_friends(
@@ -25,7 +28,7 @@ def list_rotary_friends(
         None, description="Case-insensitive match on name, email, or tags"
     ),
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "read")),
 ):
     query = db.query(RotaryFriend)
     if search:
@@ -44,7 +47,7 @@ def list_rotary_friends(
 @router.get("/rotary-friends/statistics", response_model=RotaryFriendStatistics)
 def rotary_friend_statistics(
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(FRIENDS_STATISTICS, "read")),
 ):
     friends = db.query(RotaryFriend).all()
 
@@ -87,7 +90,7 @@ def rotary_friend_statistics(
 def create_rotary_friend(
     payload: RotaryFriendCreate,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "write")),
 ):
     friend = RotaryFriend(**payload.model_dump())
     db.add(friend)
@@ -100,7 +103,7 @@ def create_rotary_friend(
 def get_rotary_friend(
     friend_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "read")),
 ):
     friend = db.get(RotaryFriend, friend_id)
     if friend is None:
@@ -115,7 +118,7 @@ def update_rotary_friend(
     friend_id: uuid.UUID,
     payload: RotaryFriendUpdate,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "write")),
 ):
     friend = db.get(RotaryFriend, friend_id)
     if friend is None:
@@ -144,7 +147,7 @@ def update_rotary_friend(
 def delete_rotary_friend(
     friend_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _current_user=Depends(require_admin),
+    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "write")),
 ):
     friend = db.get(RotaryFriend, friend_id)
     if friend is None:

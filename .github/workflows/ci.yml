@@ -1,9 +1,11 @@
+# Test running is disabled for now — see doc/CLAUDE.md ("Workflow when
+# implementing a story"). Test suites are run manually at the end of each
+# epic's dedicated test & fix story instead of automatically per push/PR.
+# Trigger this workflow manually (Actions tab -> Run workflow) if needed.
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   backend:

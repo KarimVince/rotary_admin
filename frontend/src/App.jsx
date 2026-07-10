@@ -2,6 +2,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import { PermissionsProvider } from "./context/PermissionsContext";
+import BoardMembers from "./pages/BoardMembers";
+import BoardPositionManagement from "./pages/BoardPositionManagement";
 import CurrencyManagement from "./pages/CurrencyManagement";
 import Dashboard from "./pages/Dashboard";
 import DonationsStatistics from "./pages/DonationsStatistics";
@@ -16,6 +19,7 @@ import MembersList from "./pages/MembersList";
 import MembersStatistics from "./pages/MembersStatistics";
 import OrganisationDetail from "./pages/OrganisationDetail";
 import OrganisationsList from "./pages/OrganisationsList";
+import PermissionMatrixManagement from "./pages/PermissionMatrixManagement";
 import ResetPasswordConfirm from "./pages/ResetPasswordConfirm";
 import RotaryFriendsEmail from "./pages/RotaryFriendsEmail";
 import RotaryFriendsList from "./pages/RotaryFriendsList";
@@ -26,34 +30,39 @@ import "./App.css";
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPasswordConfirm />} />
-        <Route element={<ProtectedRoute />}>
-          <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/members" element={<MembersList />} />
-            <Route path="/members/statistics" element={<MembersStatistics />} />
-            <Route path="/ngos" element={<OrganisationsList />} />
-            <Route path="/ngos/statistics" element={<DonationsStatistics />} />
-            <Route path="/ngos/:organisationId" element={<OrganisationDetail />} />
-            <Route path="/admin/currencies" element={<CurrencyManagement />} />
-            <Route path="/fees/settings" element={<FeeSettingsManagement />} />
-            <Route path="/fees/run" element={<FeeRunManagement />} />
-            <Route path="/fees/tracking" element={<FeeTracking />} />
-            <Route path="/fees/statistics" element={<FeeStatistics />} />
-            <Route path="/friends" element={<RotaryFriendsList />} />
-            <Route path="/friends/statistics" element={<RotaryFriendsStatistics />} />
-            <Route element={<ProtectedRoute requiredRole="admin" />}>
-              <Route path="/admin/users" element={<UserManagement />} />
-              <Route path="/admin/member-titles" element={<MemberTitleManagement />} />
-              <Route path="/members/email" element={<MembersEmail />} />
+      <PermissionsProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPasswordConfirm />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/members" element={<MembersList />} />
+              <Route path="/members/statistics" element={<MembersStatistics />} />
+              <Route path="/ngos" element={<OrganisationsList />} />
+              <Route path="/ngos/statistics" element={<DonationsStatistics />} />
+              <Route path="/ngos/:organisationId" element={<OrganisationDetail />} />
+              <Route path="/admin/currencies" element={<CurrencyManagement />} />
+              <Route path="/fees/settings" element={<FeeSettingsManagement />} />
+              <Route path="/fees/run" element={<FeeRunManagement />} />
+              <Route path="/fees/tracking" element={<FeeTracking />} />
+              <Route path="/fees/statistics" element={<FeeStatistics />} />
+              <Route path="/friends" element={<RotaryFriendsList />} />
+              <Route path="/friends/statistics" element={<RotaryFriendsStatistics />} />
               <Route path="/friends/email" element={<RotaryFriendsEmail />} />
+              <Route path="/board/members" element={<BoardMembers />} />
+              <Route element={<ProtectedRoute requiredRole="admin" />}>
+                <Route path="/admin/users" element={<UserManagement />} />
+                <Route path="/admin/member-titles" element={<MemberTitleManagement />} />
+                <Route path="/board/positions" element={<BoardPositionManagement />} />
+                <Route path="/admin/permissions" element={<PermissionMatrixManagement />} />
+                <Route path="/members/email" element={<MembersEmail />} />
+              </Route>
             </Route>
           </Route>
-        </Route>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </PermissionsProvider>
     </AuthProvider>
   );
 }

@@ -1,21 +1,33 @@
+from app.models.app_function import AppFunction
 from app.models.auth_token import AuthToken
+from app.models.board_position import BoardPosition
+from app.models.board_position_assignment import BoardPositionAssignment
 from app.models.donation import Donation
 from app.models.email_log import EmailLog
 from app.models.exchange_rate import ExchangeRate
+from app.models.fee_settings import FeeSettings
 from app.models.member import Member
+from app.models.member_fee import MemberFee
 from app.models.member_title import MemberTitle
 from app.models.organisation import Organisation
+from app.models.permission_matrix import PermissionMatrix
 from app.models.rotary_friend import RotaryFriend
 from app.models.user import User
 
 __all__ = [
+    "AppFunction",
     "AuthToken",
+    "BoardPosition",
+    "BoardPositionAssignment",
     "Donation",
     "EmailLog",
     "ExchangeRate",
+    "FeeSettings",
     "Member",
+    "MemberFee",
     "MemberTitle",
     "Organisation",
+    "PermissionMatrix",
     "RotaryFriend",
     "User",
 ]

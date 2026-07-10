@@ -30,8 +30,8 @@ export default function Login() {
 
   return (
     <div className="login-page">
+      <BrandHeader size="large" />
       <form className="login-form" onSubmit={handleSubmit}>
-        <BrandHeader size="large" />
         <label htmlFor="email">Email</label>
         <input
           id="email"

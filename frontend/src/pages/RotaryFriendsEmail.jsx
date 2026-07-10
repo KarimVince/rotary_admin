@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { uploadEmailAttachment } from "../api/memberEmail";
 import { listRotaryFriendEmailLog, sendRotaryFriendEmail } from "../api/rotaryFriendEmail";
 import { listRotaryFriends } from "../api/rotaryFriends";
+import { useAccess } from "../hooks/useAccess";
 import { splitTags } from "../utils/tags";
 
 export default function RotaryFriendsEmail() {
+  const { canRead, canWrite: canSendEmail } = useAccess("friends.send_message");
   const [friends, setFriends] = useState([]);
   const [emailLog, setEmailLog] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,8 +44,13 @@ export default function RotaryFriendsEmail() {
   }
 
   useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
 
   const friendsWithEmail = useMemo(() => friends.filter((friend) => friend.email), [friends]);
 
@@ -99,6 +106,7 @@ export default function RotaryFriendsEmail() {
 
   function handleReview(event) {
     event.preventDefault();
+    if (!canSendEmail) return;
     setSendError(null);
     setLastResult(null);
     setIsConfirming(true);
@@ -141,7 +149,20 @@ export default function RotaryFriendsEmail() {
   }
 
   const canSend =
-    recipientCount > 0 && (recipientMode !== "tag" || tag) && !isLoading && !loadError;
+    canSendEmail &&
+    recipientCount > 0 &&
+    (recipientMode !== "tag" || tag) &&
+    !isLoading &&
+    !loadError;
+
+  if (!canRead) {
+    return (
+      <div className="admin-page">
+        <h1>Email Rotary Friends</h1>
+        <p role="alert">You do not have permission to view this page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-page">
@@ -273,7 +294,11 @@ export default function RotaryFriendsEmail() {
               </p>
             )}
 
-            <button type="submit" disabled={!canSend}>
+            <button
+              type="submit"
+              disabled={!canSend}
+              title={!canSendEmail ? "You do not have permission to send emails" : undefined}
+            >
               Review send ({recipientCount} recipient{recipientCount === 1 ? "" : "s"})
             </button>
           </form>
