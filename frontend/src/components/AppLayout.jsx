@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Menu,
   Shield,
+  UtensilsCrossed,
   Users,
   Wallet,
   X,
@@ -92,6 +93,22 @@ const NAV_ITEMS = [
     ],
   },
   {
+    // Story 10.2/10.10: single "Attendance" child under the new "Dinner"
+    // section, gated at menu-level by "attendance" and at the item level by
+    // "attendance.history" (the history/stats list it links to).
+    section: "Dinner",
+    icon: UtensilsCrossed,
+    requiredPermission: "attendance",
+    children: [
+      {
+        to: "/dinners/attendance",
+        label: "Attendance",
+        end: true,
+        requiredPermission: "attendance.history",
+      },
+    ],
+  },
+  {
     // Story 12.7: board.members/board.positions are matrix-driven now.
     // Permissions (matrix editor) is the one permanent, hardcoded
     // admin-only exception.
@@ -167,6 +184,8 @@ export default function AppLayout() {
   const { canRead: canViewAdmin } = useAccess("admin");
   const { canRead: canViewAdminMemberTitles } = useAccess("admin.member_titles");
   const { canRead: canViewAdminCurrencies } = useAccess("admin.currencies");
+  const { canRead: canViewAttendance } = useAccess("attendance");
+  const { canRead: canViewAttendanceHistory } = useAccess("attendance.history");
 
   const permissionChecks = {
     fees: canViewFees,
@@ -191,6 +210,8 @@ export default function AppLayout() {
     admin: canViewAdmin,
     "admin.member_titles": canViewAdminMemberTitles,
     "admin.currencies": canViewAdminCurrencies,
+    attendance: canViewAttendance,
+    "attendance.history": canViewAttendanceHistory,
   };
 
   // Story 12.9: one consistent rule for the whole nav — Menu-level

@@ -32,12 +32,38 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
   the manual smoke test (its original password is unknown/unrecoverable) —
   tell the user so they can reset it to something real, or reset it again
   yourself if asked.
-- **Epics 10 (Dinner Attendance) and 11 (NGO Classification) are still
-  "to do"** — not started. Recommended next: whichever the user picks up;
-  neither depends on the other.
-- **Next up per the recommended sequence:** ask the user — Epic 6
-  (Production Deployment) is the last unstarted item in the original
-  build-order and now unblocked, but Epics 10/11 may take priority instead.
+- **Epic 10 (Dinner Attendance Tracking) is complete** (Stories 10.1-10.10 +
+  10.99, branch `epic-10-attendance`, branched off
+  `epic-12-permission-matrix-hierarchy` since Epic 10 wires straight into
+  Epic 12's permission matrix rather than the retired Epic 9 role checks —
+  Story 10.6's "Epic 9" reference in ClickUp is stale, superseded in-line by
+  10.10's `require_access`/`useAccess` plumbing from the start). New
+  `attendance_events`/`attendance_records` tables, `attendance` /
+  `attendance.history` / `attendance.sheet` app_functions (module "Dinner"),
+  a new "President Elect" board position, nav entry Dinner → Attendance,
+  history + sheet pages (per-row/collapsed-past member badges were removed
+  from the sheet per follow-up feedback — sections are grouped by
+  active/honorary/past headers only, no per-row status badge). Migrations
+  `c3f7a1d8e2b6`/`d8b3f6c1a9e7` and the updated
+  `backend/scripts/seed_permission_matrix.py` have been run against the
+  real dev DB — confirmed present (President Elect position + attendance
+  app_functions + full matrix). Story 10.99: full backend (416 tests,
+  96.95% coverage) + frontend (192 tests) suites green — 3 attendance test
+  failures found and fixed (test fixture assumptions about member counts /
+  a missing `attendance.history` grant on the test secretary client, not
+  app bugs). Backend has no ruff/black configured in this repo at all
+  (checked — not installed, not in requirements), so that line of 10.99's
+  checklist doesn't apply here. **Still not committed or pushed** — only
+  do so when explicitly asked; 10.99's "push branch / open PR" checklist
+  items are intentionally not done yet for the same reason. One deliberate
+  deviation from the ClickUp spec: `attendance_events.rotary_year` is
+  stored as `Integer` (like every other rotary_year column in this app)
+  instead of the story's literal `"YYYY-YYYY"` string, with the display
+  string still derived via the existing frontend `rotaryYearLabel` helper.
+- **Epic 11 (NGO Classification) is still "to do"** — not started.
+- **Next up per the recommended sequence:** ask the user about committing/
+  pushing Epic 10, then Epic 6 (Production Deployment, the last unstarted
+  item in the original build-order) vs Epic 11.
 - **Known open issue — email sending is not fully working yet:**
   - Switched email provider from Sender.net to **Resend** mid-Epic-4 (Sender's
     API key was never actually configured locally, and rather than fix that
@@ -172,9 +198,10 @@ This applies to every item in Epic 8, not just the WhatsApp block.
    under "ClickUp workflow" above: only touch a story here once I've
    explicitly moved it to Planning.**
 9. ~~Board Roles & Access Control~~ — **CLOSED, superseded by Epic 12.**
-10. **Dinner Attendance Tracking** — attendance events, present/absent
-    sheet, active/honorary/past member handling, role-based access. Not
-    started.
+10. **Dinner Attendance Tracking** — **complete** (Stories 10.1-10.10 +
+    10.99, branch `epic-10-attendance`, not yet committed/pushed). Attendance
+    events, present/absent sheet, active/honorary/past member handling,
+    role-based access via the Epic 12 permission matrix.
 11. **NGO Classification** — classification catalogue + field on
     organisations, directory filter, statistics breakdown. Not started.
 12. **Permission Matrix Hierarchy Revamp** — **complete.** Replaced Epic 9's

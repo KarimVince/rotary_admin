@@ -24,8 +24,11 @@ from app.db.session import SessionLocal
 # name -> display_order
 BOARD_POSITIONS = [
     ("President", 1),
-    ("Treasurer", 2),
-    ("Secretary", 3),
+    # Story 10.10: added for the Dinner Attendance write tier (Secretary /
+    # President / President Elect) — wasn't needed by any module before Epic 10.
+    ("President Elect", 2),
+    ("Treasurer", 3),
+    ("Secretary", 4),
 ]
 
 # function_key -> (default_user_level, {position_name: level, ... "*": level})
@@ -57,6 +60,21 @@ DEFAULT_MATRIX = {
     "admin": ("no_access", {"*": "no_access"}),
     "admin.member_titles": ("no_access", {"*": "no_access"}),
     "admin.currencies": ("no_access", {"*": "no_access"}),
+    # Story 10.10 — Secretary / President / President Elect can create events
+    # and mark attendance; every other board position and the default
+    # (non-board) user get read-only, per Story 10.6's permission matrix.
+    "attendance": (
+        "read",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
+    ),
+    "attendance.history": (
+        "read",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
+    ),
+    "attendance.sheet": (
+        "read",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
+    ),
 }
 
 

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api import (
+    attendance,
     auth,
     board,
     dashboard,
@@ -58,4 +59,5 @@ app.include_router(rotary_friends.router, prefix="/api/v1", tags=["rotary-friend
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(board.router, prefix="/api/v1", tags=["board"])
+app.include_router(attendance.router, prefix="/api/v1", tags=["attendance"])
 app.include_router(auth.router)

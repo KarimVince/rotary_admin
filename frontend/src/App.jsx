@@ -3,6 +3,8 @@ import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionsProvider } from "./context/PermissionsContext";
+import AttendanceHistory from "./pages/AttendanceHistory";
+import AttendanceSheet from "./pages/AttendanceSheet";
 import BoardMembers from "./pages/BoardMembers";
 import BoardPositionManagement from "./pages/BoardPositionManagement";
 import CurrencyManagement from "./pages/CurrencyManagement";
@@ -51,6 +53,8 @@ function App() {
               <Route path="/friends/statistics" element={<RotaryFriendsStatistics />} />
               <Route path="/friends/email" element={<RotaryFriendsEmail />} />
               <Route path="/board/members" element={<BoardMembers />} />
+              <Route path="/dinners/attendance" element={<AttendanceHistory />} />
+              <Route path="/dinners/attendance/:eventId" element={<AttendanceSheet />} />
               <Route element={<ProtectedRoute requiredRole="admin" />}>
                 <Route path="/admin/users" element={<UserManagement />} />
                 <Route path="/admin/member-titles" element={<MemberTitleManagement />} />
