@@ -190,6 +190,47 @@ def donation_statistics(
             .all()
         )
 
+        # Story 8.30 — the year-scoped counterpart to total_by_org above
+        # (which is all-time), for the Dashboard's "Selected Year" section.
+        total_by_org_selected_year_query = (
+            db.query(Organisation.name, func.sum(Donation.amount))
+            .join(Donation, Donation.organisation_id == Organisation.id)
+            .filter(Donation.currency == currency, Donation.rotary_year == selected_year)
+        )
+        if classification_org_ids is not None:
+            total_by_org_selected_year_query = total_by_org_selected_year_query.filter(
+                Donation.organisation_id.in_(classification_org_ids)
+            )
+        total_by_org_selected_year = (
+            total_by_org_selected_year_query.group_by(Organisation.id, Organisation.name)
+            .order_by(func.sum(Donation.amount).desc())
+            .all()
+        )
+
+        # Story 8.30 — the all-time counterpart to total_by_classification
+        # above (which is scoped to selected_year).
+        classification_all_time_rows = (
+            db.query(Organisation.classification_id, func.sum(Donation.amount))
+            .join(Donation, Donation.organisation_id == Organisation.id)
+            .filter(Donation.currency == currency)
+        )
+        if classification_org_ids is not None:
+            classification_all_time_rows = classification_all_time_rows.filter(
+                Donation.organisation_id.in_(classification_org_ids)
+            )
+        classification_all_time_rows = classification_all_time_rows.group_by(
+            Organisation.classification_id
+        ).all()
+        total_by_classification_all_time = [
+            LabelValueFloat(
+                label=classification_names.get(class_id, "Unclassified")
+                if class_id is not None
+                else "Unclassified",
+                value=float(total),
+            )
+            for class_id, total in classification_all_time_rows
+        ]
+
         grand_total = sum(float(total) for _, total in total_by_year)
 
         by_currency.append(
@@ -208,6 +249,11 @@ def donation_statistics(
                 ],
                 grand_total=grand_total,
                 total_by_classification=total_by_classification,
+                total_by_organisation_selected_year=[
+                    LabelValueFloat(label=name, value=float(total))
+                    for name, total in total_by_org_selected_year
+                ],
+                total_by_classification_all_time=total_by_classification_all_time,
             )
         )
 

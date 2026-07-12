@@ -208,7 +208,7 @@ export default function OrganisationDetail() {
           />
         ) : (
           <div className="org-detail-logo org-detail-logo-fallback">
-            <Building2 className="w-6 h-6" aria-hidden="true" />
+            <Building2 className="w-8 h-8" aria-hidden="true" />
           </div>
         )}
         <h1>{organisation.name}</h1>

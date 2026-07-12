@@ -23,6 +23,13 @@ class CurrencyStatistics(BaseModel):
     # classification. "Unclassified" is its own label for organisations
     # with no classification_id.
     total_by_classification: list[LabelValueFloat]
+    # Story 8.30: the "Selected Year" / "All Years" duplicated graph pair.
+    # total_by_organisation (above) and total_by_classification (above) are
+    # already each scoped one way (all-time / selected-year respectively) —
+    # these two add the missing opposite scope, computed in the same request
+    # rather than a second round-trip.
+    total_by_organisation_selected_year: list[LabelValueFloat]
+    total_by_classification_all_time: list[LabelValueFloat]
 
 
 class ConvertedTotals(BaseModel):

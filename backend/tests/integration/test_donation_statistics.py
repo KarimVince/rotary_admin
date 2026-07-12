@@ -140,6 +140,56 @@ def test_statistics_all_time_organisations_count_is_distinct_across_years(
     assert body["all_time_organisations_count"] == 2
 
 
+def test_statistics_total_by_organisation_selected_year_is_year_scoped(
+    admin_client, make_organisation
+):
+    org_a = make_organisation(name="Alpha")
+    org_b = make_organisation(name="Beta")
+
+    _seed(admin_client, org_a.id, 100, "2024-09-01")
+    _seed(admin_client, org_b.id, 300, "2024-09-02")
+    # Prior year — must not appear in the 2024-scoped breakdown.
+    _seed(admin_client, org_a.id, 999, "2023-09-01")
+
+    response = admin_client.get("/api/v1/donations/statistics", params={"rotary_year": 2024})
+    hkd = _currency_block(response.json(), "HKD")
+
+    selected_year_totals = {
+        row["label"]: row["value"] for row in hkd["total_by_organisation_selected_year"]
+    }
+    assert selected_year_totals == {"Alpha": 100.0, "Beta": 300.0}
+    # The all-time breakdown (unchanged field) still includes the prior year.
+    all_time_totals = {row["label"]: row["value"] for row in hkd["total_by_organisation"]}
+    assert all_time_totals == {"Alpha": 1099.0, "Beta": 300.0}
+
+
+def test_statistics_total_by_classification_all_time_ignores_selected_year(
+    admin_client, make_organisation, db_session
+):
+    from app.models import NgoClassification
+
+    classification = NgoClassification(name="Test Health Class")
+    db_session.add(classification)
+    db_session.commit()
+    db_session.refresh(classification)
+
+    org = make_organisation(name="Gamma")
+    org.classification_id = classification.id
+    db_session.commit()
+
+    _seed(admin_client, org.id, 100, "2024-09-01")
+    _seed(admin_client, org.id, 50, "2023-09-01")
+
+    response = admin_client.get("/api/v1/donations/statistics", params={"rotary_year": 2024})
+    hkd = _currency_block(response.json(), "HKD")
+
+    all_time_totals = {row["label"]: row["value"] for row in hkd["total_by_classification_all_time"]}
+    assert all_time_totals == {"Test Health Class": 150.0}
+    # The selected-year breakdown (unchanged field) only covers 2024.
+    selected_year_totals = {row["label"]: row["value"] for row in hkd["total_by_classification"]}
+    assert selected_year_totals == {"Test Health Class": 100.0}
+
+
 def test_statistics_reports_unconverted_currencies_without_rate(admin_client, make_organisation):
     org = make_organisation()
     _seed(admin_client, org.id, 100, "2024-09-01", currency="HKD")

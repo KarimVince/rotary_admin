@@ -69,11 +69,13 @@ export default function DonationsStatistics() {
   );
 
   const yearOptions = useMemo(() => {
-    if (!currentStats) return [];
-    const years = new Set(currentStats.total_by_rotary_year.map((row) => Number(row.label)));
+    const years = new Set(
+      (currentStats?.total_by_rotary_year ?? []).map((row) => Number(row.label)),
+    );
     years.add(currentRotaryYear());
+    if (stats) years.add(stats.selected_rotary_year);
     return [...years].sort((a, b) => b - a);
-  }, [currentStats]);
+  }, [currentStats, stats]);
 
   if (!canRead) {
     return (
@@ -102,29 +104,42 @@ export default function DonationsStatistics() {
     );
   }
 
-  if (stats.by_currency.length === 0 || !currentStats) {
-    return (
-      <div className="admin-page">
-        <h1>Donation statistics</h1>
-        <p className="member-empty-state">No donations recorded yet.</p>
-      </div>
-    );
-  }
-
-  const yearChartData = currentStats.total_by_rotary_year.map((row) => ({
+  // Story 8.26: a selected classification (or the current filter combo) can
+  // legitimately have zero matching donations — that must never blank the
+  // whole page (title/report card/selectors). Every derived value below
+  // falls back to an empty array instead of reading off a null currentStats,
+  // and each chart/card renders its own empty state instead of the page
+  // bailing out early.
+  // Story 8.30: "Total donated per rotary year" and "Year-over-year trend"
+  // are inherently multi-year charts already (never filtered by the year
+  // selector on the backend — see total_by_rotary_year), so they render
+  // identically in both the "Selected Year" and "All Years" sections below;
+  // only "Top organisations" and "By classification" actually differ by
+  // scope, backed by the two new fields the backend now returns alongside
+  // the existing ones.
+  const yearChartData = (currentStats?.total_by_rotary_year ?? []).map((row) => ({
     year: rotaryYearLabel(Number(row.label)),
     total: row.value,
   }));
-  const topOrgs = currentStats.total_by_organisation.slice(0, 10).map((row) => ({
-    name: row.label,
-    total: row.value,
-  }));
+  const topOrgsSelectedYear = (currentStats?.total_by_organisation_selected_year ?? [])
+    .slice(0, 10)
+    .map((row) => ({ name: row.label, total: row.value }));
+  const topOrgsAllTime = (currentStats?.total_by_organisation ?? [])
+    .slice(0, 10)
+    .map((row) => ({ name: row.label, total: row.value }));
   // Story 11.6 — totals for the selected rotary year only, grouped by
   // classification ("Unclassified" included as its own bar).
-  const classificationChartData = currentStats.total_by_classification.map((row) => ({
+  const classificationSelectedYear = (currentStats?.total_by_classification ?? []).map((row) => ({
     name: row.label,
     total: row.value,
   }));
+  const classificationAllTime = (currentStats?.total_by_classification_all_time ?? []).map(
+    (row) => ({ name: row.label, total: row.value }),
+  );
+
+  const emptyChartMessage = classificationFilter
+    ? "No NGOs found for this classification."
+    : "No donations recorded yet.";
 
   const allTimeCards = [
     { value: formatCurrency(stats.all_time.total_hkd, "HKD"), label: "Total donated (all-time)" },
@@ -146,6 +161,93 @@ export default function DonationsStatistics() {
       label: `Organisations supported — ${rotaryYearLabel(stats.selected_rotary_year)}`,
     },
   ];
+
+  // Story 8.30: the 4 chart types are reused for both the "Selected Year"
+  // and "All Years" sections — factored out so each section is a short list
+  // of {title, data, height, render} entries instead of duplicated JSX.
+  function renderTrendCharts() {
+    return (
+      <>
+        <div className="chart-card">
+          <h2>Total donated per rotary year</h2>
+          {yearChartData.length === 0 ? (
+            <p className="member-empty-state">{emptyChartMessage}</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={yearChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+                <Bar dataKey="total" fill="#17458f" name="Total donated" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="chart-card">
+          <h2>Year-over-year trend</h2>
+          {yearChartData.length === 0 ? (
+            <p className="member-empty-state">{emptyChartMessage}</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={yearChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+                <Line type="monotone" dataKey="total" stroke="#f7a81b" name="Total donated" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  function renderTopOrgsChart(data) {
+    return (
+      <div className="chart-card">
+        <h2>Top organisations by total donation</h2>
+        {data.length === 0 ? (
+          <p className="member-empty-state">{emptyChartMessage}</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(240, data.length * 28)}>
+            <BarChart data={data} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+              <Bar dataKey="total" fill="#0f9d9f" name="Total donated" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    );
+  }
+
+  function renderClassificationChart(data, { title, emptyFallback }) {
+    return (
+      <div className="chart-card">
+        <h2>{title}</h2>
+        {data.length === 0 ? (
+          <p className="member-empty-state">
+            {classificationFilter ? emptyChartMessage : emptyFallback}
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(240, data.length * 28)}>
+            <BarChart data={data} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+              <Bar dataKey="total" fill="#f7a81b" name="Total donated" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="admin-page">
@@ -261,77 +363,24 @@ export default function DonationsStatistics() {
         </select>
       </section>
 
-      <div className="chart-grid">
-        <div className="chart-card">
-          <h2>Total donated per rotary year</h2>
-          {yearChartData.length === 0 ? (
-            <p className="member-empty-state">No donations recorded yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={yearChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="year" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-                <Bar dataKey="total" fill="#17458f" name="Total donated" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+      <h2>Selected Year — {rotaryYearLabel(stats.selected_rotary_year)}</h2>
+      <div className="chart-grid chart-grid-2col">
+        {renderTrendCharts()}
+        {renderTopOrgsChart(topOrgsSelectedYear)}
+        {renderClassificationChart(classificationSelectedYear, {
+          title: `By classification — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+          emptyFallback: "No donations recorded for this year yet.",
+        })}
+      </div>
 
-        <div className="chart-card">
-          <h2>Year-over-year trend</h2>
-          {yearChartData.length === 0 ? (
-            <p className="member-empty-state">No donations recorded yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={yearChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="year" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-                <Line type="monotone" dataKey="total" stroke="#f7a81b" name="Total donated" />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        <div className="chart-card">
-          <h2>Top organisations by total donation</h2>
-          {topOrgs.length === 0 ? (
-            <p className="member-empty-state">No donations recorded yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={Math.max(240, topOrgs.length * 28)}>
-              <BarChart data={topOrgs} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-                <Bar dataKey="total" fill="#0f9d9f" name="Total donated" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        <div className="chart-card">
-          <h2>By classification — {rotaryYearLabel(stats.selected_rotary_year)}</h2>
-          {classificationChartData.length === 0 ? (
-            <p className="member-empty-state">No donations recorded for this year yet.</p>
-          ) : (
-            <ResponsiveContainer
-              width="100%"
-              height={Math.max(240, classificationChartData.length * 28)}
-            >
-              <BarChart data={classificationChartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
-                <Bar dataKey="total" fill="#f7a81b" name="Total donated" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+      <h2>All Years</h2>
+      <div className="chart-grid chart-grid-2col">
+        {renderTrendCharts()}
+        {renderTopOrgsChart(topOrgsAllTime)}
+        {renderClassificationChart(classificationAllTime, {
+          title: "By classification — All years",
+          emptyFallback: "No donations recorded yet.",
+        })}
       </div>
     </div>
   );

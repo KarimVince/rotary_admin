@@ -377,7 +377,7 @@ export default function OrganisationsList() {
                   {form.logo_url && !isUploadingLogo && (
                     <div className="org-logo-preview-row">
                       <img
-                        className="member-photo-preview"
+                        className="org-detail-logo"
                         src={resolveLogoUrl(form.logo_url)}
                         alt="Preview"
                       />
@@ -482,14 +482,10 @@ export default function OrganisationsList() {
               onClick={() => navigate(`/ngos/${org.id}`)}
             >
               {org.logo_url ? (
-                <img
-                  className="w-14 h-14 rounded-full object-cover bg-[var(--color-card-border)] shrink-0"
-                  src={resolveLogoUrl(org.logo_url)}
-                  alt=""
-                />
+                <img className="org-detail-logo" src={resolveLogoUrl(org.logo_url)} alt="" />
               ) : (
-                <div className="w-14 h-14 rounded-full bg-[var(--color-card-border)] flex items-center justify-center text-[var(--color-brand-blue-dark)] shrink-0">
-                  <Building2 className="w-6 h-6" aria-hidden="true" />
+                <div className="org-detail-logo org-detail-logo-fallback">
+                  <Building2 className="w-8 h-8" aria-hidden="true" />
                 </div>
               )}
               <div className="min-w-0 w-full">

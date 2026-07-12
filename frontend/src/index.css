@@ -14,12 +14,24 @@
 
   /* Light/pastel stat-card tone pairs (Story 2b.11) — grouped by related
      stat pairs, all paired with --text-h for accessible contrast.
-     --tone-rose-bg added for the Dashboard redesign's 5th stat card. */
+     --tone-rose-bg added for the Dashboard redesign's 5th stat card.
+     --tone-green-bg added for Story 8.24's Honorary Members card. */
   --tone-blue-bg: #e3edfb;
   --tone-lavender-bg: #ece7fb;
   --tone-teal-bg: #e0f4f1;
   --tone-amber-bg: #fdf0da;
   --tone-rose-bg: #fbe3e6;
+  --tone-green-bg: #e4f5e3;
+
+  /* Story 8.22: shared diameter for the member profile photo circle and its
+     initials/monogram fallback, so every view stays in sync (was a bare
+     56px/w-14 h-14 duplicated at each call site). */
+  --avatar-size: 4.5rem;
+
+  /* Story 8.21: shared side length for the NGO logo's rounded-square
+     container (was a 48px circle in .org-detail-logo, and a separate
+     56px circle in OrganisationsList.jsx's card/modal). */
+  --logo-size: 6rem;
 
   /* Permission matrix (Story 12.14) — menu-row section highlight and
      value-coded cell backgrounds. Kept separate from the --tone-* stat-card

@@ -135,7 +135,8 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
             "last_name": "D",
             "email": "dave@example.com",
             "join_date": today.isoformat(),
-            "status": "honorary",
+            "status": "active",
+            "is_honorary": True,
             "nationality": "Germany",
             "date_of_birth": dob_honorary,
             "gender": "Male",
@@ -147,8 +148,7 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
     body = response.json()
 
     assert body["by_status"] == [
-        {"label": "active", "value": 2},
-        {"label": "honorary", "value": 1},
+        {"label": "active", "value": 3},
         {"label": "past", "value": 1},
     ]
 
@@ -159,15 +159,16 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
         {"label": str(today.year), "value": 1},
     ]
 
+    # Story 8.15 — nationality/gender graphs are scoped to Active members
+    # only, so Bob (past, United Kingdom, Male) is excluded from both.
     assert body["by_nationality"] == [
         {"label": "France", "value": 2},
         {"label": "Germany", "value": 1},
-        {"label": "United Kingdom", "value": 1},
     ]
 
     assert body["by_gender"] == [
         {"label": "Female", "value": 1},
-        {"label": "Male", "value": 2},
+        {"label": "Male", "value": 1},
         {"label": "Unknown", "value": 1},
     ]
 
@@ -182,6 +183,8 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
     assert growth_by_year[str(join_ry_2019_06_01)]["joins"] >= 1
     assert growth_by_year[str(leave_ry_2023_08_20)]["leaves"] >= 1
 
+    # Story 8.15 — age/tenure graphs are scoped to Active members only, so
+    # Bob (past, age_mid, joined 2021-08-15) is excluded from both.
     expected_buckets = {
         "<30": 0,
         "30-39": 0,
@@ -191,7 +194,6 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
         "70+": 0,
     }
     expected_buckets[_age_bucket(age_young)] += 1
-    expected_buckets[_age_bucket(age_mid)] += 1
     expected_buckets[_age_bucket(age_old)] += 1
     expected_buckets[_age_bucket(age_honorary)] += 1
 
@@ -199,7 +201,7 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
     assert actual_buckets == expected_buckets
 
     expected_tenure_buckets = {"0-5": 0, "5-10": 0, "10-20": 0, "20+": 0}
-    for join_date in (date(2020, 3, 1), date(2021, 8, 15), date(2019, 6, 1), today):
+    for join_date in (date(2020, 3, 1), date(2019, 6, 1), today):
         years_as_rotarian = (today - join_date).days / 365.25
         expected_tenure_buckets[_tenure_bucket(years_as_rotarian)] += 1
 

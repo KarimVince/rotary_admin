@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
@@ -84,6 +85,43 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if str(user.id) == str(current_admin.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot delete your own account",
+        )
+
+    db.delete(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        # The user has existing records elsewhere (donations, attendance,
+        # fee history, etc.) that reference them — those FKs aren't
+        # cascade/set-null, by design, so history isn't silently orphaned.
+        # Deactivating (existing is_active flag) is the way to remove access
+        # from a user with history; hard delete only works for a clean account.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This user cannot be deleted because they have existing records "
+                "(donations, attendance, fee history, etc.). Deactivate the "
+                "account instead."
+            ),
+        )
+    return None
 
 
 @router.post("/users/{user_id}/reset-password", status_code=status.HTTP_200_OK)

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_val
 
 from app.core.countries import COUNTRIES
 
-STATUSES = ("active", "honorary", "past")
+STATUSES = ("active", "past")
 GENDERS = ("Male", "Female", "Other")
 
 
@@ -28,6 +28,7 @@ class MemberBase(BaseModel):
     nationality: str | None = None
     address: str | None = None
     is_couple: bool = False
+    is_honorary: bool = False
     notes: str | None = None
 
     @field_validator("status")
@@ -88,6 +89,7 @@ class MemberUpdate(BaseModel):
     nationality: str | None = None
     address: str | None = None
     is_couple: bool | None = None
+    is_honorary: bool | None = None
     notes: str | None = None
 
     @field_validator("status")
@@ -140,6 +142,7 @@ class MemberReadLimited(BaseModel):
     gender: str | None
     nationality: str | None
     is_couple: bool
+    is_honorary: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime

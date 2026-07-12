@@ -204,6 +204,7 @@ describe("UserManagement", () => {
 
       expect(within(dialog).getByLabelText(/^role$/i)).toBeDisabled();
       expect(within(dialog).getByLabelText(/active/i)).toBeDisabled();
+      expect(screen.getByRole("button", { name: /^delete$/i })).toBeDisabled();
     });
   });
 
@@ -257,6 +258,82 @@ describe("UserManagement", () => {
       await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/failed to send/i);
+    });
+  });
+
+  describe("deleting a user", () => {
+    it("shows a confirmation dialog with the user's name before deleting", async () => {
+      mockMembers();
+      server.use(http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])));
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+      expect(screen.getByRole("alertdialog")).toHaveTextContent("User One");
+      expect(screen.getByRole("alertdialog")).toHaveTextContent(/cannot be undone/i);
+    });
+
+    it("removes the row after confirming deletion", async () => {
+      mockMembers();
+      let users = [BASE_USER];
+      let deleteCalled = false;
+      server.use(
+        http.get(`${API_BASE_URL}/users`, () => HttpResponse.json(users)),
+        http.delete(`${API_BASE_URL}/users/${BASE_USER.id}`, () => {
+          deleteCalled = true;
+          users = [];
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm delete/i }));
+
+      await waitFor(() => expect(deleteCalled).toBe(true));
+      await waitFor(() =>
+        expect(screen.queryByText("user1@example.com")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("cancelling the dialog makes no changes", async () => {
+      mockMembers();
+      server.use(http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])));
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(screen.getByText("user1@example.com")).toBeInTheDocument();
+    });
+
+    it("shows an error and keeps the row when deletion fails", async () => {
+      mockMembers();
+      server.use(
+        http.get(`${API_BASE_URL}/users`, () => HttpResponse.json([BASE_USER])),
+        http.delete(`${API_BASE_URL}/users/${BASE_USER.id}`, () =>
+          HttpResponse.json(
+            { detail: "This user cannot be deleted because they have existing records." },
+            { status: 409 },
+          ),
+        ),
+      );
+
+      render(<UserManagement />);
+      await screen.findByText("user1@example.com");
+
+      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm delete/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/cannot be deleted/i);
+      expect(screen.getByText("user1@example.com")).toBeInTheDocument();
     });
   });
 });

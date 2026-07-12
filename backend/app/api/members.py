@@ -125,33 +125,35 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
     today = date.today()
     current_rotary_year = rotary_year(today)
 
-    # Headline stat cards (Story 2b.11) are scoped to Active + Honorary
-    # members only — Past members are excluded from every one of these,
-    # not just hidden from their own card. Chart data below (age/tenure/
-    # nationality/gender distributions) is intentionally left unscoped —
-    # only the 8 headline figures changed scope for this story.
-    active_honorary_members = [m for m in members if m.status in ("active", "honorary")]
-    total_members = len(active_honorary_members)
-    honorary_members = sum(1 for m in members if m.status == "honorary")
+    # Story 8.14: honorary is now Member.is_honorary, not a separate status —
+    # honorary members are simply status == "active" with the flag set, so
+    # they fall out of every "active" filter below for free.
+    #
+    # Headline stat cards (Story 2b.11) are scoped to Active (incl. honorary)
+    # members only — Past members are excluded from every one of these, not
+    # just hidden from their own card.
+    active_members = [m for m in members if m.status == "active"]
+    total_members = len(active_members)
+    honorary_members = sum(1 for m in active_members if m.is_honorary)
     new_members_this_rotary_year = sum(
         1
-        for member in active_honorary_members
+        for member in active_members
         if member.join_date and rotary_year(member.join_date) == current_rotary_year
     )
     countries_represented = len(
-        {member.nationality for member in active_honorary_members if member.nationality}
+        {member.nationality for member in active_members if member.nationality}
     )
-    women_count = sum(1 for member in active_honorary_members if member.gender == "Female")
-    men_count = sum(1 for member in active_honorary_members if member.gender == "Male")
+    women_count = sum(1 for member in active_members if member.gender == "Female")
+    men_count = sum(1 for member in active_members if member.gender == "Male")
 
     ah_ages = [
         (today - member.date_of_birth).days // 365
-        for member in active_honorary_members
+        for member in active_members
         if member.date_of_birth
     ]
     average_age = round(sum(ah_ages) / len(ah_ages), 1) if ah_ages else None
 
-    ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_honorary_members]
+    ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_members]
     average_tenure_as_rotarian = (
         round(sum(ah_tenures_as_rotarian) / len(ah_tenures_as_rotarian), 1)
         if ah_tenures_as_rotarian
@@ -162,10 +164,14 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
     join_year_counts: Counter = Counter(
         member.join_date.year for member in members if member.join_date
     )
+    # Story 8.15: nationality/gender/age/tenure graphs are scoped to Active
+    # (incl. honorary) members only — Past members excluded. by_status and
+    # by_join_year (and growth, which needs Past members' leave events to be
+    # meaningful) are intentionally left unscoped.
     nationality_counts: Counter = Counter(
-        member.nationality or "Unknown" for member in members
+        member.nationality or "Unknown" for member in active_members
     )
-    gender_counts: Counter = Counter(member.gender or "Unknown" for member in members)
+    gender_counts: Counter = Counter(member.gender or "Unknown" for member in active_members)
 
     growth: dict[int, dict[str, int]] = {}
     age_bucket_counts: Counter = Counter()
@@ -177,12 +183,14 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
             growth.setdefault(join_ry, {"joins": 0, "leaves": 0})
             growth[join_ry]["joins"] += 1
 
-            tenure_bucket_counts[_tenure_bucket(member.years_as_rotarian)] += 1
-
         if member.leave_date:
             leave_ry = rotary_year(member.leave_date)
             growth.setdefault(leave_ry, {"joins": 0, "leaves": 0})
             growth[leave_ry]["leaves"] += 1
+
+    for member in active_members:
+        if member.join_date:
+            tenure_bucket_counts[_tenure_bucket(member.years_as_rotarian)] += 1
 
         if member.date_of_birth:
             age = (today - member.date_of_birth).days // 365
@@ -262,6 +270,7 @@ def generate_statistics_report(
 @router.get("/members")
 def list_members(
     status_filter: str | None = Query(None, alias="status"),
+    is_honorary: bool | None = Query(None, description="Story 8.14: honorary is now a flag"),
     title_id: uuid.UUID | None = Query(None),
     join_year: int | None = Query(None),
     nationality: str | None = Query(None),
@@ -272,6 +281,8 @@ def list_members(
     query = db.query(Member)
     if status_filter is not None:
         query = query.filter(Member.status == status_filter)
+    if is_honorary is not None:
+        query = query.filter(Member.is_honorary == is_honorary)
     if title_id is not None:
         query = query.filter(Member.title_id == title_id)
     if join_year is not None:

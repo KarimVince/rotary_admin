@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listMembers } from "../api/members";
-import { createUser, listUsers, resetUserPassword, updateUser } from "../api/users";
+import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from "../api/users";
 import { useAuth } from "../hooks/useAuth";
 
 const ROLES = ["user", "treasurer", "admin"];
@@ -28,6 +28,10 @@ export default function UserManagement() {
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState(null);
   const [resetSuccessId, setResetSuccessId] = useState(null);
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   async function loadData() {
     setIsLoading(true);
@@ -135,6 +139,31 @@ export default function UserManagement() {
       setResetError(err.detail || "Failed to send password reset email");
     } finally {
       setIsResetting(false);
+    }
+  }
+
+  function openDeleteConfirm(user) {
+    setDeleteTarget(user);
+    setDeleteError(null);
+  }
+
+  function cancelDeleteConfirm() {
+    setDeleteTarget(null);
+    setDeleteError(null);
+  }
+
+  async function handleConfirmDelete() {
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await deleteUser(deleteTarget.id);
+      setDeleteTarget(null);
+      await loadData();
+    } catch (err) {
+      setDeleteError(err.detail || "Failed to delete user");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -303,6 +332,30 @@ export default function UserManagement() {
         </div>
       )}
 
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={cancelDeleteConfirm}>
+          <div
+            className="admin-form"
+            role="alertdialog"
+            aria-label="Confirm delete"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2>Confirm delete</h2>
+            <p>
+              Are you sure you want to delete <strong>{deleteTarget.full_name}</strong>? This
+              action cannot be undone.
+            </p>
+            {deleteError && <p role="alert">{deleteError}</p>}
+            <button type="button" onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting…" : "Confirm delete"}
+            </button>
+            <button type="button" onClick={cancelDeleteConfirm} disabled={isDeleting}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <h2>Users</h2>
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -354,6 +407,14 @@ export default function UserManagement() {
                       Reset password
                     </button>
                     {resetSuccessId === user.id && <span> Reset email sent.</span>}
+                    <button
+                      type="button"
+                      onClick={() => openDeleteConfirm(user)}
+                      disabled={isSelf}
+                      title={isSelf ? "You cannot delete your own account" : undefined}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               );

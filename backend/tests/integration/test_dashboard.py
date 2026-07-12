@@ -15,6 +15,7 @@ def test_dashboard_summary_returns_zero_counts_when_empty(user_client):
     assert response.status_code == 200
     assert response.json() == {
         "active_members": 0,
+        "honorary_members": 0,
         "organisations_supported": 0,
         "rotary_friends": 0,
         "donations_this_year": 0,
@@ -37,6 +38,20 @@ def test_dashboard_summary_reflects_created_records(
     assert body["active_members"] == 2
     assert body["organisations_supported"] == 1
     assert body["rotary_friends"] == 1
+
+
+def test_dashboard_summary_counts_honorary_members_separately(user_client, make_member):
+    make_member(first_name="Regular", last_name="Active", is_honorary=False)
+    make_member(first_name="Honorary", last_name="One", is_honorary=True)
+    make_member(first_name="Honorary", last_name="Two", is_honorary=True)
+    make_member(first_name="Past", last_name="Member", status="past")
+
+    response = user_client.get("/api/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["active_members"] == 3
+    assert body["honorary_members"] == 2
 
 
 def test_dashboard_summary_sums_current_rotary_year_donations(

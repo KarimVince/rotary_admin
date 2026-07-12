@@ -13,7 +13,7 @@ import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
 
-const STATUS_LABELS = { active: "Active", honorary: "Honorary", past: "Past" };
+const STATUS_LABELS = { active: "Active", past: "Past" };
 
 const EMPTY_FORM = {
   first_name: "",
@@ -34,6 +34,7 @@ const EMPTY_FORM = {
   nationality: "",
   address: "",
   is_couple: false,
+  is_honorary: false,
   notes: "",
 };
 
@@ -79,6 +80,7 @@ export default function MembersList() {
   const [loadError, setLoadError] = useState(null);
 
   const [statusFilter, setStatusFilter] = useState("active");
+  const [honoraryOnly, setHonoraryOnly] = useState(false);
   const [titleFilter, setTitleFilter] = useState("");
   const [nationalityFilter, setNationalityFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -112,6 +114,7 @@ export default function MembersList() {
     try {
       const filters = {};
       if (statusFilter) filters.status = statusFilter;
+      if (honoraryOnly) filters.is_honorary = true;
       if (titleFilter) filters.title_id = titleFilter;
       if (nationalityFilter) filters.nationality = nationalityFilter;
       const data = await listMembers(filters);
@@ -137,7 +140,7 @@ export default function MembersList() {
     }
     loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRead, statusFilter, titleFilter, nationalityFilter]);
+  }, [canRead, statusFilter, honoraryOnly, titleFilter, nationalityFilter]);
 
   const visibleMembers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -184,6 +187,7 @@ export default function MembersList() {
       nationality: member.nationality ?? "",
       address: member.address ?? "",
       is_couple: Boolean(member.is_couple),
+      is_honorary: Boolean(member.is_honorary),
       notes: member.notes ?? "",
     });
     setSaveError(null);
@@ -326,12 +330,30 @@ export default function MembersList() {
                   <select
                     id="member-status"
                     value={form.status}
-                    onChange={(event) => setForm({ ...form, status: event.target.value })}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        status: event.target.value,
+                        // Story 8.14: honorary is only meaningful for Active
+                        // members — clear it when moving a member to Past.
+                        is_honorary:
+                          event.target.value === "active" ? current.is_honorary : false,
+                      }))
+                    }
                   >
                     <option value="active">Active</option>
-                    <option value="honorary">Honorary</option>
                     <option value="past">Past</option>
                   </select>
+                </div>
+                <div>
+                  <label htmlFor="member-is-honorary">Honorary member</label>
+                  <input
+                    id="member-is-honorary"
+                    type="checkbox"
+                    checked={form.is_honorary}
+                    disabled={form.status !== "active"}
+                    onChange={(event) => setForm({ ...form, is_honorary: event.target.checked })}
+                  />
                 </div>
 
                 <div>
@@ -529,9 +551,17 @@ export default function MembersList() {
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
-          <option value="honorary">Honorary</option>
           <option value="past">Past</option>
         </select>
+        <label htmlFor="filter-honorary-only" className="member-filter-checkbox-label">
+          <input
+            id="filter-honorary-only"
+            type="checkbox"
+            checked={honoraryOnly}
+            onChange={(event) => setHonoraryOnly(event.target.checked)}
+          />
+          Honorary only
+        </label>
         <select
           id="filter-title"
           aria-label="Title"
@@ -574,7 +604,10 @@ export default function MembersList() {
                 Personal info
               </h3>
               <div className="flex flex-col gap-1 text-sm">
-                <p>Status: {STATUS_LABELS[selectedMember.status] ?? selectedMember.status}</p>
+                <p>
+                  Status: {STATUS_LABELS[selectedMember.status] ?? selectedMember.status}
+                  {selectedMember.is_honorary ? " (Honorary)" : ""}
+                </p>
                 {selectedMember.email && <p>Email: {selectedMember.email}</p>}
                 {selectedMember.phone && <p>Phone: {selectedMember.phone}</p>}
                 {selectedMember.date_of_birth && (
@@ -642,12 +675,12 @@ export default function MembersList() {
               >
                 {member.photo_url ? (
                   <img
-                    className="w-14 h-14 rounded-full object-cover bg-[var(--color-card-border)] shrink-0"
+                    className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full object-cover bg-[var(--color-card-border)] shrink-0"
                     src={resolvePhotoUrl(member.photo_url)}
                     alt=""
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-[var(--color-card-border)] flex items-center justify-center text-sm font-semibold text-[var(--color-brand-blue-dark)] shrink-0">
+                  <div className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full bg-[var(--color-card-border)] flex items-center justify-center text-base font-semibold text-[var(--color-brand-blue-dark)] shrink-0">
                     {initials(member)}
                   </div>
                 )}

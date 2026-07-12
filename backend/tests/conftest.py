@@ -128,6 +128,7 @@ def make_member(db_session):
         join_date: date | None = None,
         status: str = "active",
         is_couple: bool = False,
+        is_honorary: bool = False,
     ) -> Member:
         member = Member(
             first_name=first_name,
@@ -136,6 +137,7 @@ def make_member(db_session):
             join_date=join_date or date(2020, 1, 1),
             status=status,
             is_couple=is_couple,
+            is_honorary=is_honorary,
         )
         db_session.add(member)
         db_session.commit()

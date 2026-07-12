@@ -19,7 +19,12 @@ python3 -m venv venv
 venv/bin/pip install -r requirements.txt
 cp .env.example .env   # fill in DATABASE_URL, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, etc.
 venv/bin/alembic upgrade head
-venv/bin/python -m app.db.seed   # creates default member titles + admin user
+# Creates default member titles + admin user, and (Story 8.17) a login for
+# every active, non-honorary member that doesn't already have one — each
+# gets role "user" and the shared MEMBER_SEED_PASSWORD. Idempotent: safe to
+# re-run any time (e.g. after importing new members) — it only creates rows
+# that don't already exist.
+venv/bin/python -m app.db.seed
 venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 

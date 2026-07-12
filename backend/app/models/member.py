@@ -19,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
 
-member_status_enum = Enum("active", "honorary", "past", name="member_status")
+member_status_enum = Enum("active", "past", name="member_status")
 member_gender_enum = Enum("Male", "Female", "Other", name="member_gender")
 
 
@@ -60,6 +60,11 @@ class Member(Base):
     nationality: Mapped[str | None] = mapped_column(String(100))
     address: Mapped[str | None] = mapped_column(Text)
     is_couple: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # Story 8.14: honorary is no longer a status value — it's a flag on an
+    # otherwise-Active member. Only meaningful when status == "active".
+    is_honorary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

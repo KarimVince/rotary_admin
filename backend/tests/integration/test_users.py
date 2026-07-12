@@ -231,3 +231,67 @@ def test_non_admin_cannot_trigger_password_reset(user_client, admin_client, monk
     response = user_client.post(f"/api/v1/users/{created['id']}/reset-password")
 
     assert response.status_code == 403
+
+
+def test_admin_can_delete_user(admin_client):
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+
+    response = admin_client.delete(f"/api/v1/users/{created['id']}")
+
+    assert response.status_code == 204
+    remaining_emails = [u["email"] for u in admin_client.get("/api/v1/users").json()]
+    assert created["email"] not in remaining_emails
+
+
+def test_non_admin_cannot_delete_user(user_client, admin_client):
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+
+    response = user_client.delete(f"/api/v1/users/{created['id']}")
+
+    assert response.status_code == 403
+
+
+def test_admin_cannot_delete_own_account(admin_client):
+    users = admin_client.get("/api/v1/users").json()
+    self_user = next(u for u in users if u["email"] == "admin-fixture@example.com")
+
+    response = admin_client.delete(f"/api/v1/users/{self_user['id']}")
+
+    assert response.status_code == 403
+
+
+def test_delete_nonexistent_user_returns_404(admin_client):
+    response = admin_client.delete("/api/v1/users/00000000-0000-0000-0000-000000000000")
+
+    assert response.status_code == 404
+
+
+def test_deleting_user_with_donation_history_returns_409(
+    admin_client, make_organisation, db_session
+):
+    from datetime import date
+
+    from app.models import Donation
+
+    created = admin_client.post("/api/v1/users", json=_create_payload()).json()
+    org = make_organisation(name="History Org")
+    # Attribute a donation to the newly created user directly via the DB —
+    # simplest way to reproduce an FK-referenced user regardless of which
+    # endpoint(s) actually set created_by today.
+    db_session.add(
+        Donation(
+            organisation_id=org.id,
+            amount=100,
+            currency="HKD",
+            donation_date=date(2025, 1, 1),
+            rotary_year=2024,
+            created_by=created["id"],
+        )
+    )
+    db_session.commit()
+
+    response = admin_client.delete(f"/api/v1/users/{created['id']}")
+
+    assert response.status_code == 409
+    remaining_emails = [u["email"] for u in admin_client.get("/api/v1/users").json()]
+    assert created["email"] in remaining_emails

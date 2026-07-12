@@ -73,6 +73,23 @@ describe("AttendanceHistory", () => {
     expect(screen.getByText("1")).toBeInTheDocument(); // total events stat
   });
 
+  // Story 8.27 — "New Event" was previously an unstyled default button;
+  // it must match the app-wide primary-button standard used by "+ Add
+  // Member" / "+ Add Organisation" / "+ Add Friend".
+  it("styles the New Event button as the standard primary action button", async () => {
+    mockCanRead = true;
+    mockCanWrite = true;
+    server.use(
+      http.get(`${API_BASE_URL}/attendance/events`, () => HttpResponse.json([EVENT])),
+      http.get(`${API_BASE_URL}/attendance/stats`, () => HttpResponse.json(STATS)),
+    );
+
+    renderPage();
+    await waitForLoaded();
+
+    expect(screen.getByRole("button", { name: "New Event" })).toHaveClass("btn-add-member");
+  });
+
   it("navigates to the sheet when a row is clicked", async () => {
     mockCanRead = true;
     mockCanWrite = true;

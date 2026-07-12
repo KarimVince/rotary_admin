@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
@@ -38,12 +38,14 @@ const STATS = {
         { label: "Beta", value: 800 },
         { label: "Alpha", value: 500 },
       ],
+      total_by_organisation_selected_year: [{ label: "Beta", value: 700 }],
       organisations_by_rotary_year: [
         { label: String(THIS_YEAR - 1), value: 1 },
         { label: String(THIS_YEAR), value: 2 },
       ],
       grand_total: 1300,
       total_by_classification: [{ label: "Unclassified", value: 900 }],
+      total_by_classification_all_time: [{ label: "Unclassified", value: 1300 }],
     },
   ],
   selected_rotary_year: THIS_YEAR,
@@ -73,9 +75,11 @@ describe("DonationsStatistics", () => {
     render(<DonationsStatistics />);
 
     expect(await screen.findByText("1,300 HKD")).toBeInTheDocument();
-    expect(screen.getByText("Total donated per rotary year")).toBeInTheDocument();
-    expect(screen.getByText("Year-over-year trend")).toBeInTheDocument();
-    expect(screen.getByText("Top organisations by total donation")).toBeInTheDocument();
+    // Story 8.30 — each chart type now renders once in "Selected Year" and
+    // once in "All Years".
+    expect(screen.getAllByText("Total donated per rotary year")).toHaveLength(2);
+    expect(screen.getAllByText("Year-over-year trend")).toHaveLength(2);
+    expect(screen.getAllByText("Top organisations by total donation")).toHaveLength(2);
   });
 
   it("shows an error when the statistics request fails", async () => {
@@ -155,5 +159,84 @@ describe("DonationsStatistics", () => {
     render(<DonationsStatistics />);
 
     expect(await screen.findByText(/3 donations in SGD excluded/i)).toBeInTheDocument();
+  });
+
+  // Story 8.26 — selecting a classification with zero matching donations
+  // must not blank the page (title/report card/selectors all stay visible).
+  it("keeps the page chrome and shows an empty state when a classification has no NGOs", async () => {
+    const EMPTY_STATS = {
+      by_currency: [],
+      selected_rotary_year: THIS_YEAR,
+      selected_year_organisations_count: 0,
+      selected_year: {
+        total_hkd: 0,
+        total_usd: 0,
+        unconverted_count: 0,
+        unconverted_currencies: [],
+      },
+      all_time_organisations_count: 0,
+      all_time: {
+        total_hkd: 0,
+        total_usd: 0,
+        unconverted_count: 0,
+        unconverted_currencies: [],
+      },
+    };
+
+    server.use(
+      http.get(`${API_BASE_URL}/ngo-classifications`, () =>
+        HttpResponse.json([{ id: "class-1", name: "Environment & Climate" }]),
+      ),
+      http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(EMPTY_STATS)),
+    );
+
+    render(<DonationsStatistics />);
+
+    expect(await screen.findByLabelText("Classification")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Classification"), {
+      target: { value: "class-1" },
+    });
+
+    // Page chrome stays fully intact.
+    expect(screen.getByText("Donation statistics")).toBeInTheDocument();
+    expect(screen.getByLabelText("Generate report")).toBeInTheDocument();
+    expect(screen.getByLabelText("Classification")).toBeInTheDocument();
+    expect(screen.getByLabelText("View a rotary year")).toBeInTheDocument();
+
+    // Report cards show zero values rather than disappearing.
+    expect(screen.getAllByText("0 HKD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0 USD").length).toBeGreaterThan(0);
+
+    // Each chart shows the classification-aware empty state — 4 chart types
+    // in each of the 2 sections (Story 8.30).
+    expect(await screen.findAllByText("No NGOs found for this classification.")).toHaveLength(8);
+  });
+
+  // Story 8.30 — the page shows "Selected Year" and "All Years" sections,
+  // 2 charts per row, with independently-scoped data for the two charts
+  // that actually differ by scope (top orgs, by classification).
+  it("renders Selected Year and All Years sections with independently scoped data", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
+    );
+
+    render(<DonationsStatistics />);
+    await screen.findByText("1,300 HKD");
+
+    expect(screen.getByText(`Selected Year — ${THIS_YEAR}–${THIS_YEAR + 1}`)).toBeInTheDocument();
+    expect(screen.getByText("All Years")).toBeInTheDocument();
+
+    // "Top organisations" differs: Selected Year only has Beta (700); All
+    // Years has both Beta (800) and Alpha (500) from the fixture.
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    const betaBars = screen.getAllByText("Beta");
+    expect(betaBars.length).toBe(2); // one per section
+
+    // "By classification" differs too: two distinct chart headings, one
+    // per section.
+    expect(
+      screen.getByText(`By classification — ${THIS_YEAR}–${THIS_YEAR + 1}`),
+    ).toBeInTheDocument();
+    expect(screen.getByText("By classification — All years")).toBeInTheDocument();
   });
 });

@@ -13,8 +13,7 @@ const API_BASE_URL = "http://localhost:8000/api/v1";
 
 const STATS = {
   by_status: [
-    { label: "active", value: 12 },
-    { label: "honorary", value: 2 },
+    { label: "active", value: 14 },
     { label: "past", value: 3 },
   ],
   by_join_year: [

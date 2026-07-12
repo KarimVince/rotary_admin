@@ -56,7 +56,7 @@ def test_secretary_can_create_event_and_seeds_records(secretary_client, make_mem
     # also snapshotted, since event creation snapshots every member — so
     # active count is 2 (Sec Retary + Active One), not 1.
     make_member(first_name="Active", last_name="One", status="active")
-    make_member(first_name="Honor", last_name="Ary", status="honorary")
+    make_member(first_name="Honor", last_name="Ary", is_honorary=True)
     make_member(first_name="Past", last_name="Member", status="past")
 
     response = secretary_client.post(

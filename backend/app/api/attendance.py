@@ -46,7 +46,14 @@ def _seed_records_for_event(db: Session, event: AttendanceEvent) -> None:
             AttendanceRecord(
                 event_id=event.id,
                 member_id=member.id,
-                member_status_snapshot=member.status,
+                # Story 8.14: honorary is Member.is_honorary now, not a
+                # status value — this snapshot enum is independent of
+                # Member.status and still has its own "honorary" bucket.
+                member_status_snapshot=(
+                    "honorary"
+                    if member.status == "active" and member.is_honorary
+                    else member.status
+                ),
             )
         )
 
@@ -147,7 +154,7 @@ def attendance_stats(
     counts = _event_counts(db, [event.id for event in events])
 
     eligible_member_count = (
-        db.query(func.count(Member.id)).filter(Member.status.in_(["active", "honorary"])).scalar()
+        db.query(func.count(Member.id)).filter(Member.status == "active").scalar()
         or 0
     )
 

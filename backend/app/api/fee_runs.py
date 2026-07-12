@@ -62,7 +62,12 @@ def create_fee_run(
             detail=f"No fee settings configured for rotary year {payload.rotary_year}",
         )
 
-    members_query = db.query(Member).filter(Member.status == "active")
+    # Story 8.14: honorary members (Member.is_honorary) don't get billed —
+    # same behaviour as when "honorary" was its own status value that never
+    # matched this "active" filter.
+    members_query = db.query(Member).filter(
+        Member.status == "active", Member.is_honorary.is_(False)
+    )
     if payload.target == "member_ids":
         members_query = members_query.filter(Member.id.in_(payload.member_ids))
     members = members_query.all()

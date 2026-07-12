@@ -67,12 +67,26 @@ def test_admin_can_create_member(admin_client):
 
 
 def test_admin_can_create_honorary_member(admin_client):
+    # Story 8.14: honorary is no longer a status value — an honorary member
+    # is status="active" with is_honorary=True.
     response = admin_client.post(
-        "/api/v1/members", json=_create_payload(email="honorary@example.com", status="honorary")
+        "/api/v1/members",
+        json=_create_payload(email="honorary@example.com", is_honorary=True),
     )
 
     assert response.status_code == 201
-    assert response.json()["status"] == "honorary"
+    body = response.json()
+    assert body["status"] == "active"
+    assert body["is_honorary"] is True
+
+
+def test_create_member_rejects_honorary_status_value(admin_client):
+    response = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="rejected@example.com", status="honorary"),
+    )
+
+    assert response.status_code == 422
 
 
 def test_non_admin_cannot_create_member(user_client):

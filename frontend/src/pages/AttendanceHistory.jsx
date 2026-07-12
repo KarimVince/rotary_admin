@@ -70,10 +70,10 @@ export default function AttendanceHistory() {
 
   return (
     <div className="admin-page">
-      <div className="email-controls-row" style={{ justifyContent: "space-between" }}>
+      <div className="page-header-row">
         <h1>Attendance</h1>
         {canWrite && (
-          <button type="button" onClick={() => setIsCreateOpen(true)}>
+          <button type="button" className="btn-add-member" onClick={() => setIsCreateOpen(true)}>
             New Event
           </button>
         )}

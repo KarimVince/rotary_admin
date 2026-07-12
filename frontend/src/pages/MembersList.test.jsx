@@ -57,6 +57,7 @@ const MEMBER = {
   gender: null,
   nationality: "France",
   is_couple: false,
+  is_honorary: false,
   notes: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -207,7 +208,7 @@ describe("MembersList", () => {
       await waitFor(() => expect(capturedBody?.gender).toBe("Female"));
     });
 
-    it("includes the selected honorary status when creating a member", async () => {
+    it("includes the honorary flag (Story 8.14) when creating a member", async () => {
       let capturedBody;
       server.use(
         http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])),
@@ -224,11 +225,39 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/first name/i), "New");
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
-      const modal = screen.getByRole("heading", { name: /add member/i }).closest(".modal-dialog");
-      await userEvent.selectOptions(within(modal).getByLabelText(/^status$/i), "honorary");
+      await userEvent.click(screen.getByLabelText(/honorary member/i));
       await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
 
-      await waitFor(() => expect(capturedBody?.status).toBe("honorary"));
+      await waitFor(() => expect(capturedBody?.status).toBe("active"));
+      expect(capturedBody?.is_honorary).toBe(true);
+    });
+
+    it("has only Active and Past as status options (Story 8.14)", async () => {
+      server.use(http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])));
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /add member/i }));
+      const modal = screen.getByRole("heading", { name: /add member/i }).closest(".modal-dialog");
+      const statusSelect = within(modal).getByLabelText(/^status$/i);
+      const optionValues = within(statusSelect)
+        .getAllByRole("option")
+        .map((option) => option.value);
+      expect(optionValues).toEqual(["active", "past"]);
+    });
+
+    it("disables the honorary checkbox when status is Past", async () => {
+      server.use(http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])));
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /add member/i }));
+      const modal = screen.getByRole("heading", { name: /add member/i }).closest(".modal-dialog");
+      await userEvent.selectOptions(within(modal).getByLabelText(/^status$/i), "past");
+
+      expect(screen.getByLabelText(/honorary member/i)).toBeDisabled();
     });
 
     it("submits a nationality selected from the fixed country list", async () => {

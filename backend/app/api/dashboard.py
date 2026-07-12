@@ -31,6 +31,9 @@ def dashboard_summary(
     )
     return DashboardSummary(
         active_members=db.query(Member).filter(Member.status == "active").count(),
+        honorary_members=db.query(Member)
+        .filter(Member.status == "active", Member.is_honorary.is_(True))
+        .count(),
         organisations_supported=db.query(Organisation).count(),
         rotary_friends=db.query(RotaryFriend).count(),
         donations_this_year=float(donations_this_year),

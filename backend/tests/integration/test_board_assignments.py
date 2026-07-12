@@ -72,6 +72,27 @@ def test_list_assignments_includes_nested_board_position_and_member(
     assert entry["member"]["last_name"] == "Doe"
 
 
+def test_list_assignments_includes_member_photo_and_demographics(
+    admin_client, make_board_position, make_member, make_board_position_assignment, db_session
+):
+    position = make_board_position(name="Secretary")
+    member = make_member(first_name="Sam", last_name="Lee")
+    member.photo_url = "/uploads/members/sam.jpg"
+    member.date_of_birth = date(1990, 1, 1)
+    member.gender = "Male"
+    member.nationality = "Hong Kong"
+    db_session.commit()
+    make_board_position_assignment(position.id, member.id, rotary_year=CURRENT_YEAR)
+
+    response = admin_client.get("/api/v1/board/assignments", params={"year": CURRENT_YEAR})
+
+    entry = response.json()[0]
+    assert entry["member"]["photo_url"] == "/uploads/members/sam.jpg"
+    assert entry["member"]["date_of_birth"] == "1990-01-01"
+    assert entry["member"]["gender"] == "Male"
+    assert entry["member"]["nationality"] == "Hong Kong"
+
+
 # --- POST /board/assignments — access gating --------------------------------
 
 

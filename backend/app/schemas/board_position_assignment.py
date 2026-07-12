@@ -12,6 +12,13 @@ class AssignmentMemberSummary(BaseModel):
     id: uuid.UUID
     first_name: str
     last_name: str
+    # Story 8.19: the Dashboard board strip needs a photo + a few key
+    # details per card — everything else about the member is out of scope
+    # for this summary (BoardMembers.jsx only ever needed the name).
+    photo_url: str | None = None
+    date_of_birth: date | None = None
+    gender: str | None = None
+    nationality: str | None = None
 
 
 class BoardPositionAssignmentCreate(BaseModel):

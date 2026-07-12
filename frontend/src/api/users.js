@@ -23,3 +23,9 @@ export function resetUserPassword(userId) {
     method: "POST",
   });
 }
+
+export function deleteUser(userId) {
+  return apiFetch(`/users/${userId}`, {
+    method: "DELETE",
+  });
+}

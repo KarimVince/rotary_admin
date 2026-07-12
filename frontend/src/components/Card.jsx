@@ -15,6 +15,7 @@ const VARIANT_CLASSES = {
   "stat-teal": "bg-[var(--tone-teal-bg)] shadow-[var(--shadow-card)] rounded-2xl p-5",
   "stat-amber": "bg-[var(--tone-amber-bg)] shadow-[var(--shadow-card)] rounded-2xl p-5",
   "stat-rose": "bg-[var(--tone-rose-bg)] shadow-[var(--shadow-card)] rounded-2xl p-5",
+  "stat-green": "bg-[var(--tone-green-bg)] shadow-[var(--shadow-card)] rounded-2xl p-5",
 };
 
 export default function Card({ variant = "default", className = "", children, ...props }) {

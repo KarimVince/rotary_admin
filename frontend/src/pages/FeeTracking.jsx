@@ -82,7 +82,13 @@ export default function FeeTracking() {
     if (!hasFeeSettingsForYear || paidFilter === "true") return [];
     const billedMemberIds = new Set(fees.map((fee) => fee.member_id));
     return members
-      .filter((member) => member.status === "active" && !billedMemberIds.has(member.id))
+      .filter(
+        // Story 8.14: honorary members don't get billed (matches the fee
+        // run's own exclusion), so they shouldn't show up as "not invoiced"
+        // placeholders either.
+        (member) =>
+          member.status === "active" && !member.is_honorary && !billedMemberIds.has(member.id),
+      )
       .map((member) => ({ placeholder: true, member_id: member.id }));
   }, [hasFeeSettingsForYear, paidFilter, fees, members]);
 

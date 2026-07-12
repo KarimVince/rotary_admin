@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     admin_password: str = "change-me"
     admin_full_name: str = "Admin"
 
+    # Story 8.17: shared temporary password for users auto-created from
+    # active members by seed_users_from_active_members(). Every seeded user
+    # gets the same value; the club should have them change it after first
+    # login (no forced-change-on-login flow exists yet).
+    member_seed_password: str = "change-me"
+
     # Static v1 template — club bank details etc. Shown verbatim in fee invoice
     # emails until fee_settings grows a per-year override (not needed yet).
     fee_payment_instructions: str = (
