@@ -1,9 +1,10 @@
 # Deployment guide (Epic 6 — Production Deployment)
 
-Target stack: **Neon or Supabase** (Postgres) + **Render** (backend web
-service + frontend static site), wired via `render.yaml` in the repo root.
-Estimated cost: **$0/month** on free tiers (see the "Known limitations"
-section for what that trades off).
+Target stack: **Neon** (Postgres) + **Render** (backend web service +
+frontend static site, free `*.onrender.com` subdomains), wired via
+`render.yaml` in the repo root. Estimated cost: **$0/month** on free tiers
+(see the "Known limitations" section for what that trades off). Emails send
+via the existing Resend account on the `berrada.net` domain.
 
 Each step below says who does it: **(you)** — needs a human in a browser
 with your accounts, or a decision only you can make — or **(Claude)** —
@@ -16,12 +17,14 @@ hand over a connection string in chat.
 
 **(you)**
 
-1. Create an account at [neon.tech](https://neon.tech) or
-   [supabase.com](https://supabase.com) (Neon is the simpler pick for just a
-   Postgres database — Supabase brings a lot of extra product you won't use
-   here).
-2. Create a new project. Pick a region close to Hong Kong/Discovery Bay if
-   offered (Neon: Singapore `ap-southeast-1` is closest).
+**Decided: Neon.** It's purpose-built serverless Postgres with nothing else
+bundled — this app already has its own JWT auth, so Supabase's bundled
+auth/storage/realtime products would just sit unused; Neon is the smaller,
+simpler surface for "just a production Postgres."
+
+1. Create an account at [neon.tech](https://neon.tech).
+2. Create a new project. Pick the region closest to Hong Kong/Discovery Bay
+   if offered (Singapore `ap-southeast-1` is closest).
 3. Copy the connection string it gives you. It looks like:
    ```
    postgresql://<user>:<password>@<host>/<dbname>?sslmode=require
@@ -35,12 +38,11 @@ hand over a connection string in chat.
    somewhere private (password manager), never into a chat message or a
    committed file.**
 4. `pgcrypto` doesn't need a manual step — the very first Alembic migration
-   (`9e5155cc288c`) runs `CREATE EXTENSION IF NOT EXISTS pgcrypto`, and both
-   Neon and Supabase allow that as a non-superuser. It'll be enabled
-   automatically the moment Story 6.2's migrations run.
+   (`9e5155cc288c`) runs `CREATE EXTENSION IF NOT EXISTS pgcrypto`, and Neon
+   allows that as a non-superuser. It'll be enabled automatically the moment
+   Story 6.2's migrations run.
 5. Backups: Neon's free tier keeps ~24h of point-in-time restore history
-   automatically, no setup needed. Supabase's free tier does daily backups
-   for 7 days. Note which you picked in case you ever need to restore.
+   automatically, no setup needed.
 
 **Done when:** you have a `DATABASE_URL` saved somewhere private.
 
@@ -97,8 +99,8 @@ and exactly 1 row in `users`.
    |---|---|
    | `DATABASE_URL` | from Story 6.1 |
    | `JWT_SECRET` | a long random string, **different from your dev `.env`** — generate one with `openssl rand -hex 32` |
-   | `RESEND_API_KEY` | from your Resend account (see Story 6.5 note on domain verification) |
-   | `RESEND_FROM_EMAIL` | leave as `onboarding@resend.dev` for now if your domain isn't verified yet (see 6.5), otherwise your verified domain's address |
+   | `RESEND_API_KEY` | from your existing Resend account |
+   | `RESEND_FROM_EMAIL` | `karim@berrada.net` (or a dedicated address on the same domain, e.g. `no-reply@berrada.net` — Resend verifies at the domain level, any address on a verified domain works) once `berrada.net` is verified in Resend (see 6.5); until then, leave as `onboarding@resend.dev` (sandbox — only delivers to the Resend account owner) |
    | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | must match what you used in 6.2's seed step |
    | `MEMBER_SEED_PASSWORD` | any strong shared temp password — members change it after first login |
    | `CORS_ALLOWED_ORIGINS` | leave blank for now, come back and set it after Story 6.4 gives you the frontend URL |
@@ -152,27 +154,22 @@ and exactly 1 row in `users`.
 
 ## 6.5 — Domain & HTTPS setup
 
-**(you — decision + external purchase, Claude cannot buy a domain for you)**
+**(you)**
 
-Two options:
+**Decided: free `*.onrender.com` subdomain**, no custom domain purchase for
+now. HTTPS is already automatic on Render (Let's Encrypt) regardless, so the
+"HTTPS" half of this story's acceptance criteria is satisfied either way —
+this can be revisited later without re-architecting anything.
 
-- **Free**: skip this story, keep the `*.onrender.com` URLs. HTTPS is
-  already automatic on Render (Let's Encrypt), so the "HTTPS" half of this
-  story's acceptance criteria is already satisfied either way.
-- **Custom domain** (~€10-15/year): buy one (Namecheap, Google Domains'
-  successor Squarespace Domains, etc.), then in Render: service → Settings →
-  Custom Domains → add it, and add the CNAME/A record Render shows you at
-  your registrar.
-
-**While you're touching domains, resolve the standing Resend blocker**
-(tracked separately in ClickUp Story 8.2, but it blocks Story 6.7's email
-sign-off): verify a domain you control in the
-[Resend dashboard](https://resend.com/domains) → Domains → Add Domain, add
-the DNS records it gives you, wait for verification, then set
-`RESEND_FROM_EMAIL` on the backend service to an address on that domain
-(e.g. `no-reply@yourdomain.org`). Until this is done, real emails only land
-in the Resend account owner's own inbox (sandbox sender), which will make
-Story 6.7's "confirm invoice email actually arrives" fail for anyone else.
+**Resolve the standing Resend blocker** (tracked separately in ClickUp
+Story 8.2, but it blocks Story 6.7's email sign-off) using the domain you
+already control, `berrada.net`: [Resend dashboard](https://resend.com/domains)
+→ Domains → Add Domain → `berrada.net`, add the DNS records it gives you at
+your registrar, wait for verification, then set `RESEND_FROM_EMAIL` on the
+backend service to `karim@berrada.net` (see 6.3's table). Until this is
+verified, real emails only land in the Resend account owner's own inbox
+(sandbox sender), which would make Story 6.7's "confirm invoice email
+actually arrives" fail for anyone else.
 
 **Done when:** the app is reachable over HTTPS with no browser warnings
 (true by default on Render even without a custom domain).
