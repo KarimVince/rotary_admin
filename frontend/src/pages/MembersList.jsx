@@ -3,7 +3,11 @@ import { API_ORIGIN } from "../api/client";
 import { COUNTRIES } from "../data/countries";
 import { listMemberTitles } from "../api/memberTitles";
 import { listHonorifics } from "../api/honorifics";
-import { createMemberApplication, sendMemberApplication } from "../api/memberApplications";
+import {
+  createMemberApplication,
+  downloadMemberApplication,
+  sendMemberApplication,
+} from "../api/memberApplications";
 import {
   createMember,
   listMembers,
@@ -103,6 +107,7 @@ export default function MembersList() {
   const [isCreatingApplication, setIsCreatingApplication] = useState(false);
   const [applicationError, setApplicationError] = useState(null);
   const [sendingChannel, setSendingChannel] = useState(null);
+  const [isDownloadingApplication, setIsDownloadingApplication] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState("active");
   const [honoraryOnly, setHonoraryOnly] = useState(false);
@@ -349,6 +354,26 @@ export default function MembersList() {
     }
   }
 
+  async function handleDownloadApplication() {
+    setApplicationError(null);
+    setIsDownloadingApplication(true);
+    try {
+      const { blob, filename } = await downloadMemberApplication(applicationResult.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setApplicationError(err.detail || "Failed to download the application PDF");
+    } finally {
+      setIsDownloadingApplication(false);
+    }
+  }
+
   async function handleSendApplication(channel) {
     setApplicationError(null);
     setSendingChannel(channel);
@@ -449,9 +474,14 @@ export default function MembersList() {
               <>
                 <h2>Application generated</h2>
                 <p>
-                  <a href={`${API_ORIGIN}${applicationResult.pdf_url}`} target="_blank" rel="noreferrer">
-                    Download the PDF
-                  </a>
+                  <button
+                    type="button"
+                    className="btn-add-member"
+                    onClick={handleDownloadApplication}
+                    disabled={isDownloadingApplication}
+                  >
+                    {isDownloadingApplication ? "Downloading…" : "Download the PDF"}
+                  </button>
                 </p>
 
                 {applicationError && <p role="alert">{applicationError}</p>}

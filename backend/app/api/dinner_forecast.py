@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
 from app.core.dinner_forecast_report import build_csv_report, build_pdf_report
+from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
@@ -161,25 +162,17 @@ def generate_dinner_forecast_report(
 
     if format == "csv":
         content = build_csv_report(db, events)
+        filename = generate_report_filename("dinner-forecast", "csv", rotary_year=selected_year)
         return Response(
             content=content,
             media_type="text/csv",
-            headers={
-                "Content-Disposition": (
-                    f'attachment; filename="dinner-events-{selected_year}-'
-                    f'{selected_year + 1}.csv"'
-                )
-            },
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     content = build_pdf_report(db, events, selected_year)
+    filename = generate_report_filename("dinner-forecast", "pdf", rotary_year=selected_year)
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="dinner-events-{selected_year}-'
-                f'{selected_year + 1}.pdf"'
-            )
-        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -26,3 +26,4 @@ class MemberApplicationRead(BaseModel):
     whatsapp_sent_at: datetime | None
     created_at: datetime
     pdf_url: str | None = None
+    download_url: str | None = None

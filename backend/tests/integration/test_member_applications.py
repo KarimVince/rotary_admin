@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 from app.core.email_client import EmailSendError
@@ -116,6 +118,35 @@ def test_mark_sent_via_whatsapp_does_not_call_send_email(admin_client, monkeypat
 
     assert response.status_code == 200
     assert response.json()["whatsapp_sent_at"] is not None
+
+
+def test_download_returns_pdf_with_standardised_filename(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.api.member_applications.settings.upload_dir", str(tmp_path))
+
+    application = admin_client.post(
+        "/api/v1/member-applications", json={"name": "Prospect"}
+    ).json()
+    assert application["download_url"] == (
+        f"/api/v1/member-applications/{application['id']}/download"
+    )
+
+    response = admin_client.get(application["download_url"])
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    # Story 15.11: one-off form, no rotary-year segment.
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="member-application_{date.today().isoformat()}.pdf"'
+    )
+    assert response.content[:4] == b"%PDF"
+
+
+def test_download_not_found_returns_404(admin_client):
+    response = admin_client.get(
+        "/api/v1/member-applications/00000000-0000-0000-0000-000000000000/download"
+    )
+
+    assert response.status_code == 404
 
 
 def test_send_application_not_found_returns_404(admin_client):

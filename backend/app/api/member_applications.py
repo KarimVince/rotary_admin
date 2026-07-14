@@ -2,13 +2,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
 from app.core.member_application_pdf import build_member_application_pdf
+from app.core.report_filename import generate_report_filename
 from app.db.session import get_db
 from app.models import MemberApplication, User
 from app.schemas.member_application import (
@@ -38,6 +39,7 @@ def _serialize(application: MemberApplication) -> MemberApplicationRead:
         whatsapp_sent_at=application.whatsapp_sent_at,
         created_at=application.created_at,
         pdf_url=f"/static/applications/{application.pdf_filename}",
+        download_url=f"/api/v1/member-applications/{application.id}/download",
     )
 
 
@@ -112,6 +114,32 @@ def send_member_application(
     db.commit()
     db.refresh(application)
     return _serialize(application)
+
+
+@router.get("/member-applications/{application_id}/download")
+def download_member_application(
+    application_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "read")),
+):
+    application = db.get(MemberApplication, application_id)
+    if application is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
+        )
+
+    pdf_path = _applications_dir() / application.pdf_filename
+    if not pdf_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not found")
+
+    # Story 15.11: one-off form, no rotary-year selection at generation time —
+    # omit the year segment per the naming convention's own carve-out.
+    filename = generate_report_filename("member-application", "pdf")
+    return Response(
+        content=pdf_path.read_bytes(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/member-applications/{application_id}", response_model=MemberApplicationRead)

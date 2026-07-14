@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.core.report_filename import generate_report_filename
 from app.db.session import get_db
 from app.models import RotaryFriend, User
 from app.schemas.rotary_friend import RotaryFriendCreate
@@ -167,8 +168,9 @@ def export_rotary_friends(
     for friend in friends:
         writer.writerow({column: getattr(friend, column) or "" for column in CSV_EXPORT_COLUMNS})
 
+    filename = generate_report_filename("friends-directory", "csv")
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="rotary_friends.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

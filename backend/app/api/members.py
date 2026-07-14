@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_access, require_admin
 from app.api.ppt_templates import template_path_for_year
 from app.core.config import settings
+from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year, rotary_year_bounds
 from app.core.statistics_report import build_pdf_report, build_pptx_report
 from app.db.session import get_db
@@ -258,7 +259,6 @@ def generate_statistics_report(
     _current_user: User = Depends(require_access(MEMBERS_STATISTICS, "read")),
 ):
     stats = compute_members_statistics(db)
-    today_str = date.today().isoformat()
 
     template_path = None
     if use_template:
@@ -277,11 +277,11 @@ def generate_statistics_report(
     if report_format == "pdf":
         content = build_pdf_report(stats, report_type=report_type)
         media_type = "application/pdf"
-        filename = f"members-statistics-report-{today_str}.pdf"
+        filename = generate_report_filename("members-statistics", "pdf")
     else:
         content = build_pptx_report(stats, report_type=report_type, template_path=template_path)
         media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        filename = f"members-statistics-report-{today_str}.pptx"
+        filename = generate_report_filename("members-statistics", "pptx")
 
     return Response(
         content=content,

@@ -249,6 +249,56 @@ describe("MembersList", () => {
       expect(screen.getByLabelText(/honorific/i)).toHaveValue(HONORIFIC_MS.id);
     });
 
+    it("downloads the generated application PDF via the Download button (Story 15.5/15.11)", async () => {
+      let application;
+      let downloadRequested = false;
+      const originalCreateObjectURL = URL.createObjectURL;
+      const originalRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = vi.fn(() => "blob:mock-url");
+      URL.revokeObjectURL = vi.fn();
+
+      server.use(
+        http.post(`${API_BASE_URL}/member-applications`, async ({ request }) => {
+          const body = await request.json();
+          application = {
+            id: "application-3",
+            ...body,
+            email_sent_at: null,
+            whatsapp_sent_at: null,
+            created_at: new Date().toISOString(),
+            pdf_url: "/static/applications/ghi789.pdf",
+            download_url: "/member-applications/application-3/download",
+          };
+          return HttpResponse.json(application, { status: 201 });
+        }),
+        http.get(`${API_BASE_URL}/member-applications/application-3/download`, () => {
+          downloadRequested = true;
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="member-application_2026-07-14.pdf"',
+            },
+          });
+        }),
+      );
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /^application$/i }));
+      await userEvent.type(screen.getByLabelText(/^name$/i), "Prospective Member");
+      await userEvent.click(screen.getByRole("button", { name: /generate application/i }));
+
+      await userEvent.click(await screen.findByRole("button", { name: /download the pdf/i }));
+
+      await waitFor(() => expect(downloadRequested).toBe(true));
+      expect(URL.createObjectURL).toHaveBeenCalled();
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
     it("generates a new member application PDF and sends it by email", async () => {
       let application;
       server.use(
