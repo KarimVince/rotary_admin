@@ -180,12 +180,15 @@ export default function MembersList() {
 
   useEffect(() => {
     if (!canRead) return;
-    loadTitles();
+    // Best-effort, silently-ignored-if-it-403s — these three only feed
+    // dropdown options, so there's no user-facing error state for them.
+    // Still explicitly caught (not left unhandled) so a real 403/network
+    // error doesn't surface as an unhandled promise rejection.
+    loadTitles().catch(() => {});
     // Honorifics management is admin-role-only, but the dropdown of
-    // *options* here just needs the list — same best-effort, uncaught-if-it-
-    // 403s approach already used for loadTitles above.
-    loadHonorifics();
-    loadAllMembersForProposer();
+    // *options* here just needs the list — same best-effort approach.
+    loadHonorifics().catch(() => {});
+    loadAllMembersForProposer().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRead]);
 

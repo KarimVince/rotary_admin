@@ -67,8 +67,10 @@ def test_admin_can_create_member(admin_client):
 
 
 def test_admin_can_create_member_with_story_8_3_fields(admin_client):
+    # "DR" collides with the honorifics migration's own seed data (see
+    # d3f8b2a7c1e9) — use a non-colliding code, same fix as test_honorifics.py.
     honorific = admin_client.post(
-        "/api/v1/honorifics", json={"code": "DR", "label": "Dr."}
+        "/api/v1/honorifics", json={"code": "ZDR", "label": "Dr."}
     ).json()
 
     response = admin_client.post(
@@ -365,9 +367,12 @@ def test_list_members_filters_by_active_in_rotary_year(admin_client):
     admin_client.patch(
         f"/api/v1/members/{left['id']}", json={"status": "past", "leave_date": "2024-06-01"}
     )
+    # rotary_year(2025-08-01) == 2025 (month >= 7), so that date is actually
+    # *within* rotary year 2025, not after it — use a date in the following
+    # rotary year (2026) to genuinely test "joined after the queried year".
     admin_client.post(
         "/api/v1/members",
-        json=_create_payload(email="joined-after-year@example.com", join_date="2025-08-01"),
+        json=_create_payload(email="joined-after-year@example.com", join_date="2026-08-01"),
     )
 
     response = admin_client.get("/api/v1/members", params={"active_in_rotary_year": 2025})

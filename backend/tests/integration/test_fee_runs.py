@@ -167,7 +167,10 @@ def test_fee_run_excludes_member_who_joined_after_selected_year(
     admin_client, make_fee_settings, make_member
 ):
     make_fee_settings(rotary_year=2025)
-    make_member(first_name="Future", join_date=date(2025, 8, 1))
+    # rotary_year(2025-08-01) == 2025 (month >= 7), so that date is actually
+    # *within* rotary year 2025, not after it — use a date in the following
+    # rotary year (2026) to genuinely test "joined after the selected year".
+    make_member(first_name="Future", join_date=date(2026, 8, 1))
 
     response = admin_client.post(
         "/api/v1/fee-runs",

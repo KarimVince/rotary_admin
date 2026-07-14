@@ -28,8 +28,13 @@ ATTENDANCE_SHEET = "attendance.sheet"
 
 
 def _get_event_or_404(db: Session, event_id: uuid.UUID) -> AttendanceEvent:
+    # Story 15.1's soft-delete only hides an event from the Dinner Forecast
+    # list/report (dinner_forecast.py's own queries filter deleted_at) — it
+    # deliberately does NOT block already-started attendance history here,
+    # per AttendanceEvent.deleted_at's own docstring ("historical attendance
+    # data tied to a deleted forecast event stays intact").
     event = db.get(AttendanceEvent, event_id)
-    if event is None or event.deleted_at is not None:
+    if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     return event
 

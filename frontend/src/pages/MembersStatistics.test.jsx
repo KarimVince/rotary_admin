@@ -243,6 +243,10 @@ describe("MembersStatistics", () => {
 
       render(<MembersStatistics />);
       await screen.findByText("Total Members");
+      // The template checkbox is also disabled for non-pptx formats (see the
+      // "disables ... for PDF format" test below) — select pptx first so
+      // this test actually exercises the "no template uploaded" reason.
+      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
 
       const checkbox = await screen.findByLabelText(/use annual club template/i);
       await waitFor(() => expect(checkbox).toBeDisabled());

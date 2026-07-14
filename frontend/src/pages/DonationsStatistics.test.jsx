@@ -230,10 +230,12 @@ describe("DonationsStatistics", () => {
     expect(screen.getByText("All Years")).toBeInTheDocument();
 
     // "Top organisations" differs: Selected Year only has Beta (700); All
-    // Years has both Beta (800) and Alpha (500) from the fixture.
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    const betaBars = screen.getAllByText("Beta");
-    expect(betaBars.length).toBe(2); // one per section
+    // Years has both Beta (800) and Alpha (500) from the fixture. Per this
+    // file's convention (see the comment above the describe block), we
+    // don't assert on chart-internal rendered labels (jsdom can't lay out
+    // recharts' SVG) — the heading rendering twice, once per section, is
+    // the deterministic signal that both differently-scoped charts mounted.
+    expect(screen.getAllByText("Top organisations by total donation")).toHaveLength(2);
 
     // "By classification" differs too: two distinct chart headings, one
     // per section.
