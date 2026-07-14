@@ -56,7 +56,6 @@ services:
   - type: web
     name: rotary-admin-frontend
     runtime: static
-    plan: free
     rootDir: frontend
     autoDeploy: false
     buildCommand: npm ci && npm run build
