@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { fetchMemberFeeStatistics } from "../api/memberFees";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { fetchMemberFeeStatistics, fetchMemberFeeStatisticsHistory } from "../api/memberFees";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { useAccess } from "../hooks/useAccess";
 import { useFeeYearOptions } from "../hooks/useFeeYearOptions";
@@ -21,6 +30,8 @@ export default function FeeStatistics() {
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyError, setHistoryError] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
   const [reportError, setReportError] = useState(null);
 
@@ -50,23 +61,38 @@ export default function FeeStatistics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, canRead]);
 
+  useEffect(() => {
+    if (!canRead) return;
+    // Story 8.31: the Amount Collected and Paying Members graphs always
+    // show every available year — independent of the year selector, which
+    // only drives the Average Fee card above — so this loads once.
+    fetchMemberFeeStatisticsHistory()
+      .then((data) => setHistory(data))
+      .catch((err) => setHistoryError(err.detail || "Failed to load fee history"));
+  }, [canRead]);
+
   if (!canRead) {
     return (
-      <div className="admin-page">
+      <div className="admin-page admin-page-wide">
         <h1>Fee statistics</h1>
         <p role="alert">You do not have permission to view fee statistics.</p>
       </div>
     );
   }
 
-  const chartData = stats?.breakdown_by_price_type.map((row) => ({
-    tier: row.price_type,
-    total: row.total_amount,
-    count: row.count,
+  const amountCollectedData = history.map((row) => ({
+    year: rotaryYearLabel(row.rotary_year),
+    total: row.total_collected,
+  }));
+
+  const payingMembersData = history.map((row) => ({
+    year: rotaryYearLabel(row.rotary_year),
+    paid: row.paid_count,
+    zero: row.zero_count,
   }));
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Fee statistics</h1>
 
       <div className="report-controls">
@@ -106,7 +132,15 @@ export default function FeeStatistics() {
 
       {!isLoading && !loadError && stats && (
         <>
-          <div className="stat-cards-row-3">
+          <div className="stat-cards-row">
+            <div className="stat-card stat-card-blue">
+              <span className="stat-value">
+                {formatCurrency(stats.average_fee_per_active_member, stats.currency)}
+              </span>
+              <span className="stat-label">
+                Average fee per active member — {rotaryYearLabel(year)}
+              </span>
+            </div>
             <div className="stat-card">
               <span className="stat-value">
                 {formatCurrency(stats.total_collected, stats.currency)}
@@ -130,22 +164,39 @@ export default function FeeStatistics() {
             member{stats.total_members === 1 ? "" : "s"} billed.
           </p>
 
-          <section className="chart-section">
-            <h2>Amount by price tier</h2>
-            {!chartData || chartData.length === 0 ? (
-              <p className="member-empty-state">No fee records for {rotaryYearLabel(year)} yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="tier" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(value, stats.currency)} />
-                  <Bar dataKey="total" fill="#17458f" name="Total amount" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </section>
+          {historyError && <p role="alert">{historyError}</p>}
+
+          {!historyError && (
+            <div className="chart-grid chart-grid-2col">
+              <div className="chart-card">
+                <h2>Amount collected over years</h2>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={amountCollectedData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="year" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => formatCurrency(value, stats.currency)} />
+                    <Bar dataKey="total" fill="#17458f" name="Total collected" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="chart-card">
+                <h2>Paying members over years</h2>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={payingMembersData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="year" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="paid" name="Paid" fill="#17458f" />
+                    <Bar dataKey="zero" name="Zero payment" fill="#f7a81b" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

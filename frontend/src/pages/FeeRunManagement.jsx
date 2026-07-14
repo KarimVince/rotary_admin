@@ -44,8 +44,12 @@ export default function FeeRunManagement() {
     setGenerateResult(null);
     setSendResult(null);
     try {
+      // Story 8.29: scope by membership dates for the *selected* year, not
+      // today's status, so past years correctly include members who have
+      // since left and exclude members who joined after the year ended.
+      // Honorary members never get billed, in any year.
       const [membersData, feesData] = await Promise.all([
-        listMembers({ status: "active" }),
+        listMembers({ active_in_rotary_year: year, is_honorary: false }),
         listMemberFees(year),
       ]);
       setMembers(membersData);
@@ -191,7 +195,7 @@ export default function FeeRunManagement() {
 
   if (!canManage) {
     return (
-      <div className="admin-page">
+      <div className="admin-page admin-page-wide">
         <h1>Fee run</h1>
         <p role="alert">You do not have permission to view fee runs.</p>
       </div>
@@ -199,14 +203,14 @@ export default function FeeRunManagement() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Fee run</h1>
       <p className="admin-page-note">
         Pick the rotary year and manually choose the price tier for this run — early-bird vs
         full is always a manual choice, never based on a deadline.
       </p>
 
-      <div className="email-controls-row">
+      <div className="fee-controls-row">
         <div>
           <label htmlFor="fee-run-year" className="fee-year-label">
             Rotary year

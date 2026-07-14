@@ -184,7 +184,9 @@ describe("FeeSettingsManagement", () => {
     render(<FeeSettingsManagement />);
     await waitForLoaded();
 
-    await userEvent.type(screen.getByLabelText(/add a year to this list/i), String(futureYear));
+    const addYearInput = screen.getByLabelText(/add a year to this list/i);
+    await userEvent.clear(addYearInput);
+    await userEvent.type(addYearInput, String(futureYear));
     await userEvent.click(screen.getByRole("button", { name: /add year/i }));
 
     expect(screen.getByLabelText(/rotary year/i)).toHaveValue(String(futureYear));

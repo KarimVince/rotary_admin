@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -105,8 +107,11 @@ def test_fee_run_updates_unpaid_member_with_new_price_tier(
 
 
 def test_fee_run_excludes_non_active_members(admin_client, make_fee_settings, make_member):
+    # Story 8.29: scoping is by membership dates for the selected rotary
+    # year, not today's Member.status — so a "past" member must actually
+    # have left before the year started to be excluded.
     make_fee_settings(rotary_year=2025)
-    make_member(first_name="Past", status="past")
+    make_member(first_name="Past", status="past", leave_date=date(2024, 6, 1))
     active_member = make_member(first_name="Active", status="active")
 
     response = admin_client.post(
@@ -117,6 +122,60 @@ def test_fee_run_excludes_non_active_members(admin_client, make_fee_settings, ma
     body = response.json()
     assert body["created_count"] == 1
     assert body["member_fees"][0]["member_id"] == str(active_member.id)
+
+
+def test_fee_run_excludes_honorary_members(admin_client, make_fee_settings, make_member):
+    make_fee_settings(rotary_year=2025)
+    make_member(first_name="Honorary", is_honorary=True)
+    active_member = make_member(first_name="Active")
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={"rotary_year": 2025, "price_type": "early_bird", "target": "all_members"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["created_count"] == 1
+    assert body["member_fees"][0]["member_id"] == str(active_member.id)
+
+
+def test_fee_run_includes_member_active_only_during_past_year(
+    admin_client, make_fee_settings, make_member
+):
+    # Dan Howell scenario from the story: a member who has since left must
+    # still appear in a fee run for a past rotary year they were active in.
+    make_fee_settings(rotary_year=2025)
+    past_member = make_member(
+        first_name="Dan",
+        last_name="Howell",
+        status="past",
+        join_date=date(2015, 1, 1),
+        leave_date=date(2026, 1, 1),
+    )
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={"rotary_year": 2025, "price_type": "early_bird", "target": "all_members"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["created_count"] == 1
+    assert body["member_fees"][0]["member_id"] == str(past_member.id)
+
+
+def test_fee_run_excludes_member_who_joined_after_selected_year(
+    admin_client, make_fee_settings, make_member
+):
+    make_fee_settings(rotary_year=2025)
+    make_member(first_name="Future", join_date=date(2025, 8, 1))
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={"rotary_year": 2025, "price_type": "early_bird", "target": "all_members"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["created_count"] == 0
 
 
 def test_fee_run_with_explicit_member_ids(admin_client, make_fee_settings, make_member):

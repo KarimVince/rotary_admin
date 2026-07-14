@@ -20,7 +20,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 fee_price_type_enum = Enum("early_bird", "full", name="fee_price_type")
-fee_channel_enum = Enum("email", "whatsapp", "both", name="fee_channel")
+# Story 8.29: "manual" added for payments recorded through the fee tracking
+# sub-screen without going through the app's own send flow (e.g. cash/bank
+# transfer handed to the treasurer directly) — see migration b4d7e1f9a3c6.
+fee_channel_enum = Enum("email", "whatsapp", "both", "manual", name="fee_channel")
 
 
 class MemberFee(Base):

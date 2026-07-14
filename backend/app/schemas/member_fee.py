@@ -73,8 +73,17 @@ class MemberFeeUpdate(BaseModel):
     # Amends the amount actually collected (e.g. a prorated fee for a
     # mid-year joiner) without overwriting amount_due, the standard/invoiced
     # reference amount used for reporting.
-    amount_paid: float | None = Field(default=None, gt=0)
+    # Story 8.29: 0 is a valid amount (fee-exempt members are still tracked
+    # in the tracker at a zero amount) — ge=0, not gt=0.
+    amount_paid: float | None = Field(default=None, ge=0)
     notes: str | None = None
+    # Story 8.29: payment update sub-screen fields. "manual" (not sent by
+    # the app's own email/WhatsApp send flow) is new; see fee_channel_enum.
+    last_channel: Literal["email", "whatsapp", "manual"] | None = None
+    # Not a raw column — translated to invoice_sent_at (set/cleared) in the
+    # endpoint, keeping invoice_sent_at/invoice_send_count as the automated
+    # send flow's own audit trail rather than overloading them here.
+    invoice_sent: bool | None = None
 
 
 class PriceTypeBreakdown(BaseModel):
@@ -93,3 +102,14 @@ class MemberFeeStatistics(BaseModel):
     total_outstanding: float
     collection_rate: float
     breakdown_by_price_type: list[PriceTypeBreakdown]
+    # Story 8.31: active non-honorary member count for the selected year
+    # (same date-scoping rule as Story 8.29) and the resulting average fee.
+    active_member_count: int
+    average_fee_per_active_member: float
+
+
+class FeeYearHistory(BaseModel):
+    rotary_year: int
+    total_collected: float
+    paid_count: int
+    zero_count: int

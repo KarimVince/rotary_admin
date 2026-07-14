@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
+from app.core.rotary_year import rotary_year_bounds
 from app.db.session import get_db
 from app.models import EmailLog, FeeSettings, Member, MemberFee
 from app.schemas.member_fee import (
@@ -65,8 +67,15 @@ def create_fee_run(
     # Story 8.14: honorary members (Member.is_honorary) don't get billed —
     # same behaviour as when "honorary" was its own status value that never
     # matched this "active" filter.
+    # Story 8.29: scope by membership dates for the *selected* rotary year
+    # rather than Member.status (today's status), so past years correctly
+    # include members who have since left the club, and exclude members who
+    # joined after the selected year ended.
+    year_start, year_end = rotary_year_bounds(payload.rotary_year)
     members_query = db.query(Member).filter(
-        Member.status == "active", Member.is_honorary.is_(False)
+        Member.is_honorary.is_(False),
+        Member.join_date <= year_end,
+        or_(Member.leave_date.is_(None), Member.leave_date >= year_start),
     )
     if payload.target == "member_ids":
         members_query = members_query.filter(Member.id.in_(payload.member_ids))

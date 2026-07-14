@@ -31,7 +31,7 @@ export default function FeeSettingsManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [newYearInput, setNewYearInput] = useState("");
+  const [newYearInput, setNewYearInput] = useState(String(currentRotaryYear() + 1));
   const [addYearError, setAddYearError] = useState(null);
 
   async function loadYears() {
@@ -150,38 +150,50 @@ export default function FeeSettingsManagement() {
         manually when a fee run is triggered — it is never based on a deadline.
       </p>
 
-      <label htmlFor="fee-settings-year" className="fee-year-label">
-        Rotary year
-      </label>
-      <select
-        id="fee-settings-year"
-        className="fee-year-select"
-        value={selectedYear}
-        onChange={(event) => setSelectedYear(Number(event.target.value))}
-      >
-        {yearOptions.map((year) => (
-          <option key={year} value={year}>
-            {rotaryYearLabel(year)}
-            {existingYears.includes(year) ? "" : " (not set)"}
-          </option>
-        ))}
-      </select>
+      <div className="fee-controls-row">
+        <div>
+          <label htmlFor="fee-settings-year" className="fee-year-label">
+            Rotary year
+          </label>
+          <select
+            id="fee-settings-year"
+            className="fee-year-select"
+            value={selectedYear}
+            onChange={(event) => setSelectedYear(Number(event.target.value))}
+          >
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {rotaryYearLabel(year)}
+                {existingYears.includes(year) ? "" : " (not set)"}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {canManage && (
-        <form className="fee-add-year-form" onSubmit={handleAddYear}>
-          <label htmlFor="fee-settings-add-year">Add a year to this list</label>
-          <input
-            id="fee-settings-add-year"
-            type="number"
-            step="1"
-            placeholder={String(currentRotaryYear() + 1)}
-            value={newYearInput}
-            onChange={(event) => setNewYearInput(event.target.value)}
-          />
-          <button type="submit">Add year</button>
-          {addYearError && <span role="alert">{addYearError}</span>}
-        </form>
-      )}
+        {canManage && (
+          <div>
+            <label htmlFor="fee-settings-add-year">Add a year to this list</label>
+            <form className="fee-add-year-form" onSubmit={handleAddYear}>
+              <input
+                id="fee-settings-add-year"
+                type="number"
+                step="1"
+                placeholder={rotaryYearLabel(currentRotaryYear() + 1)}
+                title="Enter the starting year only, e.g. 2027 for 2027–2028"
+                value={newYearInput}
+                onChange={(event) => setNewYearInput(event.target.value)}
+              />
+              {Number.isInteger(Number(newYearInput)) && newYearInput.trim() !== "" && (
+                <span className="fee-add-year-preview">
+                  → {rotaryYearLabel(Number(newYearInput))}
+                </span>
+              )}
+              <button type="submit">Add year</button>
+            </form>
+            {addYearError && <span role="alert">{addYearError}</span>}
+          </div>
+        )}
+      </div>
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}

@@ -80,12 +80,25 @@ def test_amend_amount_paid_preserves_original_amount_due(
     assert body["paid_by"] is not None
 
 
-def test_amend_amount_paid_rejects_non_positive_value(admin_client, make_member, make_member_fee):
+def test_amend_amount_paid_accepts_zero(admin_client, make_member, make_member_fee):
+    # Story 8.29: 0 is now a legitimate amount — fee-exempt members are
+    # still tracked, at a zero amount, rather than left unrecorded.
     member = make_member()
     fee = make_member_fee(member_id=member.id, rotary_year=2025)
 
     response = admin_client.patch(
         f"/api/v1/member-fees/{fee.id}", json={"amount_paid": 0}
+    )
+    assert response.status_code == 200
+    assert response.json()["amount_paid"] == 0
+
+
+def test_amend_amount_paid_rejects_negative_value(admin_client, make_member, make_member_fee):
+    member = make_member()
+    fee = make_member_fee(member_id=member.id, rotary_year=2025)
+
+    response = admin_client.patch(
+        f"/api/v1/member-fees/{fee.id}", json={"amount_paid": -50}
     )
     assert response.status_code == 422
 
@@ -109,6 +122,43 @@ def test_update_fee_notes(admin_client, make_member, make_member_fee):
     )
     assert response.status_code == 200
     assert response.json()["notes"] == "Paid by cheque"
+
+
+def test_set_invoice_sent_stamps_invoice_sent_at(admin_client, make_member, make_member_fee):
+    member = make_member()
+    fee = make_member_fee(member_id=member.id, rotary_year=2025)
+    assert fee.invoice_sent_at is None
+
+    response = admin_client.patch(
+        f"/api/v1/member-fees/{fee.id}", json={"invoice_sent": True, "last_channel": "manual"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["invoice_sent_at"] is not None
+    assert body["last_channel"] == "manual"
+    # invoice_send_count is the automated send flow's own audit trail —
+    # a manual "Invoice Sent" checkbox must not bump it.
+    assert body["invoice_send_count"] == 0
+
+
+def test_unset_invoice_sent_clears_invoice_sent_at(admin_client, make_member, make_member_fee):
+    member = make_member()
+    fee = make_member_fee(member_id=member.id, rotary_year=2025)
+    admin_client.patch(f"/api/v1/member-fees/{fee.id}", json={"invoice_sent": True})
+
+    response = admin_client.patch(f"/api/v1/member-fees/{fee.id}", json={"invoice_sent": False})
+    assert response.status_code == 200
+    assert response.json()["invoice_sent_at"] is None
+
+
+def test_last_channel_rejects_unknown_value(admin_client, make_member, make_member_fee):
+    member = make_member()
+    fee = make_member_fee(member_id=member.id, rotary_year=2025)
+
+    response = admin_client.patch(
+        f"/api/v1/member-fees/{fee.id}", json={"last_channel": "carrier_pigeon"}
+    )
+    assert response.status_code == 422
 
 
 def test_update_fee_not_found_returns_404(admin_client):
@@ -190,6 +240,24 @@ def test_statistics_returns_accurate_totals(
     assert breakdown_by_type["full"]["count"] == 1
     assert breakdown_by_type["full"]["total_amount"] == 600
 
+    # Story 8.31: active non-honorary member count is a Member-table count
+    # (all 3 members are active-during-2025, non-honorary), independent of
+    # how many of them actually have a MemberFee row.
+    assert body["active_member_count"] == 3
+    assert round(body["average_fee_per_active_member"], 2) == round(1100 / 3, 2)
+
+
+def test_statistics_excludes_honorary_from_active_member_count(
+    admin_client, make_fee_settings, make_member
+):
+    make_fee_settings(rotary_year=2025)
+    make_member(first_name="Honorary", is_honorary=True)
+    make_member(first_name="Regular")
+
+    response = admin_client.get("/api/v1/member-fees/statistics", params={"rotary_year": 2025})
+    assert response.status_code == 200
+    assert response.json()["active_member_count"] == 1
+
 
 def test_statistics_uses_amended_amount_paid_when_set(
     admin_client, make_fee_settings, make_member, make_member_fee
@@ -223,4 +291,75 @@ def test_statistics_with_no_fees_returns_zeroes(admin_client):
 
 def test_statistics_requires_treasurer_or_admin(user_client):
     response = user_client.get("/api/v1/member-fees/statistics")
+    assert response.status_code == 403
+
+
+def test_statistics_history_covers_all_years_with_data(
+    admin_client, make_fee_settings, make_member, make_member_fee
+):
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year as compute_rotary_year
+
+    current_year = compute_rotary_year(date.today())
+    earliest_year = current_year - 2
+
+    payer = make_member(first_name="Payer", join_date=date(2015, 1, 1))
+    zero_member = make_member(first_name="Zero", join_date=date(2015, 1, 1))
+    make_fee_settings(rotary_year=earliest_year)
+    make_member_fee(
+        member_id=payer.id, rotary_year=earliest_year, amount_due=500, is_paid=True
+    )
+    fee = make_member_fee(
+        member_id=zero_member.id, rotary_year=earliest_year, amount_due=500, is_paid=False
+    )
+    admin_client.patch(f"/api/v1/member-fees/{fee.id}", json={"amount_paid": 0})
+    # Nudge the payer's amount_paid via the endpoint too, exercising the
+    # actual PATCH path used by the sub-screen.
+    payer_fee_id = admin_client.get(
+        "/api/v1/member-fees", params={"rotary_year": earliest_year}
+    ).json()
+    payer_fee = next(f for f in payer_fee_id if f["member_id"] == str(payer.id))
+    admin_client.patch(f"/api/v1/member-fees/{payer_fee['id']}", json={"amount_paid": 500})
+
+    response = admin_client.get("/api/v1/member-fees/statistics/history")
+    assert response.status_code == 200
+    body = response.json()
+    years = [row["rotary_year"] for row in body]
+
+    # No gap in the X-axis: every year from the earliest with data through
+    # the current one is present, even years with no fee records at all.
+    assert years == list(range(earliest_year, current_year + 1))
+
+    earliest_row = next(row for row in body if row["rotary_year"] == earliest_year)
+    assert earliest_row["total_collected"] == 500
+    assert earliest_row["paid_count"] == 1
+    assert earliest_row["zero_count"] == 1
+
+    later_year_row = next(row for row in body if row["rotary_year"] == earliest_year + 1)
+    assert later_year_row["total_collected"] == 0
+    assert later_year_row["paid_count"] == 0
+    # Both members are still active-during that year even with no fee run.
+    assert later_year_row["zero_count"] == 2
+
+
+def test_statistics_history_excludes_honorary_members(
+    admin_client, make_fee_settings, make_member, make_member_fee
+):
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year as compute_rotary_year
+
+    current_year = compute_rotary_year(date.today())
+    make_fee_settings(rotary_year=current_year)
+    make_member(first_name="Honorary", is_honorary=True, join_date=date(2015, 1, 1))
+
+    response = admin_client.get("/api/v1/member-fees/statistics/history")
+    assert response.status_code == 200
+    current_row = next(row for row in response.json() if row["rotary_year"] == current_year)
+    assert current_row["zero_count"] == 0
+
+
+def test_statistics_history_requires_treasurer_or_admin(user_client):
+    response = user_client.get("/api/v1/member-fees/statistics/history")
     assert response.status_code == 403

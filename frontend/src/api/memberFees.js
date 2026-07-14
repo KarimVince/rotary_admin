@@ -25,3 +25,7 @@ export function updateMemberFee(memberFeeId, payload) {
 export function fetchMemberFeeStatistics(filters = {}) {
   return apiFetch(`/member-fees/statistics${buildQuery(filters)}`);
 }
+
+export function fetchMemberFeeStatisticsHistory() {
+  return apiFetch("/member-fees/statistics/history");
+}

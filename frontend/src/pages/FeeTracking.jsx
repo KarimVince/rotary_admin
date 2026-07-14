@@ -12,6 +12,12 @@ const PAID_FILTERS = [
   { value: "true", label: "Paid" },
 ];
 
+const CHANNEL_OPTIONS = [
+  { value: "email", label: "Mail" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "manual", label: "Manual" },
+];
+
 export default function FeeTracking() {
   const { canRead } = useAccess("fees.tracking");
   const { canWrite: canManage } = useAccess("fees.tracking");
@@ -32,7 +38,14 @@ export default function FeeTracking() {
     try {
       const filters = { rotary_year: year };
       if (paidFilter !== "") filters.is_paid = paidFilter;
-      const [membersData, feesData] = await Promise.all([listMembers(), listMemberFees(filters)]);
+      // Story 8.29: members active at any point during the *selected* rotary
+      // year, not just those currently active — so past years correctly
+      // include members who have since left, and honorary members never
+      // show up here at all.
+      const [membersData, feesData] = await Promise.all([
+        listMembers({ active_in_rotary_year: year, is_honorary: false }),
+        listMemberFees(filters),
+      ]);
       setMembers(membersData);
       setFees(feesData);
 
@@ -73,22 +86,17 @@ export default function FeeTracking() {
     return member ? `${member.first_name} ${member.last_name}` : "Unknown member";
   }
 
-  // Once fee prices exist for the year, every active member should be
-  // visible here — not only members a fee run has already been generated
-  // for — so the treasurer sees the full picture before any invoice exists.
-  // These placeholder rows are display-only (no id to PATCH against) and are
-  // hidden once the "Paid" filter is selected, since they can't be paid yet.
+  // Once fee prices exist for the year, every member active during that
+  // year should be visible here — not only members a fee run has already
+  // been generated for — so the treasurer sees the full picture before any
+  // invoice exists. These placeholder rows are display-only (no id to PATCH
+  // against) and are hidden once the "Paid" filter is selected, since they
+  // can't be paid yet.
   const placeholderRows = useMemo(() => {
     if (!hasFeeSettingsForYear || paidFilter === "true") return [];
     const billedMemberIds = new Set(fees.map((fee) => fee.member_id));
     return members
-      .filter(
-        // Story 8.14: honorary members don't get billed (matches the fee
-        // run's own exclusion), so they shouldn't show up as "not invoiced"
-        // placeholders either.
-        (member) =>
-          member.status === "active" && !member.is_honorary && !billedMemberIds.has(member.id),
-      )
+      .filter((member) => !billedMemberIds.has(member.id))
       .map((member) => ({ placeholder: true, member_id: member.id }));
   }, [hasFeeSettingsForYear, paidFilter, fees, members]);
 
@@ -116,7 +124,7 @@ export default function FeeTracking() {
 
   function handleAmountPaidBlur(fee, value) {
     const amount = Number(value);
-    if (!value || Number.isNaN(amount) || amount === (fee.amount_paid ?? fee.amount_due)) return;
+    if (value === "" || Number.isNaN(amount) || amount === (fee.amount_paid ?? fee.amount_due)) return;
     patchFee(fee.id, { amount_paid: amount });
   }
 
@@ -125,9 +133,23 @@ export default function FeeTracking() {
     patchFee(fee.id, { notes: value });
   }
 
+  function handleChannelChange(fee, value) {
+    // Story 8.29: selecting Manual implies the invoice was handed directly
+    // — auto-check Invoice Sent, but leave it overridable afterwards.
+    const payload = { last_channel: value };
+    if (value === "manual") {
+      payload.invoice_sent = true;
+    }
+    patchFee(fee.id, payload);
+  }
+
+  function handleInvoiceSentChange(fee, checked) {
+    patchFee(fee.id, { invoice_sent: checked });
+  }
+
   if (!canRead) {
     return (
-      <div className="admin-page">
+      <div className="admin-page admin-page-wide">
         <h1>Fee tracking</h1>
         <p role="alert">You do not have permission to view fee tracking.</p>
       </div>
@@ -135,10 +157,10 @@ export default function FeeTracking() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Fee tracking</h1>
 
-      <div className="email-controls-row">
+      <div className="fee-controls-row">
         <div>
           <label htmlFor="fee-tracking-year" className="fee-year-label">
             Rotary year
@@ -185,8 +207,8 @@ export default function FeeTracking() {
               <th>Amount paid</th>
               <th>Paid</th>
               <th>Paid date</th>
-              <th>Invoices sent</th>
-              <th>Last channel</th>
+              <th>Invoice sent</th>
+              <th>Channel</th>
               <th>Notes</th>
             </tr>
           </thead>
@@ -200,7 +222,7 @@ export default function FeeTracking() {
                   <input
                     type="number"
                     step="0.01"
-                    min="0.01"
+                    min="0"
                     aria-label={`Amount paid by ${memberName(fee.member_id)}`}
                     defaultValue={fee.amount_paid ?? ""}
                     disabled={!fee.is_paid || !canManage}
@@ -226,8 +248,29 @@ export default function FeeTracking() {
                     onChange={(event) => handlePaidDateChange(fee, event.target.value)}
                   />
                 </td>
-                <td>{fee.invoice_send_count}</td>
-                <td>{fee.last_channel || "—"}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Invoice sent for ${memberName(fee.member_id)}`}
+                    checked={Boolean(fee.invoice_sent_at)}
+                    disabled={!canManage}
+                    onChange={(event) => handleInvoiceSentChange(fee, event.target.checked)}
+                  />
+                </td>
+                <td>
+                  <select
+                    aria-label={`Channel for ${memberName(fee.member_id)}`}
+                    value={fee.last_channel || "email"}
+                    disabled={!canManage}
+                    onChange={(event) => handleChannelChange(fee, event.target.value)}
+                  >
+                    {CHANNEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td>
                   <input
                     type="text"

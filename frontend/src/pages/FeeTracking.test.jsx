@@ -124,6 +124,33 @@ describe("FeeTracking", () => {
     expect(screen.getByText("500")).toBeInTheDocument();
   });
 
+  it("accepts zero as a valid amount paid", async () => {
+    mockCanRead = true;
+    mockCanWrite = true;
+    let fee = { ...FEE, is_paid: true, amount_paid: 500 };
+    server.use(
+      http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([MEMBER])),
+      http.get(`${API_BASE_URL}/member-fees`, () => HttpResponse.json([fee])),
+      http.get(`${API_BASE_URL}/fee-settings/${YEAR}`, NO_FEE_SETTINGS),
+      http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+      http.patch(`${API_BASE_URL}/member-fees/${FEE.id}`, async ({ request }) => {
+        const body = await request.json();
+        fee = { ...fee, ...body };
+        return HttpResponse.json(fee);
+      }),
+    );
+
+    render(<FeeTracking />);
+    await waitForLoaded();
+
+    const amountPaidInput = screen.getByLabelText(/amount paid by jane doe/i);
+    await userEvent.clear(amountPaidInput);
+    await userEvent.type(amountPaidInput, "0");
+    await userEvent.tab();
+
+    await waitFor(() => expect(screen.getByLabelText(/amount paid by jane doe/i)).toHaveValue(0));
+  });
+
   it("shows an error when marking paid fails", async () => {
     mockCanRead = true;
     mockCanWrite = true;
@@ -145,7 +172,68 @@ describe("FeeTracking", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/update failed/i);
   });
 
-  it("shows a placeholder row for active members not yet invoiced once fee settings exist", async () => {
+  it("toggles invoice sent directly and persists it", async () => {
+    mockCanRead = true;
+    mockCanWrite = true;
+    let fee = { ...FEE };
+    server.use(
+      http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([MEMBER])),
+      http.get(`${API_BASE_URL}/member-fees`, () => HttpResponse.json([fee])),
+      http.get(`${API_BASE_URL}/fee-settings/${YEAR}`, NO_FEE_SETTINGS),
+      http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+      http.patch(`${API_BASE_URL}/member-fees/${FEE.id}`, async ({ request }) => {
+        const body = await request.json();
+        fee = {
+          ...fee,
+          ...body,
+          invoice_sent_at: body.invoice_sent ? new Date().toISOString() : null,
+        };
+        return HttpResponse.json(fee);
+      }),
+    );
+
+    render(<FeeTracking />);
+    await waitForLoaded();
+
+    await userEvent.click(screen.getByLabelText(/invoice sent for jane doe/i));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/invoice sent for jane doe/i)).toBeChecked(),
+    );
+  });
+
+  it("selecting Manual channel auto-checks invoice sent", async () => {
+    mockCanRead = true;
+    mockCanWrite = true;
+    let fee = { ...FEE };
+    server.use(
+      http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([MEMBER])),
+      http.get(`${API_BASE_URL}/member-fees`, () => HttpResponse.json([fee])),
+      http.get(`${API_BASE_URL}/fee-settings/${YEAR}`, NO_FEE_SETTINGS),
+      http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+      http.patch(`${API_BASE_URL}/member-fees/${FEE.id}`, async ({ request }) => {
+        const body = await request.json();
+        fee = {
+          ...fee,
+          ...body,
+          invoice_sent_at: body.invoice_sent ? new Date().toISOString() : fee.invoice_sent_at,
+        };
+        return HttpResponse.json(fee);
+      }),
+    );
+
+    render(<FeeTracking />);
+    await waitForLoaded();
+
+    await userEvent.selectOptions(screen.getByLabelText(/channel for jane doe/i), "manual");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/channel for jane doe/i)).toHaveValue("manual"),
+    );
+    expect(screen.getByLabelText(/invoice sent for jane doe/i)).toBeChecked();
+  });
+
+  it("shows a placeholder row for members not yet invoiced once fee settings exist", async () => {
     mockCanRead = true;
     mockCanWrite = true;
     const uninvoicedMember = { id: "member-2", first_name: "Alex", last_name: "Smith", status: "active" };
@@ -191,7 +279,7 @@ describe("FeeTracking", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
-  it("disables the paid checkbox for a user with view but not manage access", async () => {
+  it("disables the paid checkbox and channel select for a user with view but not manage access", async () => {
     mockCanRead = true;
     mockCanWrite = false;
     server.use(
@@ -205,5 +293,7 @@ describe("FeeTracking", () => {
     await waitForLoaded();
 
     expect(screen.getByLabelText(/mark jane doe paid/i)).toBeDisabled();
+    expect(screen.getByLabelText(/channel for jane doe/i)).toBeDisabled();
+    expect(screen.getByLabelText(/invoice sent for jane doe/i)).toBeDisabled();
   });
 });
