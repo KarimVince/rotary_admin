@@ -4,7 +4,7 @@ import { fetchAttendanceStats, listAttendanceEvents } from "../api/attendance";
 import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { attendanceColorClass } from "../utils/attendanceThresholds";
-import AttendanceEventFormModal from "../components/AttendanceEventFormModal";
+import AttendanceStartEventModal from "../components/AttendanceStartEventModal";
 
 const EVENT_TYPE_LABEL = { dinner: "Dinner", fellowship: "Fellowship" };
 
@@ -54,7 +54,7 @@ export default function AttendanceHistory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, canRead]);
 
-  function handleEventCreated(event) {
+  function handleEventStarted(event) {
     setIsCreateOpen(false);
     navigate(`/dinners/attendance/${event.id}`);
   }
@@ -69,7 +69,7 @@ export default function AttendanceHistory() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <div className="page-header-row">
         <h1>Attendance</h1>
         {canWrite && (
@@ -170,9 +170,9 @@ export default function AttendanceHistory() {
       )}
 
       {isCreateOpen && (
-        <AttendanceEventFormModal
+        <AttendanceStartEventModal
           onClose={() => setIsCreateOpen(false)}
-          onSaved={handleEventCreated}
+          onStarted={handleEventStarted}
         />
       )}
     </div>

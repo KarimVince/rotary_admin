@@ -29,7 +29,7 @@ ATTENDANCE_SHEET = "attendance.sheet"
 
 def _get_event_or_404(db: Session, event_id: uuid.UUID) -> AttendanceEvent:
     event = db.get(AttendanceEvent, event_id)
-    if event is None:
+    if event is None or event.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     return event
 
@@ -148,8 +148,16 @@ def attendance_stats(
     selected_year = rotary_year if rotary_year is not None else compute_current_rotary_year(
         date.today()
     )
+    # Story 15.1 follow-up: the Dinner Events list can now hold future-dated,
+    # not-yet-started planning events (no attendance taken yet) — excluded
+    # here so they don't drag the average down with a phantom 0% turnout.
     events = (
-        db.query(AttendanceEvent).filter(AttendanceEvent.rotary_year == selected_year).all()
+        db.query(AttendanceEvent)
+        .filter(
+            AttendanceEvent.rotary_year == selected_year,
+            AttendanceEvent.event_date <= date.today(),
+        )
+        .all()
     )
     counts = _event_counts(db, [event.id for event in events])
 
@@ -202,6 +210,33 @@ def create_attendance_event(
     )
     db.add(event)
     db.flush()
+    _seed_records_for_event(db, event)
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@router.post(
+    "/attendance/events/{event_id}/start", response_model=AttendanceEventRead, status_code=201
+)
+def start_attendance_for_event(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_access(ATTENDANCE_SHEET, "write")),
+):
+    # Story 15.3 — Dinner Forecast events are planned (and dated, possibly
+    # in the future) on the Dinner Forecast page without seeding attendance
+    # records. This turns a pre-planned event into one actively tracked on
+    # the Attendance page, by seeding records for it now.
+    event = _get_event_or_404(db, event_id)
+    already_started = (
+        db.query(AttendanceRecord).filter(AttendanceRecord.event_id == event_id).first()
+    )
+    if already_started is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Attendance has already been started for this event",
+        )
     _seed_records_for_event(db, event)
     db.commit()
     db.refresh(event)

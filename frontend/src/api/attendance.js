@@ -34,6 +34,10 @@ export function deleteAttendanceEvent(eventId) {
   return apiFetch(`/attendance/events/${eventId}`, { method: "DELETE" });
 }
 
+export function startAttendanceForEvent(eventId) {
+  return apiFetch(`/attendance/events/${eventId}/start`, { method: "POST" });
+}
+
 export function fetchAttendanceSheet(eventId) {
   return apiFetch(`/attendance/events/${eventId}/sheet`);
 }

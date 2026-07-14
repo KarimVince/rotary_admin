@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, func, text
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,30 @@ class AttendanceEvent(Base):
     # "YYYY-YYYY" client-side (frontend/src/utils/rotaryYear.js), not stored
     # as a string.
     rotary_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Story 15.1 — Dinner Forecast planning fields. Nullable at the DB level
+    # (pre-Epic-15 rows have none of these), required by the Dinner Forecast
+    # create/edit schema instead.
+    location: Mapped[str | None] = mapped_column(String(200))
+    speaker_name: Mapped[str | None] = mapped_column(String(200))
+    # Story 15.1 follow-up: free text, not a select-from-existing-NGO
+    # dropdown — the club wants to name an NGO here even when it has no
+    # record in the Organisations module yet.
+    ngo_organisation_name: Mapped[str | None] = mapped_column(String(255))
+    # Story 15.1 follow-up: the club member who is the point of contact for
+    # the speaker, picked from the members list (distinct from
+    # `speaker_name`, which is the speaker's own name).
+    speaker_rotary_contact_member_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("members.id", ondelete="SET NULL")
+    )
+    topics_description: Mapped[str | None] = mapped_column(Text)
+    # Story 15.6/15.7 (redone on the Dinner Forecast event, not Member — see
+    # the ClickUp comment on both stories): restricts this dinner event to
+    # members only, vs. open to guests/friends.
+    member_only: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # Story 15.1 — soft delete so historical attendance data tied to a
+    # deleted forecast event stays intact; excluded from forecast list/report
+    # queries only.
+    deleted_at: Mapped["DateTime | None"] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )

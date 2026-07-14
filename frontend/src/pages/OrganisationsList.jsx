@@ -256,7 +256,7 @@ export default function OrganisationsList() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <div className="page-header-row">
         <h1>NGOs &amp; Organisations</h1>
         {canWrite && (

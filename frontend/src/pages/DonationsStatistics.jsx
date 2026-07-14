@@ -112,11 +112,11 @@ export default function DonationsStatistics() {
   // bailing out early.
   // Story 8.30: "Total donated per rotary year" and "Year-over-year trend"
   // are inherently multi-year charts already (never filtered by the year
-  // selector on the backend — see total_by_rotary_year), so they render
-  // identically in both the "Selected Year" and "All Years" sections below;
-  // only "Top organisations" and "By classification" actually differ by
-  // scope, backed by the two new fields the backend now returns alongside
-  // the existing ones.
+  // selector on the backend — see total_by_rotary_year), so they only render
+  // in the "All Years" section below — duplicating them into "Selected Year"
+  // would just repeat the same all-time data. Only "Top organisations" and
+  // "By classification" actually differ by scope, backed by the two new
+  // fields the backend now returns alongside the existing ones.
   const yearChartData = (currentStats?.total_by_rotary_year ?? []).map((row) => ({
     year: rotaryYearLabel(Number(row.label)),
     total: row.value,
@@ -250,7 +250,7 @@ export default function DonationsStatistics() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Donation statistics</h1>
 
       <div className="report-controls">
@@ -365,7 +365,6 @@ export default function DonationsStatistics() {
 
       <h2>Selected Year — {rotaryYearLabel(stats.selected_rotary_year)}</h2>
       <div className="chart-grid chart-grid-2col">
-        {renderTrendCharts()}
         {renderTopOrgsChart(topOrgsSelectedYear)}
         {renderClassificationChart(classificationSelectedYear, {
           title: `By classification — ${rotaryYearLabel(stats.selected_rotary_year)}`,

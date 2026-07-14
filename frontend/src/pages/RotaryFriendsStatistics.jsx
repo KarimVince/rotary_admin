@@ -52,7 +52,7 @@ export default function RotaryFriendsStatistics() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Rotary Friends statistics</h1>
 
       <div className="report-controls">

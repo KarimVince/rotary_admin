@@ -67,10 +67,21 @@ DEFAULT_MATRIX = {
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
     ),
     "admin.member_titles": ("no_access", {"*": "no_access"}),
+    # Story 8.3 — a basic lookup table like Member Titles above, not a
+    # board-facing feature like NGO Classifications/PPT Template — same
+    # admin-role-only tier as Member Titles.
+    "admin.honorifics": ("no_access", {"*": "no_access"}),
     "admin.currencies": ("no_access", {"*": "no_access"}),
     # Story 11.2 — Secretary/President/President Elect manage the list;
     # everyone else (incl. Treasurer) has no access at all.
     "admin.ngo_classifications": (
+        "no_access",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
+    ),
+    # Story 8.23 — same write tier as NGO Classifications (Secretary/
+    # President/President Elect manage the annual template; everyone else,
+    # incl. Treasurer, has no access).
+    "admin.ppt_template": (
         "no_access",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
     ),
@@ -86,6 +97,12 @@ DEFAULT_MATRIX = {
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
     ),
     "attendance.sheet": (
+        "read",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
+    ),
+    # Story 15.1 — Dinner Forecast event planning, same board tier as the
+    # rest of the Dinner module.
+    "attendance.forecast": (
         "read",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
     ),

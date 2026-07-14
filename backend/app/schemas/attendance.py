@@ -42,6 +42,15 @@ class AttendanceEventRead(BaseModel):
     event_date: date
     event_type: EventType
     rotary_year: int
+    # Story 15.1 — Dinner Forecast planning fields, present on every event
+    # since forecast and attendance share the same table.
+    location: str | None = None
+    speaker_name: str | None = None
+    ngo_organisation_name: str | None = None
+    speaker_rotary_contact_member_id: uuid.UUID | None = None
+    topics_description: str | None = None
+    # Story 15.6/15.7: whether this dinner event is restricted to members only.
+    member_only: bool = False
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime

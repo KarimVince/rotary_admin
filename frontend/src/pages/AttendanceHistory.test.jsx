@@ -147,4 +147,56 @@ describe("AttendanceHistory", () => {
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
+
+  // Story 15.3 — "New Event" now opens a picker over Dinner Forecast events
+  // instead of a free-form create form.
+  it("shows a message linking to Dinner Forecast when no forecast events exist", async () => {
+    mockCanRead = true;
+    mockCanWrite = true;
+    server.use(
+      http.get(`${API_BASE_URL}/attendance/events`, () => HttpResponse.json([EVENT])),
+      http.get(`${API_BASE_URL}/attendance/stats`, () => HttpResponse.json(STATS)),
+      http.get(`${API_BASE_URL}/dinner-forecast/events`, () => HttpResponse.json([])),
+    );
+
+    renderPage();
+    await waitForLoaded();
+
+    await userEvent.click(screen.getByRole("button", { name: "New Event" }));
+    expect(await screen.findByText(/no dinner events found/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dinner Events" })).toHaveAttribute(
+      "href",
+      "/dinners/forecast",
+    );
+  });
+
+  it("starts attendance for the selected forecast event and navigates to its sheet", async () => {
+    mockCanRead = true;
+    mockCanWrite = true;
+    const forecastEvent = {
+      ...EVENT,
+      id: "forecast-1",
+      name: "Upcoming Dinner",
+      attendance_started: false,
+    };
+    server.use(
+      http.get(`${API_BASE_URL}/attendance/events`, () => HttpResponse.json([EVENT])),
+      http.get(`${API_BASE_URL}/attendance/stats`, () => HttpResponse.json(STATS)),
+      http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+        HttpResponse.json([forecastEvent]),
+      ),
+      http.post(`${API_BASE_URL}/attendance/events/forecast-1/start`, () =>
+        HttpResponse.json({ ...forecastEvent, id: "forecast-1" }, { status: 201 }),
+      ),
+    );
+
+    renderPage();
+    await waitForLoaded();
+
+    await userEvent.click(screen.getByRole("button", { name: "New Event" }));
+    await screen.findByRole("option", { name: /Upcoming Dinner/ });
+    await userEvent.click(screen.getByRole("button", { name: "Start attendance" }));
+
+    expect(await screen.findByText("Sheet page")).toBeInTheDocument();
+  });
 });

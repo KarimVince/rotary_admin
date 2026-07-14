@@ -40,6 +40,7 @@ def secretary_client(
     make_board_position_assignment(position.id, member.id, rotary_year=rotary_year(date.today()))
     _grant_write(make_app_function, make_permission_matrix_entry, "attendance.sheet", position.id)
     _grant_write(make_app_function, make_permission_matrix_entry, "attendance.history", position.id)
+    _grant_write(make_app_function, make_permission_matrix_entry, "attendance.forecast", position.id)
     return build_client(user)
 
 
@@ -174,6 +175,56 @@ def test_delete_event_cascades_records(secretary_client, make_member):
 
     sheet = secretary_client.get(f"/api/v1/attendance/events/{event_id}/sheet")
     assert sheet.status_code == 404
+
+
+def test_start_attendance_for_unknown_event_404s(secretary_client):
+    import uuid
+
+    response = secretary_client.post(f"/api/v1/attendance/events/{uuid.uuid4()}/start")
+    assert response.status_code == 404
+
+
+def test_user_cannot_start_attendance(user_client, secretary_client):
+    create = secretary_client.post(
+        "/api/v1/attendance/events",
+        json={"name": "Weekly Dinner", "event_date": str(date.today()), "event_type": "dinner"},
+    )
+    event_id = create.json()["id"]
+
+    # Directly-created attendance events already have records seeded, so
+    # starting again would 409 regardless — this only asserts the
+    # permission check runs first.
+    response = user_client.post(f"/api/v1/attendance/events/{event_id}/start")
+    assert response.status_code == 403
+
+
+def test_stats_ignore_future_dinner_forecast_events(secretary_client, make_member):
+    from datetime import timedelta
+
+    make_member(status="active")
+
+    secretary_client.post(
+        "/api/v1/attendance/events",
+        json={"name": "Weekly Dinner", "event_date": str(date.today()), "event_type": "dinner"},
+    )
+
+    future = date.today() + timedelta(days=30)
+    secretary_client.post(
+        "/api/v1/dinner-forecast/events",
+        json={
+            "name": "Future Planned Dinner",
+            "event_date": str(future),
+            "event_type": "dinner",
+            "location": "Club House",
+        },
+    )
+
+    stats = secretary_client.get(
+        f"/api/v1/attendance/stats?rotary_year={rotary_year(date.today())}"
+    ).json()
+    # Only the already-happened "Weekly Dinner" counts — the future planning
+    # event (not yet started, no attendance records) must not appear.
+    assert stats["total_events"] == 1
 
 
 def test_stats_zero_state_when_no_events(user_client):

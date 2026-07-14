@@ -22,6 +22,7 @@ from reportlab.lib.styles import getSampleStyleSheet  # noqa: E402
 from reportlab.lib.units import inch  # noqa: E402
 from reportlab.platypus import (  # noqa: E402
     Image,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -29,6 +30,7 @@ from reportlab.platypus import (  # noqa: E402
     TableStyle,
 )
 
+from app.core.pdf_style import PDF_BODY_FONT_SIZE, PDF_TABLE_HEADER_FONT_SIZE
 from app.schemas.member_statistics import MembersStatistics
 
 ROTARY_BLUE = "#17458f"
@@ -179,7 +181,51 @@ def _stat_cards() -> list[tuple[str, str]]:
     ]
 
 
-def build_pdf_report(stats: MembersStatistics) -> bytes:
+def _detail_tables(stats: MembersStatistics) -> list[tuple[str, list[str], list[list[str]]]]:
+    """Story 8.13: an "Integral" report adds a detail section restating every
+    chart's underlying numbers as a table, on top of everything Simplified
+    already shows — using data already on the MembersStatistics response, no
+    new backend queries. (8.13 wasn't originally scoped for the Members page —
+    this is this story's own reasonable interpretation of "stats + graph +
+    detail section" for it, reusing the existing 6 chart datasets.)"""
+    return [
+        (
+            "Members by join year",
+            ["Year", "Members"],
+            [[entry.label, str(entry.value)] for entry in stats.by_join_year],
+        ),
+        (
+            "Growth by Rotary year",
+            ["Rotary year", "Joins", "Leaves"],
+            [
+                [entry.label, str(entry.joins), str(entry.leaves)]
+                for entry in stats.growth_by_rotary_year
+            ],
+        ),
+        (
+            "Nationality distribution",
+            ["Nationality", "Members"],
+            [[entry.label, str(entry.value)] for entry in stats.by_nationality],
+        ),
+        (
+            "Tenure distribution (years as Rotarian)",
+            ["Years as Rotarian", "Members"],
+            [[entry.label, str(entry.value)] for entry in stats.tenure_distribution],
+        ),
+        (
+            "Gender distribution",
+            ["Gender", "Members"],
+            [[entry.label, str(entry.value)] for entry in stats.by_gender],
+        ),
+        (
+            "Age distribution",
+            ["Age bracket", "Members"],
+            [[entry.label, str(entry.value)] for entry in stats.age_distribution],
+        ),
+    ]
+
+
+def build_pdf_report(stats: MembersStatistics, report_type: str = "simplified") -> bytes:
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter, topMargin=0.5 * inch, bottomMargin=0.5 * inch
@@ -262,33 +308,89 @@ def build_pdf_report(stats: MembersStatistics) -> bytes:
     )
     story.append(charts_table)
 
+    if report_type == "integral":
+        story.append(PageBreak())
+        story.append(Paragraph("Detail — underlying figures", styles["Heading2"]))
+        story.append(Spacer(1, 0.1 * inch))
+        for title, headers, rows in _detail_tables(stats):
+            story.append(Paragraph(title, styles["Heading4"]))
+            detail_table = Table([headers] + rows, hAlign="LEFT")
+            detail_table.setStyle(
+                TableStyle(
+                    [
+                        ("FONTSIZE", (0, 0), (-1, -1), PDF_BODY_FONT_SIZE),
+                        ("FONTSIZE", (0, 0), (-1, 0), PDF_TABLE_HEADER_FONT_SIZE),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dde3ec")),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(TONE_BLUE_BG)),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ]
+                )
+            )
+            story.append(detail_table)
+            story.append(Spacer(1, 0.15 * inch))
+
     doc.build(story)
     return buf.getvalue()
 
 
-def build_pptx_report(stats: MembersStatistics) -> bytes:
+def _pick_blank_layout(prs: Presentation):
+    """Story 8.23: an uploaded annual template won't necessarily have a blank
+    layout at index 6 like the app's own from-scratch deck does — look for
+    one named "blank" first, else fall back to the last available layout
+    (emptier than the first, which is usually a title slide)."""
+    for layout in prs.slide_layouts:
+        if layout.name and "blank" in layout.name.lower():
+            return layout
+    return prs.slide_layouts[-1]
+
+
+def build_pptx_report(
+    stats: MembersStatistics,
+    report_type: str = "simplified",
+    template_path: Path | None = None,
+) -> bytes:
     # Everything (heading, stat cards, all 6 charts) condensed onto a single
     # widescreen slide rather than one-section-per-slide, per request.
-    prs = Presentation()
-    prs.slide_width = Inches(13.333)
-    prs.slide_height = Inches(7.5)
-    blank_layout = prs.slide_layouts[6]
+    if template_path is not None:
+        prs = Presentation(str(template_path))
+        blank_layout = _pick_blank_layout(prs)
+    else:
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        blank_layout = prs.slide_layouts[6]
+
+    # The from-scratch layout below is designed against a 13.333in-wide
+    # widescreen deck. An uploaded template may use a different slide size
+    # (e.g. 10in widescreen, or 4:3) — scale every position/size by the ratio
+    # so content roughly fits instead of overflowing or bunching in a corner.
+    # `scale` is exactly 1 for the app's own default deck (no-op).
+    scale = prs.slide_width / Inches(13.333)
+
+    def sc(emu):
+        return int(emu * scale)
+
     slide = prs.slides.add_slide(blank_layout)
 
     # The heading box starts right of the logo's actual rendered width (not a
     # hardcoded guess) — the logo's aspect ratio makes its width at a fixed
     # 0.6in height wider than the 0.8in gap a hardcoded left offset assumed,
     # which is what caused the heading text to overlap the logo.
-    logo_right_edge = Inches(0.3)
+    logo_right_edge = sc(Inches(0.3))
     if LOGO_PATH.exists():
         logo_pic = slide.shapes.add_picture(
-            str(LOGO_PATH), Inches(0.3), Inches(0.2), height=Inches(0.6)
+            str(LOGO_PATH), sc(Inches(0.3)), sc(Inches(0.2)), height=sc(Inches(0.6))
         )
         logo_right_edge = logo_pic.left + logo_pic.width
 
-    heading_left = logo_right_edge + Inches(0.2)
+    heading_left = logo_right_edge + sc(Inches(0.2))
     heading_box = slide.shapes.add_textbox(
-        heading_left, Inches(0.18), prs.slide_width - heading_left - Inches(0.3), Inches(0.65)
+        heading_left,
+        sc(Inches(0.18)),
+        prs.slide_width - heading_left - sc(Inches(0.3)),
+        sc(Inches(0.65)),
     )
     heading_tf = heading_box.text_frame
     heading_tf.text = f"{CLUB_NAME} — Members Statistics Report"
@@ -302,9 +404,9 @@ def build_pptx_report(stats: MembersStatistics) -> bytes:
     # Stat cards: 4 columns x 2 rows, compact
     card_rows = _stat_cards()
     columns = 4
-    card_width, card_height = Inches(2.95), Inches(0.75)
-    gap_x, gap_y = Inches(0.12), Inches(0.08)
-    start_x, start_y = Inches(0.3), Inches(0.95)
+    card_width, card_height = sc(Inches(2.95)), sc(Inches(0.75))
+    gap_x, gap_y = sc(Inches(0.12)), sc(Inches(0.08))
+    start_x, start_y = sc(Inches(0.3)), sc(Inches(0.95))
     for index, (label, attr) in enumerate(card_rows):
         col = index % columns
         row = index // columns
@@ -328,10 +430,10 @@ def build_pptx_report(stats: MembersStatistics) -> bytes:
 
     # Charts: 3 columns x 2 rows
     chart_columns = 3
-    chart_width = Inches(4.15)
-    chart_gap_x, chart_gap_y = Inches(0.08), Inches(0.15)
-    chart_start_x, chart_start_y = Inches(0.25), Inches(2.75)
-    chart_row_height = Inches(2.2)
+    chart_width = sc(Inches(4.15))
+    chart_gap_x, chart_gap_y = sc(Inches(0.08)), sc(Inches(0.15))
+    chart_start_x, chart_start_y = sc(Inches(0.25)), sc(Inches(2.75))
+    chart_row_height = sc(Inches(2.2))
     for index, (title, png_bytes) in enumerate(render_charts(stats).items()):
         col = index % chart_columns
         row = index // chart_columns
@@ -339,6 +441,48 @@ def build_pptx_report(stats: MembersStatistics) -> bytes:
         top = chart_start_y + row * (chart_row_height + chart_gap_y)
         slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_width)
 
+    if report_type == "integral":
+        _add_pptx_detail_slides(prs, blank_layout, stats, sc)
+
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
+
+
+def _add_pptx_detail_slides(prs: Presentation, blank_layout, stats: MembersStatistics, sc) -> None:
+    """Story 8.13: one detail slide per chart dataset, appended after the
+    main Simplified slide, for Integral reports. Tables aren't paginated
+    across slides if a dataset has many rows (e.g. many distinct join
+    years) — a known simplification given this app's small member base."""
+    for title, headers, rows in _detail_tables(stats):
+        slide = prs.slides.add_slide(blank_layout)
+
+        title_box = slide.shapes.add_textbox(
+            sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
+        )
+        title_tf = title_box.text_frame
+        title_tf.text = title
+        title_tf.paragraphs[0].font.size = Pt(20)
+        title_tf.paragraphs[0].font.bold = True
+        title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+
+        table_rows = len(rows) + 1
+        table_shape = slide.shapes.add_table(
+            table_rows,
+            len(headers),
+            sc(Inches(0.4)),
+            sc(Inches(1.1)),
+            sc(Inches(9)),
+            sc(Inches(min(0.4 * table_rows, 5.5))),
+        )
+        table = table_shape.table
+        for col_index, header in enumerate(headers):
+            cell = table.cell(0, col_index)
+            cell.text = header
+            cell.text_frame.paragraphs[0].font.bold = True
+            cell.text_frame.paragraphs[0].font.size = Pt(11)
+        for row_index, row_values in enumerate(rows, start=1):
+            for col_index, value in enumerate(row_values):
+                cell = table.cell(row_index, col_index)
+                cell.text = value
+                cell.text_frame.paragraphs[0].font.size = Pt(10)

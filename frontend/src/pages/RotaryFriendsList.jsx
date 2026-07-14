@@ -257,7 +257,7 @@ export default function RotaryFriendsList() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <div className="page-header-row">
         <h1>Friends of Rotary</h1>
         {isAdmin && (

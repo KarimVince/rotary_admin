@@ -75,10 +75,13 @@ describe("DonationsStatistics", () => {
     render(<DonationsStatistics />);
 
     expect(await screen.findByText("1,300 HKD")).toBeInTheDocument();
-    // Story 8.30 — each chart type now renders once in "Selected Year" and
-    // once in "All Years".
-    expect(screen.getAllByText("Total donated per rotary year")).toHaveLength(2);
-    expect(screen.getAllByText("Year-over-year trend")).toHaveLength(2);
+    // Story 8.30 — "Top organisations"/"By classification" render once per
+    // section (Selected Year + All Years); the multi-year trend charts
+    // ("Total donated per rotary year"/"Year-over-year trend") only render
+    // in the "All Years" section since they're never actually year-scoped
+    // and were redundant duplicated in "Selected Year".
+    expect(screen.getAllByText("Total donated per rotary year")).toHaveLength(1);
+    expect(screen.getAllByText("Year-over-year trend")).toHaveLength(1);
     expect(screen.getAllByText("Top organisations by total donation")).toHaveLength(2);
   });
 
@@ -207,9 +210,9 @@ describe("DonationsStatistics", () => {
     expect(screen.getAllByText("0 HKD").length).toBeGreaterThan(0);
     expect(screen.getAllByText("0 USD").length).toBeGreaterThan(0);
 
-    // Each chart shows the classification-aware empty state — 4 chart types
-    // in each of the 2 sections (Story 8.30).
-    expect(await screen.findAllByText("No NGOs found for this classification.")).toHaveLength(8);
+    // Each chart shows the classification-aware empty state — 2 charts in
+    // "Selected Year" + 4 charts in "All Years" (Story 8.30).
+    expect(await screen.findAllByText("No NGOs found for this classification.")).toHaveLength(6);
   });
 
   // Story 8.30 — the page shows "Selected Year" and "All Years" sections,
