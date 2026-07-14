@@ -111,3 +111,48 @@ def test_dashboard_summary_sums_current_rotary_year_paid_fees(
 
     assert response.status_code == 200
     assert response.json()["fees_collected_this_year"] == 500
+
+
+def test_dashboard_fees_collected_matches_fees_module_when_amount_paid_differs(
+    user_client, admin_client, make_member, make_member_fee
+):
+    # Story 15.10 regression: the dashboard card used to sum amount_due for
+    # paid fees, ignoring amount_paid overrides (e.g. a prorated fee, or
+    # Story 8.29's zero-amount fee-exempt member) — diverging from the Fees
+    # module's own total_collected. Both must now agree.
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year
+
+    this_year = rotary_year(date.today())
+
+    prorated_member = make_member(first_name="Prorated")
+    make_member_fee(
+        member_id=prorated_member.id,
+        rotary_year=this_year,
+        amount_due=500,
+        amount_paid=250,
+        is_paid=True,
+    )
+    exempt_member = make_member(first_name="Exempt")
+    make_member_fee(
+        member_id=exempt_member.id,
+        rotary_year=this_year,
+        amount_due=500,
+        amount_paid=0,
+        is_paid=True,
+    )
+
+    dashboard_response = user_client.get("/api/v1/dashboard/summary")
+    fees_response = admin_client.get(
+        "/api/v1/member-fees/statistics", params={"rotary_year": this_year}
+    )
+
+    assert dashboard_response.status_code == 200
+    assert fees_response.status_code == 200
+    assert dashboard_response.json()["fees_collected_this_year"] == 250
+    assert fees_response.json()["total_collected"] == 250
+    assert (
+        dashboard_response.json()["fees_collected_this_year"]
+        == fees_response.json()["total_collected"]
+    )

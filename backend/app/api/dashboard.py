@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.member_fee_totals import total_collected
 from app.core.rotary_year import rotary_year
 from app.db.session import get_db
 from app.models import Donation, Member, MemberFee, Organisation, RotaryFriend
@@ -24,11 +25,13 @@ def dashboard_summary(
         .filter(Donation.rotary_year == this_rotary_year)
         .scalar()
     )
-    fees_collected_this_year = (
-        db.query(func.coalesce(func.sum(MemberFee.amount_due), 0))
-        .filter(MemberFee.rotary_year == this_rotary_year, MemberFee.is_paid.is_(True))
-        .scalar()
-    )
+    # Story 15.10: was summing amount_due for is_paid fees, which diverged
+    # from the Fees module's total whenever amount_paid differs from
+    # amount_due (prorated fees, Story 8.29's zero-amount fee-exempt
+    # members). Now shares the same helper as GET /member-fees/statistics'
+    # total_collected (app/core/member_fee_totals.py) so the two can't drift.
+    fees_this_year = db.query(MemberFee).filter(MemberFee.rotary_year == this_rotary_year).all()
+    fees_collected_this_year = total_collected(fees_this_year)
     return DashboardSummary(
         active_members=db.query(Member).filter(Member.status == "active").count(),
         honorary_members=db.query(Member)

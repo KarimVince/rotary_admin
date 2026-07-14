@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.core.member_fee_totals import total_collected
 from app.core.rotary_year import rotary_year as compute_rotary_year
 from app.core.rotary_year import rotary_year_bounds
 from app.db.session import get_db
@@ -70,17 +71,13 @@ def member_fee_statistics(
 
     paid_count = sum(1 for fee in fees if fee.is_paid)
     unpaid_count = len(fees) - paid_count
-    # Collected totals reflect the actual amount received (amount_paid) when
-    # it was amended at payment validation — falling back to the standard
-    # invoiced amount_due otherwise. amount_due itself is never overwritten.
-    total_collected = sum(
-        float(fee.amount_paid if fee.amount_paid is not None else fee.amount_due)
-        for fee in fees
-        if fee.is_paid
-    )
+    # Story 15.10: total_collected is the shared source of truth in
+    # app/core/member_fee_totals.py — the Dashboard's "Fees Collected" card
+    # calls the same helper so the two can never drift apart again.
+    collected = total_collected(fees)
     total_outstanding = sum(float(fee.amount_due) for fee in fees if not fee.is_paid)
-    denominator = total_collected + total_outstanding
-    collection_rate = (total_collected / denominator * 100) if denominator > 0 else 0.0
+    denominator = collected + total_outstanding
+    collection_rate = (collected / denominator * 100) if denominator > 0 else 0.0
 
     breakdown: dict[str, list] = defaultdict(lambda: [0, 0.0])
     for fee in fees:
@@ -93,7 +90,7 @@ def member_fee_statistics(
     # for this year yet still counts in the denominator).
     active_member_count = len(_active_non_honorary_member_ids(db, year))
     average_fee_per_active_member = (
-        total_collected / active_member_count if active_member_count > 0 else 0.0
+        collected / active_member_count if active_member_count > 0 else 0.0
     )
 
     return MemberFeeStatistics(
@@ -102,7 +99,7 @@ def member_fee_statistics(
         total_members=len(fees),
         paid_count=paid_count,
         unpaid_count=unpaid_count,
-        total_collected=total_collected,
+        total_collected=collected,
         total_outstanding=total_outstanding,
         collection_rate=collection_rate,
         breakdown_by_price_type=[
@@ -139,14 +136,14 @@ def member_fee_statistics_history(
         active_ids = _active_non_honorary_member_ids(db, year)
         fees = [fee for fee in fees_by_year.get(year, []) if fee.member_id in active_ids]
 
-        total_collected = sum(float(fee.amount_paid or 0) for fee in fees)
+        year_collected = sum(float(fee.amount_paid or 0) for fee in fees)
         paid_count = sum(1 for fee in fees if (fee.amount_paid or 0) > 0)
         zero_count = len(active_ids) - paid_count
 
         history.append(
             FeeYearHistory(
                 rotary_year=year,
-                total_collected=total_collected,
+                total_collected=year_collected,
                 paid_count=paid_count,
                 zero_count=zero_count,
             )

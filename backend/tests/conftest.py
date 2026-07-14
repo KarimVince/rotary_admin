@@ -228,6 +228,7 @@ def make_member_fee(db_session):
         is_couple_at_billing: bool = False,
         amount_due: float = 500,
         is_paid: bool = False,
+        amount_paid: float | None = None,
     ) -> MemberFee:
         member_fee = MemberFee(
             member_id=member_id,
@@ -236,6 +237,7 @@ def make_member_fee(db_session):
             is_couple_at_billing=is_couple_at_billing,
             amount_due=amount_due,
             is_paid=is_paid,
+            amount_paid=amount_paid,
         )
         db_session.add(member_fee)
         db_session.commit()
