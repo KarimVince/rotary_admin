@@ -15,6 +15,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
 import BrandHeader from "./BrandHeader";
+import Footer from "./Footer";
 import NavSection from "./NavSection";
 
 const NAV_ITEMS = [
@@ -367,6 +368,7 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <Footer />
     </div>
   );
 }

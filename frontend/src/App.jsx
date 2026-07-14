@@ -26,10 +26,12 @@ import NgoClassificationManagement from "./pages/NgoClassificationManagement";
 import OrganisationDetail from "./pages/OrganisationDetail";
 import OrganisationsList from "./pages/OrganisationsList";
 import PermissionMatrixManagement from "./pages/PermissionMatrixManagement";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPasswordConfirm from "./pages/ResetPasswordConfirm";
 import RotaryFriendsEmail from "./pages/RotaryFriendsEmail";
 import RotaryFriendsList from "./pages/RotaryFriendsList";
 import RotaryFriendsStatistics from "./pages/RotaryFriendsStatistics";
+import TermsOfUsage from "./pages/TermsOfUsage";
 import UserManagement from "./pages/UserManagement";
 import "./App.css";
 
@@ -70,6 +72,10 @@ function App() {
               <Route path="/dinners/attendance" element={<AttendanceHistory />} />
               <Route path="/dinners/attendance/:eventId" element={<AttendanceSheet />} />
               <Route path="/dinners/forecast" element={<DinnerForecast />} />
+              {/* Story 13.2/13.3 — static legal pages, no permission gating,
+                  linked from the app-wide footer (Story 13.1). */}
+              <Route path="/terms" element={<TermsOfUsage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route element={<ProtectedRoute requiredRole="admin" />}>
                 <Route path="/admin/users" element={<UserManagement />} />
                 <Route path="/admin/member-titles" element={<MemberTitleManagement />} />

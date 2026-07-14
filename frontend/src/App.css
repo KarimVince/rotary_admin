@@ -163,6 +163,45 @@ select:focus {
   padding: 32px;
 }
 
+/* Story 13.1 — app-wide footer, sibling of .app-body inside the flex-column
+   .app-shell so it's pinned to the bottom on short pages without overlapping
+   content, and simply follows the flow on tall/scrolling pages. */
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 24px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.app-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-footer a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 /* Dashboard's own hero/module-grid layout moved to Tailwind (Story 8.10) —
    .stat-card/.stat-value/.stat-label below are still used by the Statistics
    pages (Members/Donations/Friends/Fees), just no longer by Dashboard. */
@@ -576,6 +615,54 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Story 13.2/13.3 — static legal pages (Terms of Usage, Privacy Policy) */
+
+.legal-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.legal-page h1 {
+  font-size: 22px;
+  color: var(--text-h);
+  margin-bottom: 4px;
+}
+
+.legal-page .legal-updated {
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.7;
+  margin-bottom: 24px;
+}
+
+.legal-page h2 {
+  font-size: 16px;
+  color: var(--text-h);
+  margin-top: 28px;
+  margin-bottom: 8px;
+}
+
+.legal-page p,
+.legal-page ul {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.legal-page ul {
+  padding-left: 22px;
+}
+
+.legal-page li {
+  margin-bottom: 6px;
+}
+
+.legal-page a {
+  color: var(--rotary-blue);
 }
 
 .btn-add-member {
