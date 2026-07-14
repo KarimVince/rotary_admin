@@ -8,7 +8,20 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-07-12)
+## Current status / resume from here (2026-07-14)
+- **Everything below marked "not committed/pushed" or "migrations not run
+  against dev" has since been resolved, explicitly requested by the user
+  2026-07-14**: all outstanding work (remaining Epic 8 backlog items 8.3/
+  8.13/8.23/8.28/8.29/8.31, all of Epic 15, and Epic 14 Story 14.1) was
+  committed in 4 grouped commits, `main` was fast-forwarded to include
+  everything already-committed-but-unmerged too (Epics 5, 7, 9, 10, 11, 12),
+  and pushed to `origin/main`. CI was **not** triggered (it's
+  `workflow_dispatch`-only, doesn't run automatically). The dev DB was also
+  brought fully up to migration head that same session (see the Epic 15
+  entry below for the dinner-forecast-upload bug that prompted it). The
+  historical entries below still describe what was true *at the time they
+  were written* — read them for design/deviation context, not current
+  commit state.
 - **Epics 1, 2, 2b, 3, 4, 5, 7 are complete.** Epic 8 items are worked
   piecemeal from the backlog as requested (several already done — see
   ClickUp for current state, not this file).
