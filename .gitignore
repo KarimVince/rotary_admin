@@ -15,8 +15,12 @@ frontend/dist/
 frontend/.env
 
 # One-off local data imports (real member PII, e.g. club roster spreadsheets) —
-# never committed, including the import script itself.
-Data/
+# never committed, including the import script itself. Anchored to repo root
+# (leading slash) — an unanchored "Data/" also matched frontend/src/data/,
+# silently keeping countries.js/currencies.js out of every commit ever since
+# they were added (worked locally since gitignore doesn't delete files, but
+# they never reached GitHub — broke the Render production build).
+/Data/
 
 # OS / editor
 .DS_Store
