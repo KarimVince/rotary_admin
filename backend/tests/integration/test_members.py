@@ -66,6 +66,30 @@ def test_admin_can_create_member(admin_client):
     assert body["address"] == "1 Rotary Way"
 
 
+def test_admin_can_create_member_with_story_8_3_fields(admin_client):
+    honorific = admin_client.post(
+        "/api/v1/honorifics", json={"code": "DR", "label": "Dr."}
+    ).json()
+
+    response = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(
+            email="applicant@example.com",
+            honorific_id=honorific["id"],
+            company_name="Acme Corp",
+            position="Engineer",
+            proposer_name="John Smith",
+        ),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["honorific_id"] == honorific["id"]
+    assert body["company_name"] == "Acme Corp"
+    assert body["position"] == "Engineer"
+    assert body["proposer_name"] == "John Smith"
+
+
 def test_admin_can_create_honorary_member(admin_client):
     # Story 8.14: honorary is no longer a status value — an honorary member
     # is status="active" with is_honorary=True.
@@ -322,6 +346,34 @@ def test_list_members_filters_by_status(admin_client):
     body = response.json()
     assert len(body) == 1
     assert body[0]["email"] == "past@example.com"
+
+
+def test_list_members_filters_by_active_in_rotary_year(admin_client):
+    # Story 8.29: a member active only during a past rotary year (has since
+    # left) must still show up when that year is queried, and a member who
+    # joined after the queried year ended must not.
+    admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(
+            email="past-during-year@example.com", join_date="2015-01-01"
+        ),
+    )
+    left = admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="left-before-year@example.com", join_date="2015-01-01"),
+    ).json()
+    admin_client.patch(
+        f"/api/v1/members/{left['id']}", json={"status": "past", "leave_date": "2024-06-01"}
+    )
+    admin_client.post(
+        "/api/v1/members",
+        json=_create_payload(email="joined-after-year@example.com", join_date="2025-08-01"),
+    )
+
+    response = admin_client.get("/api/v1/members", params={"active_in_rotary_year": 2025})
+
+    assert response.status_code == 200
+    assert [m["email"] for m in response.json()] == ["past-during-year@example.com"]
 
 
 def test_list_members_filters_by_nationality_and_classification(admin_client):

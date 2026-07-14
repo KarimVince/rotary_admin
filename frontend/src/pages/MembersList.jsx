@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { API_ORIGIN } from "../api/client";
 import { COUNTRIES } from "../data/countries";
 import { listMemberTitles } from "../api/memberTitles";
+import { listHonorifics } from "../api/honorifics";
+import { createMemberApplication, sendMemberApplication } from "../api/memberApplications";
 import {
   createMember,
   listMembers,
@@ -22,6 +24,7 @@ const EMPTY_FORM = {
   phone: "",
   status: "active",
   title_id: "",
+  honorific_id: "",
   join_date: "",
   leave_date: "",
   rotarian_since: "",
@@ -29,6 +32,8 @@ const EMPTY_FORM = {
   photo_url: "",
   profession: "",
   classification: "",
+  company_name: "",
+  proposer_name: "",
   date_of_birth: "",
   gender: "",
   nationality: "",
@@ -37,6 +42,14 @@ const EMPTY_FORM = {
   is_honorary: false,
   notes: "",
 };
+
+const EMPTY_APPLICATION_FORM = { name: "", email: "", phone: "" };
+
+// Story 8.3: a convenience default only — Gender doesn't determine
+// Honorific (a Dr./Prof. can be any gender, Mrs./Ms. isn't derivable from
+// Gender alone), so this just pre-fills a sensible starting value that
+// stays fully editable via the Honorific dropdown itself.
+const HONORIFIC_CODE_BY_GENDER = { Male: "MR", Female: "MS" };
 
 function computeAge(dateOfBirth) {
   if (!dateOfBirth) return null;
@@ -76,8 +89,20 @@ export default function MembersList() {
 
   const [members, setMembers] = useState([]);
   const [titles, setTitles] = useState([]);
+  const [honorifics, setHonorifics] = useState([]);
+  // Story 8.3: Proposer name is a selection list of members — independent of
+  // the directory's own status filter, so it always offers every member
+  // (active and past) regardless of what's currently shown in the list.
+  const [allMembersForProposer, setAllMembersForProposer] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+
+  const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
+  const [applicationForm, setApplicationForm] = useState(EMPTY_APPLICATION_FORM);
+  const [applicationResult, setApplicationResult] = useState(null);
+  const [isCreatingApplication, setIsCreatingApplication] = useState(false);
+  const [applicationError, setApplicationError] = useState(null);
+  const [sendingChannel, setSendingChannel] = useState(null);
 
   const [statusFilter, setStatusFilter] = useState("active");
   const [honoraryOnly, setHonoraryOnly] = useState(false);
@@ -104,9 +129,35 @@ export default function MembersList() {
     [titles, form.title_id],
   );
 
+  const dropdownHonorifics = useMemo(
+    () => honorifics.filter((h) => h.is_active || h.id === form.honorific_id),
+    [honorifics, form.honorific_id],
+  );
+
+  // Story 8.3: Proposer name is stored as a plain string (not a FK), so the
+  // dropdown just offers every member's current name as an option — active
+  // and past alike, since a proposer may since have left the club.
+  const proposerNameOptions = useMemo(
+    () =>
+      [...allMembersForProposer]
+        .map((member) => `${member.first_name} ${member.last_name}`)
+        .sort((a, b) => a.localeCompare(b)),
+    [allMembersForProposer],
+  );
+
   async function loadTitles() {
     const data = await listMemberTitles({ includeInactive: true });
     setTitles(data);
+  }
+
+  async function loadHonorifics() {
+    const data = await listHonorifics({ includeInactive: true });
+    setHonorifics(data);
+  }
+
+  async function loadAllMembersForProposer() {
+    const data = await listMembers();
+    setAllMembersForProposer(data);
   }
 
   async function loadMembers() {
@@ -130,6 +181,11 @@ export default function MembersList() {
   useEffect(() => {
     if (!canRead) return;
     loadTitles();
+    // Honorifics management is admin-role-only, but the dropdown of
+    // *options* here just needs the list — same best-effort, uncaught-if-it-
+    // 403s approach already used for loadTitles above.
+    loadHonorifics();
+    loadAllMembersForProposer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRead]);
 
@@ -175,6 +231,7 @@ export default function MembersList() {
       phone: member.phone ?? "",
       status: member.status ?? "active",
       title_id: member.title_id ?? "",
+      honorific_id: member.honorific_id ?? "",
       join_date: member.join_date ?? "",
       leave_date: member.leave_date ?? "",
       rotarian_since: member.rotarian_since ?? "",
@@ -182,6 +239,8 @@ export default function MembersList() {
       photo_url: member.photo_url ?? "",
       profession: member.profession ?? "",
       classification: member.classification ?? "",
+      company_name: member.company_name ?? "",
+      proposer_name: member.proposer_name ?? "",
       date_of_birth: member.date_of_birth ?? "",
       gender: member.gender ?? "",
       nationality: member.nationality ?? "",
@@ -262,6 +321,44 @@ export default function MembersList() {
     await loadMembers();
   }
 
+  function openApplicationModal() {
+    setApplicationForm(EMPTY_APPLICATION_FORM);
+    setApplicationResult(null);
+    setApplicationError(null);
+    setIsApplicationModalOpen(true);
+  }
+
+  function closeApplicationModal() {
+    setIsApplicationModalOpen(false);
+  }
+
+  async function handleCreateApplication(event) {
+    event.preventDefault();
+    setApplicationError(null);
+    setIsCreatingApplication(true);
+    try {
+      const created = await createMemberApplication(applicationForm);
+      setApplicationResult(created);
+    } catch (err) {
+      setApplicationError(err.detail || "Failed to generate application");
+    } finally {
+      setIsCreatingApplication(false);
+    }
+  }
+
+  async function handleSendApplication(channel) {
+    setApplicationError(null);
+    setSendingChannel(channel);
+    try {
+      const updated = await sendMemberApplication(applicationResult.id, channel);
+      setApplicationResult(updated);
+    } catch (err) {
+      setApplicationError(err.detail || "Failed to send application");
+    } finally {
+      setSendingChannel(null);
+    }
+  }
+
   if (!canRead) {
     return (
       <div className="admin-page">
@@ -272,15 +369,126 @@ export default function MembersList() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <div className="page-header-row">
         <h1>Members Directory</h1>
         {canWrite && (
-          <button type="button" className="btn-add-member" onClick={openAddModal}>
-            + Add Member
-          </button>
+          <div className="page-header-actions">
+            <button type="button" className="btn-add-member" onClick={openAddModal}>
+              Add Member
+            </button>
+            <button type="button" className="btn-add-member" onClick={openApplicationModal}>
+              Application
+            </button>
+          </div>
         )}
       </div>
+
+      {isApplicationModalOpen && canWrite && (
+        <div className="modal-overlay" onClick={closeApplicationModal}>
+          <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
+            {!applicationResult ? (
+              <form onSubmit={handleCreateApplication}>
+                <h2>New member application</h2>
+                <p className="admin-page-note">
+                  Generates a fillable PDF application form pre-filled with these details —
+                  the rest is left blank for the prospect to complete and sign.
+                </p>
+
+                <div className="member-form-grid">
+                  <div className="field-full">
+                    <label htmlFor="application-name">Name</label>
+                    <input
+                      id="application-name"
+                      type="text"
+                      value={applicationForm.name}
+                      onChange={(event) =>
+                        setApplicationForm({ ...applicationForm, name: event.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="application-email">Email</label>
+                    <input
+                      id="application-email"
+                      type="email"
+                      value={applicationForm.email}
+                      onChange={(event) =>
+                        setApplicationForm({ ...applicationForm, email: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="application-phone">Phone</label>
+                    <input
+                      id="application-phone"
+                      type="text"
+                      value={applicationForm.phone}
+                      onChange={(event) =>
+                        setApplicationForm({ ...applicationForm, phone: event.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {applicationError && <p role="alert">{applicationError}</p>}
+                <div className="modal-actions">
+                  <button type="submit" disabled={isCreatingApplication}>
+                    {isCreatingApplication ? "Generating…" : "Generate application"}
+                  </button>
+                  <button type="button" onClick={closeApplicationModal}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <h2>Application generated</h2>
+                <p>
+                  <a href={`${API_ORIGIN}${applicationResult.pdf_url}`} target="_blank" rel="noreferrer">
+                    Download the PDF
+                  </a>
+                </p>
+
+                {applicationError && <p role="alert">{applicationError}</p>}
+
+                <p>
+                  {applicationResult.email_sent_at
+                    ? `Emailed ${new Date(applicationResult.email_sent_at).toLocaleString()}`
+                    : "Not emailed yet."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleSendApplication("email")}
+                  disabled={!applicationResult.email || sendingChannel === "email"}
+                >
+                  {sendingChannel === "email" ? "Sending…" : "Send email"}
+                </button>
+
+                <p>
+                  <label htmlFor="application-whatsapp-sent">
+                    <input
+                      id="application-whatsapp-sent"
+                      type="checkbox"
+                      checked={Boolean(applicationResult.whatsapp_sent_at)}
+                      disabled={sendingChannel === "whatsapp"}
+                      onChange={() => handleSendApplication("whatsapp")}
+                    />
+                    Sent via WhatsApp
+                  </label>
+                </p>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={closeApplicationModal}>
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {isModalOpen && canWrite && (
         <div className="modal-overlay" onClick={cancelEdit}>
@@ -326,6 +534,22 @@ export default function MembersList() {
                   </select>
                 </div>
                 <div>
+                  <label htmlFor="member-honorific">Honorific</label>
+                  <select
+                    id="member-honorific"
+                    value={form.honorific_id}
+                    onChange={(event) => setForm({ ...form, honorific_id: event.target.value })}
+                  >
+                    <option value="">—</option>
+                    {dropdownHonorifics.map((honorific) => (
+                      <option key={honorific.id} value={honorific.id}>
+                        {honorific.label}
+                        {!honorific.is_active ? " (inactive)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label htmlFor="member-status">Status</label>
                   <select
                     id="member-status"
@@ -355,7 +579,6 @@ export default function MembersList() {
                     onChange={(event) => setForm({ ...form, is_honorary: event.target.checked })}
                   />
                 </div>
-
                 <div>
                   <label htmlFor="member-date-of-birth">Date of birth</label>
                   <input
@@ -370,7 +593,27 @@ export default function MembersList() {
                   <select
                     id="member-gender"
                     value={form.gender}
-                    onChange={(event) => setForm({ ...form, gender: event.target.value })}
+                    onChange={(event) => {
+                      const nextGender = event.target.value;
+                      setForm((current) => {
+                        // Story 8.3: default (not force) Honorific from
+                        // Gender as a convenience — only when Honorific
+                        // hasn't already been chosen, and only ever a
+                        // suggestion the dropdown above can still override.
+                        if (current.honorific_id) {
+                          return { ...current, gender: nextGender };
+                        }
+                        const defaultCode = HONORIFIC_CODE_BY_GENDER[nextGender];
+                        const defaultHonorific = defaultCode
+                          ? honorifics.find((h) => h.code === defaultCode)
+                          : null;
+                        return {
+                          ...current,
+                          gender: nextGender,
+                          honorific_id: defaultHonorific ? defaultHonorific.id : current.honorific_id,
+                        };
+                      });
+                    }}
                   >
                     <option value="">—</option>
                     <option value="Male">Male</option>
@@ -406,13 +649,40 @@ export default function MembersList() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="member-profession">Profession</label>
+                  <label htmlFor="member-profession">Profession / Position</label>
                   <input
                     id="member-profession"
                     type="text"
                     value={form.profession}
                     onChange={(event) => setForm({ ...form, profession: event.target.value })}
                   />
+                </div>
+                <div>
+                  <label htmlFor="member-company-name">Company name</label>
+                  <input
+                    id="member-company-name"
+                    type="text"
+                    value={form.company_name}
+                    onChange={(event) => setForm({ ...form, company_name: event.target.value })}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="member-proposer-name">Proposer name</label>
+                  <select
+                    id="member-proposer-name"
+                    value={form.proposer_name}
+                    onChange={(event) => setForm({ ...form, proposer_name: event.target.value })}
+                  >
+                    <option value="">—</option>
+                    {form.proposer_name && !proposerNameOptions.includes(form.proposer_name) && (
+                      <option value={form.proposer_name}>{form.proposer_name}</option>
+                    )}
+                    {proposerNameOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="member-is-couple">Couple membership</label>

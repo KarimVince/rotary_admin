@@ -86,3 +86,78 @@ def test_report_reflects_empty_dataset_without_error(user_client):
 
     assert response.status_code == 200
     assert response.content[:4] == b"%PDF"
+
+
+def test_integral_pdf_report_generates_successfully(admin_client):
+    # Story 8.13 (scoped to Members for this story): Integral adds a detail
+    # table section on top of Simplified — just verify it still produces a
+    # valid PDF, since asserting on rendered table content isn't practical
+    # here (reportlab's Table/Paragraph flowables aren't easily introspected
+    # after doc.build()).
+    response = admin_client.post(
+        "/api/v1/members/statistics/report",
+        params={"format": "pdf", "type": "integral"},
+    )
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+
+
+def test_integral_pptx_report_generates_successfully(admin_client):
+    response = admin_client.post(
+        "/api/v1/members/statistics/report",
+        params={"format": "pptx", "type": "integral"},
+    )
+    assert response.status_code == 200
+    assert response.content[:2] == b"PK"
+
+
+def test_invalid_report_type_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/members/statistics/report",
+        params={"format": "pdf", "type": "extravagant"},
+    )
+    assert response.status_code == 422
+
+
+def test_use_template_without_upload_returns_400(admin_client):
+    response = admin_client.post(
+        "/api/v1/members/statistics/report",
+        params={"format": "pptx", "use_template": "true"},
+    )
+    assert response.status_code == 400
+
+
+def test_use_template_with_pdf_format_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/members/statistics/report",
+        params={"format": "pdf", "use_template": "true"},
+    )
+    assert response.status_code == 422
+
+
+def test_use_template_generates_pptx_from_uploaded_template(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.api.ppt_templates.settings.upload_dir", str(tmp_path))
+    # A python-pptx-readable template needs to actually be a valid .pptx —
+    # build a minimal real one rather than faking bytes, since build_pptx_report
+    # opens it with Presentation(path).
+    from pptx import Presentation
+
+    real_template = tmp_path / "seed-template.pptx"
+    Presentation().save(str(real_template))
+    admin_client.post(
+        "/api/v1/ppt-templates",
+        files={
+            "file": (
+                "Annual.pptx",
+                real_template.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            )
+        },
+    )
+
+    response = admin_client.post(
+        "/api/v1/members/statistics/report",
+        params={"format": "pptx", "use_template": "true"},
+    )
+    assert response.status_code == 200
+    assert response.content[:2] == b"PK"

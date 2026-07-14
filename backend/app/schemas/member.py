@@ -16,6 +16,7 @@ class MemberBase(BaseModel):
     phone: str | None = None
     status: str = "active"
     title_id: uuid.UUID | None = None
+    honorific_id: uuid.UUID | None = None
     join_date: date
     leave_date: date | None = None
     rotarian_since: date | None = None
@@ -27,6 +28,9 @@ class MemberBase(BaseModel):
     gender: str | None = None
     nationality: str | None = None
     address: str | None = None
+    company_name: str | None = None
+    position: str | None = None
+    proposer_name: str | None = None
     is_couple: bool = False
     is_honorary: bool = False
     notes: str | None = None
@@ -77,6 +81,7 @@ class MemberUpdate(BaseModel):
     phone: str | None = None
     status: str | None = None
     title_id: uuid.UUID | None = None
+    honorific_id: uuid.UUID | None = None
     join_date: date | None = None
     leave_date: date | None = None
     rotarian_since: date | None = None
@@ -88,6 +93,9 @@ class MemberUpdate(BaseModel):
     gender: str | None = None
     nationality: str | None = None
     address: str | None = None
+    company_name: str | None = None
+    position: str | None = None
+    proposer_name: str | None = None
     is_couple: bool | None = None
     is_honorary: bool | None = None
     notes: str | None = None
@@ -133,6 +141,7 @@ class MemberReadLimited(BaseModel):
     phone: str | None
     status: str
     title_id: uuid.UUID | None
+    honorific_id: uuid.UUID | None
     join_date: date
     leave_date: date | None
     rotarian_since: date | None
@@ -141,6 +150,9 @@ class MemberReadLimited(BaseModel):
     classification: str | None
     gender: str | None
     nationality: str | None
+    company_name: str | None
+    position: str | None
+    proposer_name: str | None
     is_couple: bool
     is_honorary: bool
     notes: str | None

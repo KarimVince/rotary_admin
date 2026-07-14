@@ -5,6 +5,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import MembersStatistics from "./MembersStatistics";
 
+beforeEach(() => {
+  sessionStorage.clear();
+  // Story 8.23: the page now also fetches the current PPT template on
+  // mount, to gate the "Use annual club template" checkbox — default to
+  // "none uploaded" for every test unless a test overrides it.
+  server.use(
+    http.get("http://localhost:8000/api/v1/ppt-templates/current", () =>
+      HttpResponse.json(null),
+    ),
+  );
+});
+
 vi.mock("../hooks/useAccess", () => ({
   useAccess: () => ({ canRead: true, canWrite: true }),
 }));
@@ -224,6 +236,138 @@ describe("MembersStatistics", () => {
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/report generation failed/i);
+    });
+
+    it("disables the template checkbox with a tooltip when no template is uploaded", async () => {
+      server.use(http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)));
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+
+      const checkbox = await screen.findByLabelText(/use annual club template/i);
+      await waitFor(() => expect(checkbox).toBeDisabled());
+      expect(checkbox.closest("label")).toHaveAttribute(
+        "title",
+        expect.stringMatching(/no annual template uploaded yet/i),
+      );
+    });
+
+    it("enables the template checkbox once a template exists for pptx format", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.get(`${API_BASE_URL}/ppt-templates/current`, () =>
+          HttpResponse.json({
+            id: "tpl-1",
+            rotary_year: 2026,
+            original_filename: "Annual2026.pptx",
+            uploaded_by: "user-1",
+            uploaded_by_name: "Jane Doe",
+            uploaded_at: new Date().toISOString(),
+          }),
+        ),
+      );
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+
+      await waitFor(() =>
+        expect(screen.getByLabelText(/use annual club template/i)).toBeEnabled(),
+      );
+    });
+
+    it("disables the template checkbox for PDF format even when a template exists", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.get(`${API_BASE_URL}/ppt-templates/current`, () =>
+          HttpResponse.json({
+            id: "tpl-1",
+            rotary_year: 2026,
+            original_filename: "Annual2026.pptx",
+            uploaded_by: null,
+            uploaded_by_name: null,
+            uploaded_at: new Date().toISOString(),
+          }),
+        ),
+      );
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+
+      await waitFor(() =>
+        expect(screen.getByLabelText(/use annual club template/i)).toBeDisabled(),
+      );
+    });
+
+    it("sends the selected content type and template flag with the report request", async () => {
+      let requestUrl;
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.get(`${API_BASE_URL}/ppt-templates/current`, () =>
+          HttpResponse.json({
+            id: "tpl-1",
+            rotary_year: 2026,
+            original_filename: "Annual2026.pptx",
+            uploaded_by: null,
+            uploaded_by_name: null,
+            uploaded_at: new Date().toISOString(),
+          }),
+        ),
+        http.post(`${API_BASE_URL}/members/statistics/report`, ({ request }) => {
+          requestUrl = new URL(request.url);
+          return new HttpResponse("fake-pptx-bytes", {
+            headers: { "Content-Disposition": 'attachment; filename="report.pptx"' },
+          });
+        }),
+      );
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+      await userEvent.selectOptions(screen.getByLabelText(/content/i), "integral");
+      await waitFor(() =>
+        expect(screen.getByLabelText(/use annual club template/i)).toBeEnabled(),
+      );
+      await userEvent.click(screen.getByLabelText(/use annual club template/i));
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(requestUrl).toBeDefined());
+      expect(requestUrl.searchParams.get("format")).toBe("pptx");
+      expect(requestUrl.searchParams.get("type")).toBe("integral");
+      expect(requestUrl.searchParams.get("use_template")).toBe("true");
+    });
+
+    it("remembers the content type and template choice across remounts in the same session", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
+        http.get(`${API_BASE_URL}/ppt-templates/current`, () =>
+          HttpResponse.json({
+            id: "tpl-1",
+            rotary_year: 2026,
+            original_filename: "Annual2026.pptx",
+            uploaded_by: null,
+            uploaded_by_name: null,
+            uploaded_at: new Date().toISOString(),
+          }),
+        ),
+      );
+
+      const { unmount } = render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+      await userEvent.selectOptions(screen.getByLabelText(/content/i), "integral");
+      await waitFor(() =>
+        expect(screen.getByLabelText(/use annual club template/i)).toBeEnabled(),
+      );
+      await userEvent.click(screen.getByLabelText(/use annual club template/i));
+      unmount();
+
+      render(<MembersStatistics />);
+      await screen.findByText("Total Members");
+      expect(screen.getByLabelText(/content/i)).toHaveValue("integral");
+      await waitFor(() =>
+        expect(screen.getByLabelText(/use annual club template/i)).toBeChecked(),
+      );
     });
   });
 });

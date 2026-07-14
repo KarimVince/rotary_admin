@@ -13,15 +13,29 @@ import {
   YAxis,
 } from "recharts";
 import { fetchMemberStatistics, generateStatisticsReport } from "../api/memberStatistics";
+import { fetchCurrentPptTemplate } from "../api/pptTemplates";
 import { useAccess } from "../hooks/useAccess";
 
 const PIE_COLORS = ["#17458f", "#f7a81b", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
+
+// Story 8.23: "remembered per session (not persisted across logins)" —
+// sessionStorage survives navigating away and back within the same browser
+// tab session, but not a fresh login/tab, unlike localStorage or a cookie.
+const SESSION_KEY_REPORT_TYPE = "membersStats.reportType";
+const SESSION_KEY_USE_TEMPLATE = "membersStats.useTemplate";
 
 export default function MembersStatistics() {
   const { canRead } = useAccess("members.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
+  const [reportType, setReportType] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_REPORT_TYPE) || "simplified",
+  );
+  const [useTemplate, setUseTemplate] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
+  );
+  const [hasTemplate, setHasTemplate] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
 
@@ -30,7 +44,23 @@ export default function MembersStatistics() {
     fetchMemberStatistics()
       .then(setStats)
       .catch((err) => setError(err.detail || "Failed to load statistics"));
+    fetchCurrentPptTemplate()
+      .then((template) => setHasTemplate(Boolean(template)))
+      .catch(() => {
+        // Non-fatal — the template checkbox just stays disabled as if none
+        // were uploaded (e.g. the user has no admin.ppt_template access).
+      });
   }, [canRead]);
+
+  function handleReportTypeChange(value) {
+    setReportType(value);
+    sessionStorage.setItem(SESSION_KEY_REPORT_TYPE, value);
+  }
+
+  function handleUseTemplateChange(checked) {
+    setUseTemplate(checked);
+    sessionStorage.setItem(SESSION_KEY_USE_TEMPLATE, String(checked));
+  }
 
   if (!canRead) {
     return (
@@ -45,7 +75,10 @@ export default function MembersStatistics() {
     setIsGeneratingReport(true);
     setReportError(null);
     try {
-      const { blob, filename } = await generateStatisticsReport(reportFormat);
+      const { blob, filename } = await generateStatisticsReport(reportFormat, {
+        reportType,
+        useTemplate: useTemplate && reportFormat === "pptx" && hasTemplate,
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -80,7 +113,7 @@ export default function MembersStatistics() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Member statistics</h1>
 
       <div className="report-controls">
@@ -94,6 +127,38 @@ export default function MembersStatistics() {
           <option value="pdf">PDF</option>
           <option value="pptx">PowerPoint (PPTX)</option>
         </select>
+
+        <label htmlFor="report-type">Content</label>
+        <select
+          id="report-type"
+          value={reportType}
+          onChange={(event) => handleReportTypeChange(event.target.value)}
+          disabled={isGeneratingReport}
+        >
+          <option value="simplified">Simplified</option>
+          <option value="integral">Integral</option>
+        </select>
+
+        <label
+          htmlFor="report-use-template"
+          title={
+            reportFormat !== "pptx"
+              ? "The annual club template only applies to PowerPoint (PPTX) reports"
+              : !hasTemplate
+                ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
+                : undefined
+          }
+        >
+          <input
+            id="report-use-template"
+            type="checkbox"
+            checked={useTemplate}
+            onChange={(event) => handleUseTemplateChange(event.target.checked)}
+            disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
+          />
+          Use annual club template
+        </label>
+
         <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
           {isGeneratingReport ? "Generating…" : "Generate Report"}
         </button>

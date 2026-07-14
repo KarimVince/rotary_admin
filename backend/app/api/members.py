@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import extract
+from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access, require_admin
+from app.api.ppt_templates import template_path_for_year
 from app.core.config import settings
-from app.core.rotary_year import rotary_year
+from app.core.rotary_year import rotary_year, rotary_year_bounds
 from app.core.statistics_report import build_pdf_report, build_pptx_report
 from app.db.session import get_db
 from app.models import Member, User
@@ -245,18 +246,40 @@ def members_statistics(
 @router.post("/members/statistics/report")
 def generate_statistics_report(
     report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    # Story 8.13: Simplified is stats + graphs (existing content, unchanged);
+    # Integral adds a detail section of tables restating the same charts'
+    # underlying figures.
+    report_type: Literal["simplified", "integral"] = Query("simplified", alias="type"),
+    # Story 8.23: use the Admin-uploaded annual club .pptx as the slide
+    # master instead of the app's own from-scratch deck. PDF has no slide
+    # master concept, so this only applies when format=pptx.
+    use_template: bool = Query(False),
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(MEMBERS_STATISTICS, "read")),
 ):
     stats = compute_members_statistics(db)
     today_str = date.today().isoformat()
 
+    template_path = None
+    if use_template:
+        if report_format != "pptx":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The annual club template only applies to PowerPoint (PPTX) reports",
+            )
+        template_path = template_path_for_year(rotary_year(date.today()))
+        if template_path is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No annual template uploaded for this rotary year",
+            )
+
     if report_format == "pdf":
-        content = build_pdf_report(stats)
+        content = build_pdf_report(stats, report_type=report_type)
         media_type = "application/pdf"
         filename = f"members-statistics-report-{today_str}.pdf"
     else:
-        content = build_pptx_report(stats)
+        content = build_pptx_report(stats, report_type=report_type, template_path=template_path)
         media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         filename = f"members-statistics-report-{today_str}.pptx"
 
@@ -275,6 +298,14 @@ def list_members(
     join_year: int | None = Query(None),
     nationality: str | None = Query(None),
     classification: str | None = Query(None),
+    active_in_rotary_year: int | None = Query(
+        None,
+        description=(
+            "Story 8.29: members active at any point during this rotary year "
+            "(join_date on/before 30 Jun, leave_date null or on/after 1 Jul), "
+            "independent of Member.status which only reflects today."
+        ),
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "read")),
 ):
@@ -291,6 +322,12 @@ def list_members(
         query = query.filter(Member.nationality == nationality)
     if classification is not None:
         query = query.filter(Member.classification == classification)
+    if active_in_rotary_year is not None:
+        year_start, year_end = rotary_year_bounds(active_in_rotary_year)
+        query = query.filter(
+            Member.join_date <= year_end,
+            or_(Member.leave_date.is_(None), Member.leave_date >= year_start),
+        )
 
     members = query.order_by(Member.last_name, Member.first_name).all()
     return [_serialize(member, current_user) for member in members]

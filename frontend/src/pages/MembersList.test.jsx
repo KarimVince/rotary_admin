@@ -71,7 +71,11 @@ async function waitForLoaded() {
 
 describe("MembersList", () => {
   beforeEach(() => {
-    server.use(http.get(`${API_BASE_URL}/member-titles`, () => HttpResponse.json([TITLE])));
+    server.use(
+      http.get(`${API_BASE_URL}/member-titles`, () => HttpResponse.json([TITLE])),
+      // Story 8.3: MembersList now also loads the Honorifics dropdown.
+      http.get(`${API_BASE_URL}/honorifics`, () => HttpResponse.json([])),
+    );
   });
 
   describe("as admin", () => {
@@ -206,6 +210,118 @@ describe("MembersList", () => {
       await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
 
       await waitFor(() => expect(capturedBody?.gender).toBe("Female"));
+    });
+
+    it("defaults Honorific from Gender as a suggestion, not a hard rule", async () => {
+      const HONORIFIC_MR = {
+        id: "honorific-mr",
+        code: "MR",
+        label: "Mr.",
+        sort_order: 0,
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      const HONORIFIC_MS = {
+        id: "honorific-ms",
+        code: "MS",
+        label: "Ms.",
+        sort_order: 1,
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      server.use(
+        http.get(`${API_BASE_URL}/honorifics`, () =>
+          HttpResponse.json([HONORIFIC_MR, HONORIFIC_MS]),
+        ),
+        http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])),
+      );
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /add member/i }));
+      await userEvent.selectOptions(screen.getByLabelText(/gender/i), "Male");
+      expect(screen.getByLabelText(/honorific/i)).toHaveValue(HONORIFIC_MR.id);
+
+      // Explicitly overriding stays in effect even if Gender changes again.
+      await userEvent.selectOptions(screen.getByLabelText(/honorific/i), HONORIFIC_MS.id);
+      await userEvent.selectOptions(screen.getByLabelText(/gender/i), "Other");
+      expect(screen.getByLabelText(/honorific/i)).toHaveValue(HONORIFIC_MS.id);
+    });
+
+    it("generates a new member application PDF and sends it by email", async () => {
+      let application;
+      server.use(
+        http.post(`${API_BASE_URL}/member-applications`, async ({ request }) => {
+          const body = await request.json();
+          application = {
+            id: "application-1",
+            ...body,
+            email_sent_at: null,
+            whatsapp_sent_at: null,
+            created_at: new Date().toISOString(),
+            pdf_url: "/static/applications/abc123.pdf",
+          };
+          return HttpResponse.json(application, { status: 201 });
+        }),
+        http.post(`${API_BASE_URL}/member-applications/application-1/send`, async ({ request }) => {
+          const { channel } = await request.json();
+          application = {
+            ...application,
+            email_sent_at: channel === "email" ? new Date().toISOString() : application.email_sent_at,
+          };
+          return HttpResponse.json(application);
+        }),
+      );
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /^application$/i }));
+      await userEvent.type(screen.getByLabelText(/^name$/i), "Prospective Member");
+      await userEvent.type(screen.getByLabelText(/^email$/i), "prospect@example.com");
+      await userEvent.click(screen.getByRole("button", { name: /generate application/i }));
+
+      expect(await screen.findByText(/download the pdf/i)).toBeInTheDocument();
+      expect(screen.getByText(/not emailed yet/i)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /^send email$/i }));
+
+      expect(await screen.findByText(/emailed/i)).toBeInTheDocument();
+    });
+
+    it("marks a new member application sent via WhatsApp with a manual checkbox", async () => {
+      let application;
+      server.use(
+        http.post(`${API_BASE_URL}/member-applications`, async ({ request }) => {
+          const body = await request.json();
+          application = {
+            id: "application-2",
+            ...body,
+            email_sent_at: null,
+            whatsapp_sent_at: null,
+            created_at: new Date().toISOString(),
+            pdf_url: "/static/applications/def456.pdf",
+          };
+          return HttpResponse.json(application, { status: 201 });
+        }),
+        http.post(`${API_BASE_URL}/member-applications/application-2/send`, async () => {
+          application = { ...application, whatsapp_sent_at: new Date().toISOString() };
+          return HttpResponse.json(application);
+        }),
+      );
+
+      renderMembersList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /^application$/i }));
+      await userEvent.type(screen.getByLabelText(/^name$/i), "Prospective Member");
+      await userEvent.click(screen.getByRole("button", { name: /generate application/i }));
+
+      await screen.findByText(/download the pdf/i);
+      await userEvent.click(screen.getByLabelText(/sent via whatsapp/i));
+
+      await waitFor(() => expect(screen.getByLabelText(/sent via whatsapp/i)).toBeChecked());
     });
 
     it("includes the honorary flag (Story 8.14) when creating a member", async () => {

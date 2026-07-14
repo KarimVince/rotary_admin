@@ -31,6 +31,7 @@ class Member(Base):
         ),
         Index("idx_members_status", "status"),
         Index("idx_members_title", "title_id"),
+        Index("idx_members_honorific", "honorific_id"),
         Index("idx_members_nationality", "nationality"),
         Index("idx_members_classification", "classification"),
     )
@@ -48,6 +49,11 @@ class Member(Base):
     title_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("member_titles.id")
     )
+    # Story 8.3: personal honorific (Mr./Mrs./Ms./Dr. etc.) — distinct from
+    # title_id above, which is the Rotary role (P/PP/IPP/CP/Rtn).
+    honorific_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("honorifics.id")
+    )
     join_date: Mapped["Date"] = mapped_column(Date, nullable=False)
     leave_date: Mapped["Date | None"] = mapped_column(Date)
     rotarian_since: Mapped["Date | None"] = mapped_column(Date)
@@ -59,6 +65,10 @@ class Member(Base):
     gender: Mapped[str | None] = mapped_column(member_gender_enum)
     nationality: Mapped[str | None] = mapped_column(String(100))
     address: Mapped[str | None] = mapped_column(Text)
+    # Story 8.3: new-member-application fields.
+    company_name: Mapped[str | None] = mapped_column(String(200))
+    position: Mapped[str | None] = mapped_column(String(200))
+    proposer_name: Mapped[str | None] = mapped_column(String(200))
     is_couple: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     # Story 8.14: honorary is no longer a status value — it's a flag on an
     # otherwise-Active member. Only meaningful when status == "active".
