@@ -371,6 +371,44 @@ select:focus {
   flex-direction: column;
 }
 
+/* Story 8.28: Fees module header row (Tracking/Run + Settings pages). A
+   dedicated class rather than reusing `.email-controls-row` so the fix here
+   can't shift unrelated Members/Friends/Attendance rows that already share
+   that class. Label/control rules are declared at this container level
+   (not per-element) so every label+control pair lines up the same
+   regardless of which page-specific classes (e.g. `.fee-year-label`) an
+   individual element also carries — those are lower specificity and lose
+   to the rules below. `flex-start` (not `flex-end`) is deliberate: it pins
+   every column's label to the same top edge instead of bottom-aligning
+   columns of differing height. */
+.fee-controls-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.fee-controls-row > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.fee-controls-row > div label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.fee-controls-row > div select,
+.fee-controls-row > div input {
+  font-size: 14px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 140px;
+}
+
 .email-attachment-list {
   list-style: none;
   margin: 4px 0;
@@ -423,6 +461,25 @@ select:focus {
   font-size: 12px;
   cursor: pointer;
   margin-right: 4px;
+}
+
+/* Dinner Events (Story 15.1) — 7 data columns + Actions is more than the
+   900px .admin-page standard comfortably fits; widen just this page rather
+   than the shared standard, and keep Date from wrapping onto two lines.
+   Story 15.9 reuses this same 1400px value (not a new width variable) as a
+   shared modifier for every other page whose table/card-grid/chart content
+   was similarly cramped at 900px — see .admin-page-wide below. */
+.admin-page.dinner-events-page,
+.admin-page.admin-page-wide {
+  max-width: 1400px;
+}
+
+.dinner-events-table-wrap {
+  overflow-x: auto;
+}
+
+.dinner-events-table td.dinner-events-date-cell {
+  white-space: nowrap;
 }
 
 /* Permission matrix (Story 12.2) — compact Menu/Submenu tree, vertical
@@ -895,26 +952,18 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 24px;
-}
-
-.fee-add-year-form label {
-  font-size: 12px;
-  color: var(--text-h);
-}
-
-.fee-add-year-form input {
-  width: 100px;
-  padding: 4px 8px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
 }
 
 .fee-add-year-form button {
   padding: 4px 10px;
   font-size: 13px;
   cursor: pointer;
+}
+
+.fee-add-year-preview {
+  font-size: 13px;
+  color: var(--text-h);
+  white-space: nowrap;
 }
 
 .fee-tracking-placeholder-row {

@@ -101,6 +101,16 @@ const NAV_ITEMS = [
     requiredPermission: "attendance",
     children: [
       {
+        // Story 15.1 — Dinner event planning list, matrix-driven via the
+        // attendance.forecast submenu key (internal key name unchanged;
+        // user-facing label dropped "Forecast" since the list holds past
+        // events too, not just upcoming ones). Ordered ahead of Attendance
+        // since planning a dinner comes before tracking who showed up.
+        to: "/dinners/forecast",
+        label: "Dinner Events",
+        requiredPermission: "attendance.forecast",
+      },
+      {
         to: "/dinners/attendance",
         label: "Attendance",
         end: true,
@@ -144,11 +154,21 @@ const NAV_ITEMS = [
         label: "Member Titles",
         requiredPermission: "admin.member_titles",
       },
+      {
+        to: "/admin/honorifics",
+        label: "Honorifics",
+        requiredPermission: "admin.honorifics",
+      },
       { to: "/admin/currencies", label: "Currencies", requiredPermission: "admin.currencies" },
       {
         to: "/admin/ngo-classifications",
         label: "NGO Classifications",
         requiredPermission: "admin.ngo_classifications",
+      },
+      {
+        to: "/admin/ppt-template",
+        label: "PPT Template",
+        requiredPermission: "admin.ppt_template",
       },
     ],
   },
@@ -188,10 +208,13 @@ export default function AppLayout() {
   const { canRead: canViewBoardPositions } = useAccess("board.positions");
   const { canRead: canViewAdmin } = useAccess("admin");
   const { canRead: canViewAdminMemberTitles } = useAccess("admin.member_titles");
+  const { canRead: canViewAdminHonorifics } = useAccess("admin.honorifics");
   const { canRead: canViewAdminCurrencies } = useAccess("admin.currencies");
   const { canRead: canViewAdminNgoClassifications } = useAccess("admin.ngo_classifications");
+  const { canRead: canViewAdminPptTemplate } = useAccess("admin.ppt_template");
   const { canRead: canViewAttendance } = useAccess("attendance");
   const { canRead: canViewAttendanceHistory } = useAccess("attendance.history");
+  const { canRead: canViewAttendanceForecast } = useAccess("attendance.forecast");
 
   const permissionChecks = {
     fees: canViewFees,
@@ -215,10 +238,13 @@ export default function AppLayout() {
     "board.positions": canViewBoardPositions,
     admin: canViewAdmin,
     "admin.member_titles": canViewAdminMemberTitles,
+    "admin.honorifics": canViewAdminHonorifics,
     "admin.currencies": canViewAdminCurrencies,
     "admin.ngo_classifications": canViewAdminNgoClassifications,
+    "admin.ppt_template": canViewAdminPptTemplate,
     attendance: canViewAttendance,
     "attendance.history": canViewAttendanceHistory,
+    "attendance.forecast": canViewAttendanceForecast,
   };
 
   // Story 12.9: one consistent rule for the whole nav — Menu-level

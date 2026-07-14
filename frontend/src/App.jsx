@@ -3,17 +3,20 @@ import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionsProvider } from "./context/PermissionsContext";
+import AdminPptTemplate from "./pages/AdminPptTemplate";
 import AttendanceHistory from "./pages/AttendanceHistory";
 import AttendanceSheet from "./pages/AttendanceSheet";
 import BoardMembers from "./pages/BoardMembers";
 import BoardPositionManagement from "./pages/BoardPositionManagement";
 import CurrencyManagement from "./pages/CurrencyManagement";
 import Dashboard from "./pages/Dashboard";
+import DinnerForecast from "./pages/DinnerForecast";
 import DonationsStatistics from "./pages/DonationsStatistics";
 import FeeRunManagement from "./pages/FeeRunManagement";
 import FeeSettingsManagement from "./pages/FeeSettingsManagement";
 import FeeStatistics from "./pages/FeeStatistics";
 import FeeTracking from "./pages/FeeTracking";
+import HonorificManagement from "./pages/HonorificManagement";
 import Login from "./pages/Login";
 import MemberTitleManagement from "./pages/MemberTitleManagement";
 import MembersEmail from "./pages/MembersEmail";
@@ -53,6 +56,9 @@ function App() {
                 path="/admin/ngo-classifications"
                 element={<NgoClassificationManagement />}
               />
+              {/* Story 8.23 — same reasoning as NGO Classifications above:
+                  matrix-driven (admin.ppt_template), not admin-role-only. */}
+              <Route path="/admin/ppt-template" element={<AdminPptTemplate />} />
               <Route path="/fees/settings" element={<FeeSettingsManagement />} />
               <Route path="/fees/run" element={<FeeRunManagement />} />
               <Route path="/fees/tracking" element={<FeeTracking />} />
@@ -63,9 +69,15 @@ function App() {
               <Route path="/board/members" element={<BoardMembers />} />
               <Route path="/dinners/attendance" element={<AttendanceHistory />} />
               <Route path="/dinners/attendance/:eventId" element={<AttendanceSheet />} />
+              <Route path="/dinners/forecast" element={<DinnerForecast />} />
               <Route element={<ProtectedRoute requiredRole="admin" />}>
                 <Route path="/admin/users" element={<UserManagement />} />
                 <Route path="/admin/member-titles" element={<MemberTitleManagement />} />
+                {/* Story 8.3 — admin.honorifics is admin-role-only in the
+                    matrix (same tier as Member Titles above), so it belongs
+                    in this block too, not out with NGO Classifications/PPT
+                    Template which grant wider board access. */}
+                <Route path="/admin/honorifics" element={<HonorificManagement />} />
                 <Route path="/board/positions" element={<BoardPositionManagement />} />
                 <Route path="/admin/permissions" element={<PermissionMatrixManagement />} />
                 <Route path="/members/email" element={<MembersEmail />} />

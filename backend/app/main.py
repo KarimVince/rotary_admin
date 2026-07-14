@@ -9,17 +9,21 @@ from app.api import (
     auth,
     board,
     dashboard,
+    dinner_forecast,
     donations,
     exchange_rates,
     fee_runs,
     fee_settings,
     health,
+    honorifics,
+    member_applications,
     member_email,
     member_fees,
     member_titles,
     members,
     ngo_classifications,
     organisations,
+    ppt_templates,
     rotary_friend_email,
     rotary_friend_import,
     rotary_friends,
@@ -40,15 +44,20 @@ app.add_middleware(
 os.makedirs(os.path.join(settings.upload_dir, "members"), exist_ok=True)
 os.makedirs(os.path.join(settings.upload_dir, "organisations"), exist_ok=True)
 os.makedirs(os.path.join(settings.upload_dir, "email-attachments"), exist_ok=True)
+os.makedirs(os.path.join(settings.upload_dir, "ppt-templates"), exist_ok=True)
+os.makedirs(os.path.join(settings.upload_dir, "applications"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=settings.upload_dir), name="static")
 
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(member_titles.router, prefix="/api/v1", tags=["member-titles"])
+app.include_router(honorifics.router, prefix="/api/v1", tags=["honorifics"])
 app.include_router(member_email.router, prefix="/api/v1", tags=["members"])
 app.include_router(members.router, prefix="/api/v1", tags=["members"])
+app.include_router(member_applications.router, prefix="/api/v1", tags=["member-applications"])
 app.include_router(organisations.router, prefix="/api/v1", tags=["organisations"])
+app.include_router(ppt_templates.router, prefix="/api/v1", tags=["ppt-templates"])
 app.include_router(ngo_classifications.router, prefix="/api/v1", tags=["ngo-classifications"])
 app.include_router(donations.router, prefix="/api/v1", tags=["donations"])
 app.include_router(exchange_rates.router, prefix="/api/v1", tags=["exchange-rates"])
@@ -62,4 +71,5 @@ app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(board.router, prefix="/api/v1", tags=["board"])
 app.include_router(attendance.router, prefix="/api/v1", tags=["attendance"])
+app.include_router(dinner_forecast.router, prefix="/api/v1", tags=["dinner-forecast"])
 app.include_router(auth.router)

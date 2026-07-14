@@ -8,10 +8,103 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-07-10)
+## Current status / resume from here (2026-07-12)
 - **Epics 1, 2, 2b, 3, 4, 5, 7 are complete.** Epic 8 items are worked
   piecemeal from the backlog as requested (several already done — see
   ClickUp for current state, not this file).
+- **Epic 8 Story 8.3 done this session** (new-member application PDF +
+  send), **scoped down with the user first**: only `honorific`,
+  `company_name`, `position`, `proposer_name` were added — `spouse_name`/
+  `spouse_phone` were explicitly dropped from both the schema and the
+  generated PDF. New `honorifics` lookup table (migration `d3f8b2a7c1e9`,
+  mirrors `member_titles` exactly, admin-role-only tier — new "Honorifics"
+  admin tab) with a Gender→Honorific **convenience default only** (Male/
+  Female pre-fills Mr./Ms. the first time, never overrides an explicit
+  choice, Dr./Prof./Miss/Mrs. stay freely selectable). "New Member
+  Application" button on Members Directory generates a fillable AcroForm
+  PDF (`app/core/member_application_pdf.py`, `reportlab`'s low-level
+  Canvas/`acroForm` API — new territory, `statistics_report.py`'s platypus
+  flowables don't support form fields) pre-filled with Name/Email/Phone,
+  page 2 has the 3 club rules **reconstructed from the story's own summary**
+  (the actual source docx wasn't available — flag if wording needs to match
+  it exactly). Email send reuses the existing Resend attachment mechanism;
+  **WhatsApp send is a manual "mark sent" checkbox only** (no real API —
+  matches the existing fee-invoice `last_channel="whatsapp"` convention,
+  since WhatsApp integration itself is still deferred to Epic 8's WhatsApp
+  block). Verified live against the real dev DB (migration + reseed run
+  with the user's go-ahead): Honorifics admin CRUD, the member form's new
+  fields, the Gender-default behavior, and the full application generate→
+  download→email/WhatsApp-mark flow (confirmed via `strings` that the
+  AcroForm fields actually contain the prefilled values). Test artifacts
+  cleaned up afterward. New backend + frontend tests added, not run (per
+  the rule below). **Still not committed or pushed.**
+- **Epic 8 Story 8.23 done this session** (PPT annual template support),
+  **scoped to Members Statistics only** — 8.23 depends on Story 8.13
+  (Simplified/Integral choice), which hadn't been started, and 8.13 itself
+  only fully makes sense once NGO/Friends/Fees statistics pages get real
+  PDF/PPT generation (Story 8.32 — still placeholders there). Agreed this
+  narrower scope with the user rather than pulling in 8.13+8.32 wholesale.
+  New Admin → PPT Template tab (`admin.ppt_template` app_function, same
+  write tier as NGO Classifications — Secretary/President/President Elect;
+  migration `c9e1a4f7d3b8`) lets those roles upload/replace/delete a
+  `.pptx`, one per rotary year, stored at
+  `uploads/ppt-templates/{year}.pptx` (deterministic filename, Replace
+  overwrites in place). Members Statistics' Generate Report row gained a
+  Simplified/Integral content selector and a "Use annual club template"
+  checkbox (disabled with a tooltip when no template exists or format is
+  PDF; template doesn't apply to PDF). Integral adds a detail section of
+  tables restating each of the 6 charts' underlying figures — **8.13 wasn't
+  originally scoped for Members**, so this is this story's own
+  interpretation of "detail section" for that page, reusing existing data
+  (no new queries). Template injection opens the uploaded `.pptx` via
+  `Presentation(template_path)` and scales the from-scratch layout by the
+  ratio of the template's actual slide width to the app's 13.333in design
+  width, so content fits regardless of the uploaded template's own
+  dimensions. Verified live against the real dev DB: uploaded a real
+  `.pptx`, confirmed the read-path, then hit all 6 format×content×template
+  combinations directly — all 200 OK with correct PPTX slide counts (1
+  Simplified, 7 Integral, same with/without template). Migration +
+  `seed_permission_matrix.py` **have been run against the real dev DB**
+  (with the user's explicit go-ahead) — confirmed. Test artifact from the
+  live-verification upload was deleted afterward. New backend + frontend
+  tests added, not run (per the testing rule below). **Still not committed
+  or pushed** — only do so when explicitly asked.
+- **Epic 8 Stories 8.28, 8.29, 8.31 done this session** (branch
+  `epic-11-ngo-classification` — not yet moved to its own branch; still
+  uncommitted). 8.28: Fees module header-row label/selector alignment fixed
+  via a new `.fee-controls-row` class (scoped to Fees only, doesn't touch
+  the shared `.email-controls-row` used by Members/Friends/Attendance).
+  Fee Settings' "Add a year" control moved into that same row alongside the
+  Rotary year selector, with a default-prefilled next year and a live
+  `→ 2027–2028` range preview next to the input. 8.29: Fee Tracking's
+  Amount Paid now accepts 0 (fee-exempt members); added inline-editable
+  **Invoice Sent** checkbox and **Channel** (Mail/WhatsApp/Manual) select to
+  the tracking row — selecting Manual auto-checks Invoice Sent. **Member
+  scoping fixed**: Fee Run + Fee Tracking previously built their member list
+  from `Member.status=="active"` (today's status) regardless of which
+  rotary year was selected — now both use a new `active_in_rotary_year`
+  query param on `GET /members` (join_date/leave_date based, migration-free,
+  just a new filter), so past years correctly include members who've since
+  left and exclude members who joined later. This was also why past years
+  looked broken for fee run/tracking — same bug, not a separate access
+  restriction. Honorary exclusion (already correct in fee run generation
+  since 8.14) is now also applied in Fee Tracking's member fetch.
+  **Deliberate deviation, flagged in ClickUp**: the channel enum stayed
+  `email`/`whatsapp`/`manual` in the DB (not renamed to `mail` per the
+  story's literal wording) to avoid breaking the existing Fee Run send-invoice
+  flow which already uses `email` — UI labels still show "Mail". Migration
+  `b4d7e1f9a3c6` (adds `'manual'` to the `fee_channel` Postgres enum) **has
+  been run against the real dev DB** (confirmed via a live PATCH selecting
+  Manual and it persisting). 8.31: Fees Statistics revamped — old
+  price-tier bar chart removed; added an Average Fee card
+  (`total_collected / active non-honorary member count`, same date-scoping
+  as 8.29) and two new full-history charts (Amount Collected, Paying
+  Members split Paid/Zero) via a new `GET /member-fees/statistics/history`
+  endpoint, independent of the page's year selector. All three backend +
+  frontend changes verified live against the real dev DB/app; new backend
+  tests added but **not run** (per the testing rule below — only the
+  epic's `x.99` story runs the full suite). **Still not committed or
+  pushed** — only do so when explicitly asked.
 - **Epic 9 (Board Roles & Access Control) is CLOSED — superseded by Epic 12**
   (Permission Matrix Hierarchy Revamp). Epic 9's flat App Function list
   never matched a real per-module rollout; Epic 12 replaced it with a strict
@@ -118,9 +211,73 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
   renaming the test fixtures to non-colliding names (e.g. "Test Health
   Class"); not an app bug. **Still not committed or pushed** — only do so
   when explicitly asked.
-- **Next up per the recommended sequence:** ask the user about committing/
-  pushing Epic 11, then Epic 6 (Production Deployment, the last unstarted
-  item in the original build-order).
+- **Epic 15 (Dinner Forecast & Event Planning) is implemented** (Stories
+  15.1-15.3, branch `epic-15-dinner-forecast`, branched off
+  `epic-11-ngo-classification`). **Two deliberate deviations from the
+  literal ClickUp spec, agreed with the user first, each flagged as a
+  ClickUp comment on its story:** (1) 15.3's spec assumed attendance used a
+  free-text event name and asked for a new `dinner_event_id` FK — wrong,
+  Epic 10 already links `AttendanceRecord.event_id` to a structured
+  `AttendanceEvent`. The user confirmed "dinner forecast event" and
+  "attendance event" are the same concept, so **no new table/FK was
+  added** — `AttendanceEvent` gained the new planning fields instead
+  (`location`, `speaker_name`, `ngo_organisation_id` FK → organisations
+  `ON DELETE SET NULL`, `topics_description`, `deleted_at` soft-delete).
+  Creating an event via the new Dinner Forecast page does **not** seed
+  attendance records (unlike the old direct-create flow); a new
+  `POST /attendance/events/{id}/start` does that instead, called from the
+  Attendance page's "New Event" button, now a picker
+  (`AttendanceStartEventModal`) over unstarted Dinner Forecast events
+  instead of a free-form create form. The old `POST /attendance/events`
+  create endpoint and its edit modal (`AttendanceEventFormModal`, still
+  used by the Sheet page's own "Edit" action) were left untouched — no
+  existing behavior/tests broken. (2) 15.2's PDF header wants both a Rotary
+  International logo and the Club logo side-by-side — only the club logo
+  (`backend/app/assets/rotary-logo.png`) exists anywhere in this repo. The
+  report code (`app/core/dinner_forecast_report.py`) renders both if
+  present (`INTL_LOGO_PATH` → `backend/app/assets/rotary-international-
+  logo.png`) and silently renders just the club logo otherwise — user said
+  they can supply the second file later, drop it at that path and it
+  appears with no code change. Also per explicit user answer (not a spec
+  deviation): all "searchable dropdown" ACs (NGO/event pickers) built as
+  plain native `<select>`, matching this app's existing convention (no
+  combobox component exists anywhere). New `attendance.forecast`
+  permission key added under the existing "Dinner" menu (same board tier
+  as `attendance.sheet`/`attendance.history`: read for everyone, write for
+  President/President Elect/Secretary) — migrations `a7c2e5f1b9d4`
+  (fields) and `b9f4d7a2c6e1` (app_function), plus the matching
+  `seed_permission_matrix.py` entry. New backend + frontend tests added,
+  **not run** (per the testing rule below — Story 15.99 was created in
+  ClickUp as the epic's test & fix story and is the one place that
+  happens). **Migrations not run against the dev DB yet. Not committed or
+  pushed** — only do so when explicitly asked.
+- **Next up per the recommended sequence:** work Story 15.99 (test & fix)
+  when asked, then ask the user about committing/pushing Epics 11/15, then
+  Epic 6 (Production Deployment, the last unstarted item in the original
+  build-order).
+- **Epic 14 (Event Management) started — Story 14.1 only** (branch
+  `epic-14-event-management`, branched off `epic-15-dinner-forecast`). This
+  is a large 13-story epic (gala/fundraiser event management: guests,
+  tables, auction/lucky draw items, costs, sponsors, run-down, summary
+  reports); explicitly told to do Story 14.1 (data model) and stop, one
+  story per session going forward due to its size. 11 new tables (`events`,
+  `event_setup`, `event_table_mapping`, `event_guests`, `event_items`,
+  `event_lucky_draw_config`, `event_costs`, `event_sponsors`,
+  `event_rundown`, `event_cost_categories`, `event_sponsor_categories`),
+  migration `d8e4a1c6f3b9`. Several deliberate deviations from the literal
+  spec flagged as a ClickUp comment on 14.1 (rotary_year as Integer not a
+  "YYYY-YYYY" string, oc_chair_member_id nullable, event_guests.table_number
+  is a plain int not a formal composite FK — a composite FK with
+  ON DELETE SET NULL would've nulled event_id too, event_rundown.time is a
+  string not a Time column, category columns on costs/sponsors are plain
+  strings not FKs, lot_ref auto-generation deferred to Story 14.6, default
+  cost/sponsor categories are unspecified-by-the-story placeholders to
+  review, total_cost computed application-side not via DB trigger).
+  Migration validated by running upgrade → downgrade → upgrade against the
+  isolated `rotary_admin_test` DB (not the dev DB) — round-trips cleanly.
+  **Not run against the dev DB, not committed/pushed.** Stories 14.2-14.12 +
+  14.99 (API/UI/reports/permissions/test&fix) are all still to do — each is
+  its own session given the size.
 - **Known open issue — email sending is not fully working yet:**
   - Switched email provider from Sender.net to **Resend** mid-Epic-4 (Sender's
     API key was never actually configured locally, and rather than fix that
