@@ -1,0 +1,91 @@
+# Story 6.6 — deploy to production on every push to main, but only if the
+# full backend + frontend test suites pass. Deliberately a separate workflow
+# from ci.yml (which stays workflow_dispatch-only per doc/CLAUDE.md's testing
+# rule for day-to-day feature work) — this one exists specifically to gate
+# production releases and is expected to run automatically once Epic 6 goes
+# live.
+#
+# Render's render.yaml has autoDeploy: false on both services, so nothing
+# deploys on push by itself — only this workflow's curl calls to each
+# service's Deploy Hook URL (Render dashboard -> service -> Settings ->
+# Deploy Hook) trigger a deploy, and only after the "test" job is green.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   RENDER_BACKEND_DEPLOY_HOOK_URL
+#   RENDER_FRONTEND_DEPLOY_HOOK_URL
+# See DEPLOYMENT.md for where to find these in the Render dashboard.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rotary_admin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/rotary_admin
+      JWT_SECRET: ci-test-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m venv venv
+          venv/bin/pip install --upgrade pip
+          venv/bin/pip install -r requirements.txt
+
+      - name: Apply migrations
+        working-directory: backend
+        run: venv/bin/alembic upgrade head
+
+      - name: Run backend test suite
+        working-directory: backend
+        run: venv/bin/pytest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend test suite
+        working-directory: frontend
+        run: npm run test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render backend deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}"
+
+      - name: Trigger Render frontend deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK_URL }}"

@@ -1,0 +1,71 @@
+# Render Blueprint (Story 6.3/6.4) — deploys the FastAPI backend as a web
+# service and the Vite/React frontend as a static site from this one repo.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Render
+# reads this file and creates both services. Env vars marked `sync: false`
+# are NOT set here (never commit secrets) — Render prompts for them in the
+# dashboard on first deploy; see DEPLOYMENT.md for the exact values to enter.
+#
+# autoDeploy is false on both services deliberately (Story 6.6): deploys are
+# triggered by .github/workflows/deploy.yml only after the test suite
+# passes, via each service's Deploy Hook URL, not on every push.
+
+services:
+  - type: web
+    name: rotary-admin-backend
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    autoDeploy: false
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: RESEND_FROM_NAME
+        value: Rotary Club of Discovery Bay
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_FULL_NAME
+        value: Admin
+      - key: MEMBER_SEED_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: UPLOAD_DIR
+        value: uploads
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: FRONTEND_BASE_URL
+        sync: false
+      - key: MAX_EMAIL_ATTACHMENT_BYTES
+        value: "10485760"
+
+  - type: web
+    name: rotary-admin-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    autoDeploy: false
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+    routes:
+      # SPA fallback — React Router handles client-side routing.
+      - type: rewrite
+        source: /*
+        destination: /index.html
