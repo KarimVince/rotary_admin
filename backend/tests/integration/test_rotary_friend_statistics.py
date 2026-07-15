@@ -50,6 +50,63 @@ def test_statistics_aggregates_source_and_tag(admin_client):
     assert by_tag == {"donor": 2, "alumni": 1}
 
 
+def test_report_requires_authentication(client):
+    response = client.post("/api/v1/rotary-friends/statistics/report?format=pdf")
+    assert response.status_code == 401
+
+
+def test_generate_pdf_report(admin_client):
+    admin_client.post(
+        "/api/v1/rotary-friends",
+        json={"first_name": "Sara", "last_name": "Nguyen", "email": "sara@example.com"},
+    )
+
+    response = admin_client.post("/api/v1/rotary-friends/statistics/report?format=pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content[:4] == b"%PDF"
+    assert "friends-statistics_" in response.headers["content-disposition"]
+
+
+def test_generate_pptx_report(admin_client):
+    response = admin_client.post("/api/v1/rotary-friends/statistics/report?format=pptx")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+    assert response.content[:2] == b"PK"
+
+
+def test_generate_integral_report_includes_detail(admin_client):
+    admin_client.post(
+        "/api/v1/rotary-friends",
+        json={"first_name": "Sara", "last_name": "Nguyen", "email": "sara@example.com"},
+    )
+
+    response = admin_client.post(
+        "/api/v1/rotary-friends/statistics/report?format=pdf&type=integral"
+    )
+
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+
+
+def test_use_template_on_pdf_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/rotary-friends/statistics/report?format=pdf&use_template=true"
+    )
+    assert response.status_code == 422
+
+
+def test_use_template_without_upload_returns_400(admin_client):
+    response = admin_client.post(
+        "/api/v1/rotary-friends/statistics/report?format=pptx&use_template=true"
+    )
+    assert response.status_code == 400
+
+
 def test_statistics_contactability_breakdown(admin_client):
     admin_client.post(
         "/api/v1/rotary-friends",

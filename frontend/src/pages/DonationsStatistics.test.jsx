@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import DonationsStatistics from "./DonationsStatistics";
@@ -64,6 +65,9 @@ describe("DonationsStatistics", () => {
       // Story 11.6 — fetched non-fatally on mount for the classification
       // filter; default to empty so existing tests don't need to know about it.
       http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
+      // Story 8.32 — fetched non-fatally on mount to gate the "Use annual
+      // club template" checkbox; default to "none uploaded".
+      http.get(`${API_BASE_URL}/ppt-templates/current`, () => HttpResponse.json(null)),
     );
   });
 
@@ -243,5 +247,67 @@ describe("DonationsStatistics", () => {
       screen.getByText(`By classification — ${THIS_YEAR}–${THIS_YEAR + 1}`),
     ).toBeInTheDocument();
     expect(screen.getByText("By classification — All years")).toBeInTheDocument();
+  });
+
+  describe("Generate Report (Story 8.32)", () => {
+    let originalCreateObjectURL;
+    let originalRevokeObjectURL;
+
+    beforeEach(() => {
+      originalCreateObjectURL = URL.createObjectURL;
+      originalRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = vi.fn(() => "blob:mock-url");
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    afterEach(() => {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it("downloads a report respecting the active format, content type, year, and currency filters", async () => {
+      let requestUrl;
+      server.use(
+        http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
+        http.post(`${API_BASE_URL}/donations/statistics/report`, ({ request }) => {
+          requestUrl = new URL(request.url);
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="ngo-statistics.pdf"',
+            },
+          });
+        }),
+      );
+
+      render(<DonationsStatistics />);
+      await screen.findByText("1,300 HKD");
+
+      await userEvent.selectOptions(screen.getByLabelText("Content"), "integral");
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+      expect(requestUrl.searchParams.get("format")).toBe("pdf");
+      expect(requestUrl.searchParams.get("type")).toBe("integral");
+      expect(requestUrl.searchParams.get("rotary_year")).toBe(String(THIS_YEAR));
+      expect(requestUrl.searchParams.get("currency")).toBe("HKD");
+    });
+
+    it("shows an error message when report generation fails", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
+        http.post(`${API_BASE_URL}/donations/statistics/report`, () =>
+          HttpResponse.json({ detail: "No data to report" }, { status: 400 }),
+        ),
+      );
+
+      render(<DonationsStatistics />);
+      await screen.findByText("1,300 HKD");
+
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      expect(await screen.findByText("No data to report")).toBeInTheDocument();
+    });
   });
 });

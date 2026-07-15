@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiDownload, apiFetch } from "./client";
 
 function buildQuery(params) {
   const query = new URLSearchParams();
@@ -37,4 +37,10 @@ export function deleteRotaryFriend(friendId) {
 
 export function fetchRotaryFriendStatistics() {
   return apiFetch("/rotary-friends/statistics");
+}
+
+export function generateRotaryFriendStatisticsReport(format, { reportType = "simplified", useTemplate = false } = {}) {
+  const params = new URLSearchParams({ format, type: reportType });
+  if (useTemplate) params.set("use_template", "true");
+  return apiDownload(`/rotary-friends/statistics/report?${params.toString()}`, { method: "POST" });
 }

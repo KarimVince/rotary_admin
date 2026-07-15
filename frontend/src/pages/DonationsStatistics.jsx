@@ -10,7 +10,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchDonationStatistics } from "../api/donations";
+import { fetchDonationStatistics, generateDonationStatisticsReport } from "../api/donations";
+import { fetchCurrentPptTemplate } from "../api/pptTemplates";
 import { listNgoClassifications } from "../api/ngoClassifications";
 import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
@@ -25,6 +26,9 @@ function formatCurrency(value, currency) {
 
 const STAT_TONES = ["blue", "lavender", "teal", "amber"];
 
+const SESSION_KEY_REPORT_TYPE = "ngoStats.reportType";
+const SESSION_KEY_USE_TEMPLATE = "ngoStats.useTemplate";
+
 export default function DonationsStatistics() {
   const { canRead } = useAccess("ngos.statistics");
   const [stats, setStats] = useState(null);
@@ -32,14 +36,61 @@ export default function DonationsStatistics() {
   const [selectedCurrency, setSelectedCurrency] = useState(null);
   const [selectedYear, setSelectedYear] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
+  const [reportType, setReportType] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_REPORT_TYPE) || "simplified",
+  );
+  const [useTemplate, setUseTemplate] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
+  );
+  const [hasTemplate, setHasTemplate] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
   const [classifications, setClassifications] = useState([]);
   const [classificationFilter, setClassificationFilter] = useState("");
 
-  // Placeholder — report generation isn't implemented yet for NGO statistics.
-  function handleGenerateReport() {
-    setReportError("Report generation is coming soon.");
+  function handleReportTypeChange(value) {
+    setReportType(value);
+    sessionStorage.setItem(SESSION_KEY_REPORT_TYPE, value);
   }
+
+  function handleUseTemplateChange(checked) {
+    setUseTemplate(checked);
+    sessionStorage.setItem(SESSION_KEY_USE_TEMPLATE, String(checked));
+  }
+
+  async function handleGenerateReport() {
+    setIsGeneratingReport(true);
+    setReportError(null);
+    try {
+      const { blob, filename } = await generateDonationStatisticsReport(reportFormat, {
+        reportType,
+        useTemplate: useTemplate && reportFormat === "pptx" && hasTemplate,
+        rotaryYear: selectedYear,
+        classificationId: classificationFilter || undefined,
+        currency: selectedCurrency,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(err.detail || "Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchCurrentPptTemplate()
+      .then((template) => setHasTemplate(Boolean(template)))
+      .catch(() => {
+        // non-fatal — checkbox stays disabled
+      });
+  }, []);
 
   useEffect(() => {
     // Non-fatal — the filter just doesn't render if this fails.
@@ -259,12 +310,42 @@ export default function DonationsStatistics() {
           id="report-format"
           value={reportFormat}
           onChange={(event) => setReportFormat(event.target.value)}
+          disabled={isGeneratingReport}
         >
           <option value="pdf">PDF</option>
           <option value="pptx">PowerPoint (PPTX)</option>
         </select>
-        <button type="button" onClick={handleGenerateReport}>
-          Generate Report
+        <label htmlFor="report-type">Content</label>
+        <select
+          id="report-type"
+          value={reportType}
+          onChange={(event) => handleReportTypeChange(event.target.value)}
+          disabled={isGeneratingReport}
+        >
+          <option value="simplified">Simplified</option>
+          <option value="integral">Integral</option>
+        </select>
+        <label
+          htmlFor="report-use-template"
+          title={
+            reportFormat !== "pptx"
+              ? "The annual club template only applies to PowerPoint (PPTX) reports"
+              : !hasTemplate
+                ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
+                : undefined
+          }
+        >
+          <input
+            id="report-use-template"
+            type="checkbox"
+            checked={useTemplate}
+            onChange={(event) => handleUseTemplateChange(event.target.checked)}
+            disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
+          />
+          Use annual club template
+        </label>
+        <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
+          {isGeneratingReport ? "Generating…" : "Generate Report"}
         </button>
         {reportError && <p role="alert">{reportError}</p>}
       </div>

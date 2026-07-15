@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiDownload, apiFetch } from "./client";
 
 function buildQuery(params) {
   const query = new URLSearchParams();
@@ -41,4 +41,16 @@ export function listDonations(filters = {}) {
 
 export function fetchDonationStatistics(filters = {}) {
   return apiFetch(`/donations/statistics${buildQuery(filters)}`);
+}
+
+export function generateDonationStatisticsReport(
+  format,
+  { reportType = "simplified", useTemplate = false, rotaryYear, classificationId, currency } = {},
+) {
+  const params = new URLSearchParams({ format, type: reportType });
+  if (useTemplate) params.set("use_template", "true");
+  if (rotaryYear !== undefined && rotaryYear !== null) params.set("rotary_year", rotaryYear);
+  if (classificationId) params.set("classification_id", classificationId);
+  if (currency) params.set("currency", currency);
+  return apiDownload(`/donations/statistics/report?${params.toString()}`, { method: "POST" });
 }

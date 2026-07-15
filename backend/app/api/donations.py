@@ -1,12 +1,20 @@
 import uuid
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.api.ppt_templates import template_path_for_year
 from app.core.currency_conversion import convert_totals
+from app.core.donation_statistics_report import (
+    build_pdf_report,
+    build_pptx_report,
+    resolve_logo_path,
+)
+from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
@@ -101,21 +109,13 @@ def list_donations(
     ).all()
 
 
-@router.get("/donations/statistics", response_model=DonationStatistics)
-def donation_statistics(
-    rotary_year: int | None = Query(
-        None,
-        description="Rotary year to compute the selected-year figures for; "
-        "defaults to the current rotary year",
-    ),
-    classification_id: uuid.UUID | None = Query(
-        None, description="Story 11.6: scope every figure to this NGO classification"
-    ),
-    db: Session = Depends(get_db),
-    _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
-):
-    selected_year = rotary_year if rotary_year is not None else compute_current_rotary_year(
-        date.today()
+def _compute_donation_statistics(
+    db: Session, rotary_year_filter: int | None, classification_id: uuid.UUID | None
+) -> DonationStatistics:
+    selected_year = (
+        rotary_year_filter
+        if rotary_year_filter is not None
+        else compute_current_rotary_year(date.today())
     )
 
     classification_org_ids = None
@@ -304,6 +304,114 @@ def donation_statistics(
         selected_year=selected_year_totals,
         all_time_organisations_count=all_time_organisations_count,
         all_time=all_time,
+    )
+
+
+def _ngo_breakdown_for_selected_year(
+    db: Session,
+    selected_year: int,
+    currency: str | None,
+    classification_org_ids,
+) -> list[dict]:
+    """Story 8.32 Integral detail — per-NGO totals for the selected year and
+    currency, ordered descending, including id/logo for image embedding.
+    Separate from `_compute_donation_statistics`'s LabelValueFloat rows
+    (name only) since the report needs the logo file too."""
+    if currency is None:
+        return []
+    query = (
+        db.query(Organisation.name, Organisation.logo_url, func.sum(Donation.amount))
+        .join(Donation, Donation.organisation_id == Organisation.id)
+        .filter(Donation.currency == currency, Donation.rotary_year == selected_year)
+    )
+    if classification_org_ids is not None:
+        query = query.filter(Donation.organisation_id.in_(classification_org_ids))
+    rows = (
+        query.group_by(Organisation.id, Organisation.name, Organisation.logo_url)
+        .order_by(func.sum(Donation.amount).desc())
+        .all()
+    )
+    return [
+        {"name": name, "total": float(total), "logo_path": resolve_logo_path(logo_url)}
+        for name, logo_url, total in rows
+    ]
+
+
+@router.get("/donations/statistics", response_model=DonationStatistics)
+def donation_statistics(
+    rotary_year: int | None = Query(
+        None,
+        description="Rotary year to compute the selected-year figures for; "
+        "defaults to the current rotary year",
+    ),
+    classification_id: uuid.UUID | None = Query(
+        None, description="Story 11.6: scope every figure to this NGO classification"
+    ),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
+):
+    return _compute_donation_statistics(db, rotary_year, classification_id)
+
+
+@router.post("/donations/statistics/report")
+def generate_donation_statistics_report(
+    report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    report_type: Literal["simplified", "integral"] = Query("simplified", alias="type"),
+    use_template: bool = Query(False),
+    rotary_year: int | None = Query(None, description="Defaults to the current rotary year"),
+    classification_id: uuid.UUID | None = Query(None),
+    currency: str | None = Query(
+        None, description="Defaults to the first currency with any donations, same as the page"
+    ),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
+):
+    stats = _compute_donation_statistics(db, rotary_year, classification_id)
+    selected_currency = currency or (stats.by_currency[0].currency if stats.by_currency else None)
+
+    classification_org_ids = None
+    if classification_id is not None:
+        classification_org_ids = db.query(Organisation.id).filter(
+            Organisation.classification_id == classification_id
+        )
+    ngo_breakdown = _ngo_breakdown_for_selected_year(
+        db, stats.selected_rotary_year, selected_currency, classification_org_ids
+    )
+
+    template_path = None
+    if use_template:
+        if report_format != "pptx":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The annual club template only applies to PowerPoint (PPTX) reports",
+            )
+        template_path = template_path_for_year(compute_current_rotary_year(date.today()))
+        if template_path is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No annual template uploaded for this rotary year",
+            )
+
+    if report_format == "pdf":
+        content = build_pdf_report(stats, selected_currency, ngo_breakdown, report_type=report_type)
+        media_type = "application/pdf"
+        filename = generate_report_filename(
+            "ngo-statistics", "pdf", rotary_year=stats.selected_rotary_year
+        )
+    else:
+        content = build_pptx_report(
+            stats, selected_currency, ngo_breakdown, report_type=report_type,
+            template_path=template_path,
+        )
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        filename = generate_report_filename(
+            "ngo-statistics", "pptx", rotary_year=stats.selected_rotary_year
+        )
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

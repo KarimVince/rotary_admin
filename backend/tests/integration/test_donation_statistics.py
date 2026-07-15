@@ -204,3 +204,61 @@ def test_statistics_reports_unconverted_currencies_without_rate(admin_client, ma
     # Distinct-organisation count is unaffected by conversion — the org is
     # still "supported" even though one of its donations couldn't convert.
     assert body["selected_year_organisations_count"] == 1
+
+
+def test_report_requires_authentication(client):
+    response = client.post("/api/v1/donations/statistics/report?format=pdf")
+    assert response.status_code == 401
+
+
+def test_generate_pdf_report_with_no_donations(admin_client):
+    response = admin_client.post("/api/v1/donations/statistics/report?format=pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content[:4] == b"%PDF"
+    assert "ngo-statistics_" in response.headers["content-disposition"]
+
+
+def test_generate_pptx_report(admin_client, make_organisation):
+    org = make_organisation(name="Alpha")
+    _seed(admin_client, org.id, 100, "2024-09-01")
+
+    response = admin_client.post(
+        "/api/v1/donations/statistics/report", params={"format": "pptx", "rotary_year": 2024}
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+    assert response.content[:2] == b"PK"
+
+
+def test_generate_integral_report_with_donations(admin_client, make_organisation):
+    org_a = make_organisation(name="Alpha")
+    org_b = make_organisation(name="Beta")
+    _seed(admin_client, org_a.id, 100, "2024-09-01")
+    _seed(admin_client, org_b.id, 300, "2024-09-02")
+
+    response = admin_client.post(
+        "/api/v1/donations/statistics/report",
+        params={"format": "pdf", "type": "integral", "rotary_year": 2024},
+    )
+
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+
+
+def test_use_template_on_pdf_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/donations/statistics/report?format=pdf&use_template=true"
+    )
+    assert response.status_code == 422
+
+
+def test_use_template_without_upload_returns_400(admin_client):
+    response = admin_client.post(
+        "/api/v1/donations/statistics/report?format=pptx&use_template=true"
+    )
+    assert response.status_code == 400

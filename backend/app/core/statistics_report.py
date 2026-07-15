@@ -96,6 +96,34 @@ def _grouped_bar_chart_png(
     return _fig_to_png(fig)
 
 
+def _horizontal_bar_chart_png(labels: list[str], values: list[float], title: str) -> bytes:
+    """Story 8.32 — mirrors the live pages' `<BarChart layout="vertical">`
+    (NGO's Top Organisations / By Classification charts)."""
+    fig, ax = plt.subplots(figsize=(5.0, max(2.6, 0.3 * len(labels))))
+    ax.barh(labels, values, color=ROTARY_BLUE)
+    ax.invert_yaxis()
+    ax.set_title(title, fontsize=10)
+    ax.tick_params(axis="both", labelsize=7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    return _fig_to_png(fig)
+
+
+def _line_chart_png(labels: list[str], values: list[float], title: str) -> bytes:
+    """Story 8.32 — mirrors the live NGO Statistics page's year-over-year
+    `<LineChart>`."""
+    fig, ax = plt.subplots(figsize=(5.0, 2.6))
+    ax.plot(labels, values, color=ROTARY_GOLD, marker="o", markersize=3)
+    ax.set_title(title, fontsize=10)
+    ax.tick_params(axis="x", rotation=30, labelsize=7)
+    ax.tick_params(axis="y", labelsize=7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    return _fig_to_png(fig)
+
+
 def _pie_chart_png(labels: list[str], values: list[float], title: str) -> bytes:
     fig, ax = plt.subplots(figsize=(5.0, 2.8))
     if sum(values) == 0:

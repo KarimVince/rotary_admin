@@ -1,10 +1,15 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.api.ppt_templates import template_path_for_year
+from app.core.report_filename import generate_report_filename
+from app.core.rotary_friend_statistics_report import build_pdf_report, build_pptx_report
+from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
 from app.core.tags import split_tags
 from app.models import RotaryFriend
@@ -15,6 +20,7 @@ from app.schemas.rotary_friend import (
     RotaryFriendUpdate,
 )
 from app.schemas.rotary_friend_statistics import RotaryFriendStatistics
+from datetime import date
 
 router = APIRouter()
 
@@ -22,35 +28,7 @@ FRIENDS_DIRECTORY = "friends.directory"
 FRIENDS_STATISTICS = "friends.statistics"
 
 
-@router.get("/rotary-friends", response_model=list[RotaryFriendRead])
-def list_rotary_friends(
-    search: str | None = Query(
-        None, description="Case-insensitive match on name, email, or tags"
-    ),
-    db: Session = Depends(get_db),
-    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "read")),
-):
-    query = db.query(RotaryFriend)
-    if search:
-        term = f"%{search}%"
-        query = query.filter(
-            or_(
-                RotaryFriend.first_name.ilike(term),
-                RotaryFriend.last_name.ilike(term),
-                RotaryFriend.email.ilike(term),
-                RotaryFriend.tags.ilike(term),
-            )
-        )
-    return query.order_by(RotaryFriend.last_name, RotaryFriend.first_name).all()
-
-
-@router.get("/rotary-friends/statistics", response_model=RotaryFriendStatistics)
-def rotary_friend_statistics(
-    db: Session = Depends(get_db),
-    _current_user=Depends(require_access(FRIENDS_STATISTICS, "read")),
-):
-    friends = db.query(RotaryFriend).all()
-
+def _compute_statistics(friends: list[RotaryFriend]) -> RotaryFriendStatistics:
     source_counts: dict[str, int] = {}
     tag_counts: dict[str, int] = {}
     contactability_counts = {"Email only": 0, "WhatsApp only": 0, "Both": 0}
@@ -83,6 +61,80 @@ def rotary_friend_statistics(
             for label, count in contactability_counts.items()
             if count > 0
         ],
+    )
+
+
+@router.get("/rotary-friends", response_model=list[RotaryFriendRead])
+def list_rotary_friends(
+    search: str | None = Query(
+        None, description="Case-insensitive match on name, email, or tags"
+    ),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(FRIENDS_DIRECTORY, "read")),
+):
+    query = db.query(RotaryFriend)
+    if search:
+        term = f"%{search}%"
+        query = query.filter(
+            or_(
+                RotaryFriend.first_name.ilike(term),
+                RotaryFriend.last_name.ilike(term),
+                RotaryFriend.email.ilike(term),
+                RotaryFriend.tags.ilike(term),
+            )
+        )
+    return query.order_by(RotaryFriend.last_name, RotaryFriend.first_name).all()
+
+
+@router.get("/rotary-friends/statistics", response_model=RotaryFriendStatistics)
+def rotary_friend_statistics(
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(FRIENDS_STATISTICS, "read")),
+):
+    friends = db.query(RotaryFriend).order_by(RotaryFriend.last_name, RotaryFriend.first_name).all()
+    return _compute_statistics(friends)
+
+
+@router.post("/rotary-friends/statistics/report")
+def generate_rotary_friend_statistics_report(
+    report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    report_type: Literal["simplified", "integral"] = Query("simplified", alias="type"),
+    use_template: bool = Query(False),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(FRIENDS_STATISTICS, "read")),
+):
+    friends = db.query(RotaryFriend).order_by(RotaryFriend.last_name, RotaryFriend.first_name).all()
+    stats = _compute_statistics(friends)
+
+    template_path = None
+    if use_template:
+        if report_format != "pptx":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The annual club template only applies to PowerPoint (PPTX) reports",
+            )
+        template_path = template_path_for_year(compute_current_rotary_year(date.today()))
+        if template_path is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No annual template uploaded for this rotary year",
+            )
+
+    if report_format == "pdf":
+        content = build_pdf_report(stats, friends, report_type=report_type)
+        media_type = "application/pdf"
+        filename = generate_report_filename("friends-statistics", "pdf")
+    else:
+        content = build_pptx_report(
+            stats, friends, report_type=report_type, template_path=template_path
+        )
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        filename = generate_report_filename("friends-statistics", "pptx")
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

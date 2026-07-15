@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import RotaryFriendsStatistics from "./RotaryFriendsStatistics";
 
@@ -10,6 +11,13 @@ vi.mock("../hooks/useAccess", () => ({
 }));
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
+
+beforeEach(() => {
+  sessionStorage.clear();
+  server.use(
+    http.get(`${API_BASE_URL}/ppt-templates/current`, () => HttpResponse.json(null)),
+  );
+});
 
 const STATS = {
   total_friends: 3,
@@ -78,5 +86,68 @@ describe("RotaryFriendsStatistics", () => {
     render(<RotaryFriendsStatistics />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/do not have permission/i);
+  });
+
+  describe("Generate Report (Story 8.32)", () => {
+    let originalCreateObjectURL;
+    let originalRevokeObjectURL;
+
+    beforeEach(() => {
+      mockCanRead = true;
+      originalCreateObjectURL = URL.createObjectURL;
+      originalRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = vi.fn(() => "blob:mock-url");
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    afterEach(() => {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it("downloads a report with the selected format and content type", async () => {
+      let requestUrl;
+      server.use(
+        http.get(`${API_BASE_URL}/rotary-friends/statistics`, () => HttpResponse.json(STATS)),
+        http.post(`${API_BASE_URL}/rotary-friends/statistics/report`, ({ request }) => {
+          requestUrl = new URL(request.url);
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="friends-statistics_2026-07-14.pdf"',
+            },
+          });
+        }),
+      );
+
+      render(<RotaryFriendsStatistics />);
+      await screen.findByText("Total Friends");
+
+      await userEvent.selectOptions(screen.getByLabelText("Content"), "integral");
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+      expect(requestUrl.searchParams.get("format")).toBe("pdf");
+      expect(requestUrl.searchParams.get("type")).toBe("integral");
+    });
+
+    it("disables the annual template checkbox until a template exists and PPTX is selected", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/rotary-friends/statistics`, () => HttpResponse.json(STATS)),
+        http.get(`${API_BASE_URL}/ppt-templates/current`, () =>
+          HttpResponse.json({ id: "t1", rotary_year: 2026 }),
+        ),
+      );
+
+      render(<RotaryFriendsStatistics />);
+      await screen.findByText("Total Friends");
+
+      const checkbox = await screen.findByLabelText(/use annual club template/i);
+      expect(checkbox).toBeDisabled();
+
+      await userEvent.selectOptions(screen.getByLabelText("Generate report"), "pptx");
+      await waitFor(() => expect(checkbox).toBeEnabled());
+    });
   });
 });
