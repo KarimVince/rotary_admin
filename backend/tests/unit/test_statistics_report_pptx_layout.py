@@ -86,3 +86,92 @@ def test_template_slide_size_is_respected_and_content_still_fits():
             assert shape.top + shape.height <= prs.slide_height
     finally:
         template_path.unlink()
+
+
+def _write_default_template(path: Path) -> None:
+    # python-pptx's own default Presentation() ships 11 standard layouts,
+    # including "Title Only" (a title placeholder, no body/object) — the
+    # ideal candidate for Story 8.33's fix, and "Blank" (no placeholders at
+    # all) — the layout the pre-8.33 code always picked, which is exactly
+    # what silently discarded the template's own branding.
+    Presentation().save(str(path))
+
+
+class TestStory833TemplateBrandingFix:
+    """Story 8.33 — an uploaded template's own title placeholder (and
+    whatever master-level background/branding it inherits) must actually be
+    used, not overridden by the app's own hardcoded blue/tone colours."""
+
+    @pytest.fixture
+    def template_path(self, tmp_path):
+        path = tmp_path / "template.pptx"
+        _write_default_template(path)
+        return path
+
+    def test_uses_the_layout_s_title_placeholder_instead_of_a_freehand_textbox(
+        self, template_path
+    ):
+        pptx_bytes = build_pptx_report(_empty_stats(), template_path=template_path)
+        prs = Presentation(BytesIO(pptx_bytes))
+        slide = prs.slides[0]
+
+        assert slide.slide_layout.name == "Title Only"
+        title_shapes = [shape for shape in slide.shapes if shape.is_placeholder]
+        assert len(title_shapes) == 1
+        assert "Members Statistics Report" in title_shapes[0].text_frame.text
+
+    def test_does_not_force_the_app_s_brand_colour_onto_the_template_s_title(
+        self, template_path
+    ):
+        pptx_bytes = build_pptx_report(_empty_stats(), template_path=template_path)
+        prs = Presentation(BytesIO(pptx_bytes))
+        slide = prs.slides[0]
+
+        title_placeholder = next(shape for shape in slide.shapes if shape.is_placeholder)
+        # No explicit colour set on the paragraph — it's left to inherit
+        # whatever the template's own theme defines, not our brand blue.
+        color_type = title_placeholder.text_frame.paragraphs[0].font.color.type
+        assert color_type is None
+
+    def test_stat_cards_stay_transparent_so_template_background_shows_through(
+        self, template_path
+    ):
+        pptx_bytes = build_pptx_report(_empty_stats(), template_path=template_path)
+        prs = Presentation(BytesIO(pptx_bytes))
+        slide = prs.slides[0]
+
+        card_boxes = [
+            shape
+            for shape in slide.shapes
+            if not shape.is_placeholder and shape.has_text_frame and "Total Members" in shape.text_frame.text
+        ]
+        assert card_boxes
+        for box in card_boxes:
+            # fill.background() ("no fill", MSO_FILL_TYPE.BACKGROUND) rather
+            # than a solid tone colour — lets the template's own background
+            # show through instead of painting over it.
+            assert box.fill.type.name == "BACKGROUND"
+
+    def test_default_deck_without_a_template_is_unchanged(self):
+        # Regression guard: no template at all must still hit the
+        # pre-8.33 code path exactly (blank layout, solid tone fills, brand
+        # blue text) — Story 8.33 must not touch this path.
+        pptx_bytes = build_pptx_report(_empty_stats())
+        prs = Presentation(BytesIO(pptx_bytes))
+        slide = prs.slides[0]
+
+        assert slide.slide_layout.name == "Blank"
+        heading_box = next(
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Members Statistics Report" in shape.text_frame.text
+        )
+        assert not heading_box.is_placeholder
+        assert str(heading_box.text_frame.paragraphs[0].font.color.rgb) == "17458F"
+
+        card_box = next(
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Total Members" in shape.text_frame.text
+        )
+        assert card_box.fill.type is not None

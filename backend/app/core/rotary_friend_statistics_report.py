@@ -45,6 +45,10 @@ from app.core.statistics_report import (
     _bar_chart_png,
     _pick_blank_layout,
     _pie_chart_png,
+    _title_placeholder,
+    add_heading,
+    style_card_fill,
+    style_card_text_color,
 )
 from app.models import RotaryFriend
 from app.schemas.rotary_friend_statistics import RotaryFriendStatistics
@@ -166,7 +170,8 @@ def build_pptx_report(
 ) -> bytes:
     report_type_label = "Integral" if report_type == "integral" else "Simplified"
 
-    if template_path is not None:
+    using_template = template_path is not None
+    if using_template:
         prs = Presentation(str(template_path))
         blank_layout = _pick_blank_layout(prs)
     else:
@@ -190,30 +195,23 @@ def build_pptx_report(
         logo_right_edge = logo_pic.left + logo_pic.width
 
     heading_left = logo_right_edge + sc(Inches(0.2))
-    heading_box = slide.shapes.add_textbox(
-        heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)),
-        sc(Inches(0.65)),
+    add_heading(
+        slide,
+        using_template,
+        f"{CLUB_NAME} — {REPORT_TITLE} — {report_type_label} Report",
+        f"Generated {date.today().isoformat()}",
+        (heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)), sc(Inches(0.65))),
     )
-    heading_tf = heading_box.text_frame
-    heading_tf.text = f"{CLUB_NAME} — {REPORT_TITLE} — {report_type_label} Report"
-    heading_tf.paragraphs[0].font.size = Pt(20)
-    heading_tf.paragraphs[0].font.bold = True
-    heading_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
-    date_p = heading_tf.add_paragraph()
-    date_p.text = f"Generated {date.today().isoformat()}"
-    date_p.font.size = Pt(11)
 
     card_box = slide.shapes.add_textbox(sc(Inches(0.3)), sc(Inches(0.95)), sc(Inches(2.5)), sc(Inches(0.9)))
-    card_box.fill.solid()
-    card_box.fill.fore_color.rgb = RGBColor.from_string(TONE_BLUE_BG.lstrip("#").upper())
-    card_box.line.fill.background()
+    style_card_fill(card_box, TONE_BLUE_BG, using_template)
     card_tf = card_box.text_frame
     card_tf.margin_left = Pt(8)
     card_tf.margin_top = Pt(6)
     card_tf.text = str(stats.total_friends)
     card_tf.paragraphs[0].font.size = Pt(24)
     card_tf.paragraphs[0].font.bold = True
-    card_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+    style_card_text_color(card_tf.paragraphs[0], using_template)
     label_p = card_tf.add_paragraph()
     label_p.text = "Total Friends"
     label_p.font.size = Pt(10)
@@ -227,24 +225,32 @@ def build_pptx_report(
         slide.shapes.add_picture(BytesIO(png_bytes), left, chart_start_y, width=chart_width)
 
     if report_type == "integral":
-        _add_detail_slide(prs, blank_layout, friends, sc)
+        _add_detail_slide(prs, blank_layout, friends, sc, using_template)
 
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
 
 
-def _add_detail_slide(prs: Presentation, blank_layout, friends: list[RotaryFriend], sc) -> None:
+def _add_detail_slide(
+    prs: Presentation, blank_layout, friends: list[RotaryFriend], sc, using_template: bool = False
+) -> None:
     slide = prs.slides.add_slide(blank_layout)
 
-    title_box = slide.shapes.add_textbox(
-        sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
-    )
-    title_tf = title_box.text_frame
-    title_tf.text = "Detail — Friends"
-    title_tf.paragraphs[0].font.size = Pt(20)
-    title_tf.paragraphs[0].font.bold = True
-    title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+    title_text = "Detail — Friends"
+    placeholder = _title_placeholder(slide) if using_template else None
+    if placeholder is not None:
+        placeholder.text_frame.text = title_text
+    else:
+        title_box = slide.shapes.add_textbox(
+            sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
+        )
+        title_tf = title_box.text_frame
+        title_tf.text = title_text
+        title_tf.paragraphs[0].font.size = Pt(20)
+        title_tf.paragraphs[0].font.bold = True
+        if not using_template:
+            title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
 
     headers = ["Name", "Contact", "Source", "Tags"]
     rows = _friend_detail_rows(friends)

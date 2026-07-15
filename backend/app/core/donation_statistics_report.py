@@ -44,6 +44,10 @@ from app.core.statistics_report import (
     _horizontal_bar_chart_png,
     _line_chart_png,
     _pick_blank_layout,
+    _title_placeholder,
+    add_heading,
+    style_card_fill,
+    style_card_text_color,
 )
 from app.schemas.donation_statistics import CurrencyStatistics, DonationStatistics
 
@@ -271,7 +275,8 @@ def build_pptx_report(
     currency_stats = _current_currency_stats(stats, currency)
     report_type_label = "Integral" if report_type == "integral" else "Simplified"
 
-    if template_path is not None:
+    using_template = template_path is not None
+    if using_template:
         prs = Presentation(str(template_path))
         blank_layout = _pick_blank_layout(prs)
     else:
@@ -295,21 +300,14 @@ def build_pptx_report(
         logo_right_edge = logo_pic.left + logo_pic.width
 
     heading_left = logo_right_edge + sc(Inches(0.2))
-    heading_box = slide.shapes.add_textbox(
-        heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)),
-        sc(Inches(0.65)),
-    )
-    heading_tf = heading_box.text_frame
-    heading_tf.text = f"{CLUB_NAME} — {REPORT_TITLE} — {report_type_label} Report"
-    heading_tf.paragraphs[0].font.size = Pt(20)
-    heading_tf.paragraphs[0].font.bold = True
-    heading_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
-    date_p = heading_tf.add_paragraph()
-    date_p.text = (
+    add_heading(
+        slide,
+        using_template,
+        f"{CLUB_NAME} — {REPORT_TITLE} — {report_type_label} Report",
         f"Rotary Year {_rotary_year_label(stats.selected_rotary_year)} — "
-        f"Generated {date.today().isoformat()}"
+        f"Generated {date.today().isoformat()}",
+        (heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)), sc(Inches(0.65))),
     )
-    date_p.font.size = Pt(11)
 
     cards = stat_cards(stats)
     columns = 3
@@ -322,16 +320,14 @@ def build_pptx_report(
         left = start_x + col * (card_width + gap_x)
         top = start_y + row * (card_height + gap_y)
         box = slide.shapes.add_textbox(left, top, card_width, card_height)
-        box.fill.solid()
-        box.fill.fore_color.rgb = RGBColor.from_string(CARD_TONES[index].lstrip("#").upper())
-        box.line.fill.background()
+        style_card_fill(box, CARD_TONES[index], using_template)
         tf = box.text_frame
         tf.margin_left = Pt(6)
         tf.margin_top = Pt(4)
         tf.text = value
         tf.paragraphs[0].font.size = Pt(16)
         tf.paragraphs[0].font.bold = True
-        tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+        style_card_text_color(tf.paragraphs[0], using_template)
         label_p = tf.add_paragraph()
         label_p.text = label
         label_p.font.size = Pt(9)
@@ -351,7 +347,7 @@ def build_pptx_report(
 
     if report_type == "integral":
         _add_ngo_detail_slide(
-            prs, blank_layout, stats, currency_stats, ngo_breakdown, sc
+            prs, blank_layout, stats, currency_stats, ngo_breakdown, sc, using_template
         )
 
     buf = BytesIO()
@@ -366,17 +362,24 @@ def _add_ngo_detail_slide(
     currency_stats: CurrencyStatistics | None,
     ngo_breakdown: list[dict],
     sc,
+    using_template: bool = False,
 ) -> None:
     slide = prs.slides.add_slide(blank_layout)
 
-    title_box = slide.shapes.add_textbox(
-        sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
-    )
-    title_tf = title_box.text_frame
-    title_tf.text = f"Detail — Organisations funded ({_rotary_year_label(stats.selected_rotary_year)})"
-    title_tf.paragraphs[0].font.size = Pt(20)
-    title_tf.paragraphs[0].font.bold = True
-    title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+    title_text = f"Detail — Organisations funded ({_rotary_year_label(stats.selected_rotary_year)})"
+    placeholder = _title_placeholder(slide) if using_template else None
+    if placeholder is not None:
+        placeholder.text_frame.text = title_text
+    else:
+        title_box = slide.shapes.add_textbox(
+            sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
+        )
+        title_tf = title_box.text_frame
+        title_tf.text = title_text
+        title_tf.paragraphs[0].font.size = Pt(20)
+        title_tf.paragraphs[0].font.bold = True
+        if not using_template:
+            title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
 
     if not ngo_breakdown or currency_stats is None:
         empty_box = slide.shapes.add_textbox(

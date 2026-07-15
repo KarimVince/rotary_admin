@@ -363,15 +363,101 @@ def build_pdf_report(stats: MembersStatistics, report_type: str = "simplified") 
     return buf.getvalue()
 
 
+_LAYOUT_METADATA_PLACEHOLDER_TYPES = {"DATE", "FOOTER", "SLIDE_NUMBER"}
+
+
 def _pick_blank_layout(prs: Presentation):
-    """Story 8.23: an uploaded annual template won't necessarily have a blank
-    layout at index 6 like the app's own from-scratch deck does — look for
-    one named "blank" first, else fall back to the last available layout
-    (emptier than the first, which is usually a title slide)."""
+    """Story 8.23, revised in Story 8.33: a template's background, colour
+    bands, and other master-level branding are inherited by any layout that
+    doesn't explicitly override them — EXCEPT a layout literally
+    named/designed "blank", which typically strips exactly that, silently
+    defeating the whole point of the annual-template feature (this was
+    8.33's root cause: every generated slide always picked the emptiest
+    layout available, so the template's own visual identity never had a
+    chance to render).
+
+    Now prefer a layout that carries a title placeholder (idx 0) — so the
+    heading inherits the template's real branding — with the FEWEST other
+    content placeholders (body/object/picture), since this module draws
+    stat cards/charts/tables itself and an unused content placeholder would
+    just be empty dead space competing for the same area. A "Title Only"
+    layout is the ideal candidate when one exists; a title+subtitle "Title
+    Slide" layout is next-best; a content-heavy layout is used only if nothing
+    leaner is available. Falls back to a name-matched/last "blank" layout only
+    if the template has no title placeholder anywhere."""
+    candidates = []
+    for layout in prs.slide_layouts:
+        has_title = False
+        extra_content_count = 0
+        for placeholder in layout.placeholders:
+            if placeholder.placeholder_format.idx == 0:
+                has_title = True
+                continue
+            type_name = str(placeholder.placeholder_format.type).split(" ")[0]
+            if type_name not in _LAYOUT_METADATA_PLACEHOLDER_TYPES:
+                extra_content_count += 1
+        if has_title:
+            candidates.append((extra_content_count, layout))
+
+    if candidates:
+        candidates.sort(key=lambda pair: pair[0])
+        return candidates[0][1]
+
     for layout in prs.slide_layouts:
         if layout.name and "blank" in layout.name.lower():
             return layout
     return prs.slide_layouts[-1]
+
+
+def _title_placeholder(slide):
+    return next((ph for ph in slide.placeholders if ph.placeholder_format.idx == 0), None)
+
+
+def add_heading(slide, using_template: bool, title_text: str, subtitle_text: str, fallback_box):
+    """Story 8.33: when a template is active, populate its own title
+    placeholder (inherits the template's own font/size/colour) instead of
+    drawing a freehand textbox forced into the app's brand blue regardless
+    of the template's actual palette. Falls back to the original freehand
+    textbox — unchanged — when there's no template or no title placeholder
+    on the chosen layout, so the default (non-template) path is untouched."""
+    placeholder = _title_placeholder(slide) if using_template else None
+    if placeholder is not None:
+        tf = placeholder.text_frame
+        tf.text = title_text
+        subtitle_p = tf.add_paragraph()
+        subtitle_p.text = subtitle_text
+        return
+
+    left, top, width, height = fallback_box
+    box = slide.shapes.add_textbox(left, top, width, height)
+    tf = box.text_frame
+    tf.text = title_text
+    tf.paragraphs[0].font.size = Pt(22)
+    tf.paragraphs[0].font.bold = True
+    if not using_template:
+        tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+    subtitle_p = tf.add_paragraph()
+    subtitle_p.text = subtitle_text
+    subtitle_p.font.size = Pt(11)
+
+
+def style_card_fill(box, tone_hex: str, using_template: bool) -> None:
+    """Story 8.33: the app's own pastel tone colours were being painted over
+    every stat card regardless of the template, hiding its background/colour
+    bands underneath. When a template is active, leave the card transparent
+    (outline only) so the template's branding shows through; keep the solid
+    tone fill for the app's own default deck, unchanged."""
+    if using_template:
+        box.fill.background()
+    else:
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor.from_string(tone_hex.lstrip("#").upper())
+    box.line.fill.background()
+
+
+def style_card_text_color(paragraph, using_template: bool) -> None:
+    if not using_template:
+        paragraph.font.color.rgb = RGBColor.from_string("17458F")
 
 
 def build_pptx_report(
@@ -381,7 +467,8 @@ def build_pptx_report(
 ) -> bytes:
     # Everything (heading, stat cards, all 6 charts) condensed onto a single
     # widescreen slide rather than one-section-per-slide, per request.
-    if template_path is not None:
+    using_template = template_path is not None
+    if using_template:
         prs = Presentation(str(template_path))
         blank_layout = _pick_blank_layout(prs)
     else:
@@ -414,20 +501,13 @@ def build_pptx_report(
         logo_right_edge = logo_pic.left + logo_pic.width
 
     heading_left = logo_right_edge + sc(Inches(0.2))
-    heading_box = slide.shapes.add_textbox(
-        heading_left,
-        sc(Inches(0.18)),
-        prs.slide_width - heading_left - sc(Inches(0.3)),
-        sc(Inches(0.65)),
+    add_heading(
+        slide,
+        using_template,
+        f"{CLUB_NAME} — Members Statistics Report",
+        f"Generated {date.today().isoformat()}",
+        (heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)), sc(Inches(0.65))),
     )
-    heading_tf = heading_box.text_frame
-    heading_tf.text = f"{CLUB_NAME} — Members Statistics Report"
-    heading_tf.paragraphs[0].font.size = Pt(22)
-    heading_tf.paragraphs[0].font.bold = True
-    heading_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
-    date_p = heading_tf.add_paragraph()
-    date_p.text = f"Generated {date.today().isoformat()}"
-    date_p.font.size = Pt(11)
 
     # Stat cards: 4 columns x 2 rows, compact
     card_rows = _stat_cards()
@@ -441,9 +521,7 @@ def build_pptx_report(
         left = start_x + col * (card_width + gap_x)
         top = start_y + row * (card_height + gap_y)
         box = slide.shapes.add_textbox(left, top, card_width, card_height)
-        box.fill.solid()
-        box.fill.fore_color.rgb = RGBColor.from_string(CARD_TONES[index].lstrip("#").upper())
-        box.line.fill.background()
+        style_card_fill(box, CARD_TONES[index], using_template)
         tf = box.text_frame
         tf.margin_left = Pt(6)
         tf.margin_top = Pt(4)
@@ -451,7 +529,7 @@ def build_pptx_report(
         tf.text = str(value if value is not None else "–")
         tf.paragraphs[0].font.size = Pt(20)
         tf.paragraphs[0].font.bold = True
-        tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+        style_card_text_color(tf.paragraphs[0], using_template)
         label_p = tf.add_paragraph()
         label_p.text = label
         label_p.font.size = Pt(9)
@@ -470,14 +548,16 @@ def build_pptx_report(
         slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_width)
 
     if report_type == "integral":
-        _add_pptx_detail_slides(prs, blank_layout, stats, sc)
+        _add_pptx_detail_slides(prs, blank_layout, stats, sc, using_template)
 
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
 
 
-def _add_pptx_detail_slides(prs: Presentation, blank_layout, stats: MembersStatistics, sc) -> None:
+def _add_pptx_detail_slides(
+    prs: Presentation, blank_layout, stats: MembersStatistics, sc, using_template: bool = False
+) -> None:
     """Story 8.13: one detail slide per chart dataset, appended after the
     main Simplified slide, for Integral reports. Tables aren't paginated
     across slides if a dataset has many rows (e.g. many distinct join
@@ -485,14 +565,19 @@ def _add_pptx_detail_slides(prs: Presentation, blank_layout, stats: MembersStati
     for title, headers, rows in _detail_tables(stats):
         slide = prs.slides.add_slide(blank_layout)
 
-        title_box = slide.shapes.add_textbox(
-            sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
-        )
-        title_tf = title_box.text_frame
-        title_tf.text = title
-        title_tf.paragraphs[0].font.size = Pt(20)
-        title_tf.paragraphs[0].font.bold = True
-        title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
+        placeholder = _title_placeholder(slide) if using_template else None
+        if placeholder is not None:
+            placeholder.text_frame.text = title
+        else:
+            title_box = slide.shapes.add_textbox(
+                sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
+            )
+            title_tf = title_box.text_frame
+            title_tf.text = title
+            title_tf.paragraphs[0].font.size = Pt(20)
+            title_tf.paragraphs[0].font.bold = True
+            if not using_template:
+                title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
 
         table_rows = len(rows) + 1
         table_shape = slide.shapes.add_table(
