@@ -28,7 +28,6 @@ def test_create_application_generates_a_pdf(admin_client, monkeypatch, tmp_path)
     assert body["name"] == "Prospective Member"
     assert body["email"] == "prospect@example.com"
     assert body["email_sent_at"] is None
-    assert body["whatsapp_sent_at"] is None
     assert body["pdf_url"].startswith("/static/applications/")
 
     stored_files = list((tmp_path / "applications").glob("*.pdf"))
@@ -57,7 +56,7 @@ def test_send_by_email_succeeds(admin_client, monkeypatch, tmp_path):
     ).json()
 
     response = admin_client.post(
-        f"/api/v1/member-applications/{application['id']}/send", json={"channel": "email"}
+        f"/api/v1/member-applications/{application['id']}/send"
     )
 
     assert response.status_code == 200
@@ -72,7 +71,7 @@ def test_send_by_email_without_email_on_file_returns_422(admin_client, monkeypat
     ).json()
 
     response = admin_client.post(
-        f"/api/v1/member-applications/{application['id']}/send", json={"channel": "email"}
+        f"/api/v1/member-applications/{application['id']}/send"
     )
 
     assert response.status_code == 422
@@ -88,7 +87,7 @@ def test_send_by_email_failure_returns_502(admin_client, monkeypatch, tmp_path):
     ).json()
 
     response = admin_client.post(
-        f"/api/v1/member-applications/{application['id']}/send", json={"channel": "email"}
+        f"/api/v1/member-applications/{application['id']}/send"
     )
 
     assert response.status_code == 502
@@ -97,27 +96,6 @@ def test_send_by_email_failure_returns_502(admin_client, monkeypatch, tmp_path):
     ] is None
 
 
-def test_mark_sent_via_whatsapp_does_not_call_send_email(admin_client, monkeypatch, tmp_path):
-    # Story 8.3: WhatsApp has no real integration yet — this must be a
-    # pure DB-flag flip, same convention as fee invoices' manual channel.
-    monkeypatch.setattr("app.api.member_applications.settings.upload_dir", str(tmp_path))
-
-    def _fail_if_called(**kwargs):
-        raise AssertionError("send_email should not be called for the whatsapp channel")
-
-    monkeypatch.setattr("app.api.member_applications.send_email", _fail_if_called)
-
-    application = admin_client.post(
-        "/api/v1/member-applications",
-        json={"name": "Prospect", "phone": "+85212345678"},
-    ).json()
-
-    response = admin_client.post(
-        f"/api/v1/member-applications/{application['id']}/send", json={"channel": "whatsapp"}
-    )
-
-    assert response.status_code == 200
-    assert response.json()["whatsapp_sent_at"] is not None
 
 
 def test_download_returns_pdf_with_standardised_filename(admin_client, monkeypatch, tmp_path):
@@ -151,8 +129,7 @@ def test_download_not_found_returns_404(admin_client):
 
 def test_send_application_not_found_returns_404(admin_client):
     response = admin_client.post(
-        "/api/v1/member-applications/00000000-0000-0000-0000-000000000000/send",
-        json={"channel": "email"},
+        "/api/v1/member-applications/00000000-0000-0000-0000-000000000000/send"
     )
 
     assert response.status_code == 404

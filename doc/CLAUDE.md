@@ -8,7 +8,37 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-07-14)
+## Current status / resume from here (2026-07-15)
+- **WhatsApp integration deferred, placeholder UI removed (2026-07-15).**
+  User asked to pick up Epic 8's WhatsApp block (Stories 8.4/8.5/8.6). Story
+  8.5 requires an actual provider decision (Twilio vs Meta WhatsApp Business
+  API) — a real paid external service needing business verification, not
+  something to pick unilaterally. Asked the user; Twilio isn't free (no free
+  production tier, only a Sandbox with no real-recipient messaging) and needs
+  Meta business verification either way — user chose to hold off entirely and
+  **removed the fake "manual mark sent via WhatsApp" placeholders** that
+  existed before any real integration:
+  - `MemberApplication.whatsapp_sent_at` column dropped (migration
+    `9a35449ad456`), `/member-applications/{id}/send` no longer takes a
+    `channel` — always sends email now. The "Sent via WhatsApp" checkbox in
+    the New Member Application modal is gone.
+  - `FeeInvoiceSendRequest`/`FeeInvoiceSendResult.channel` removed —
+    `POST /fee-runs/{year}/send` always sends email. Fee Run's "Sent via
+    WhatsApp" checkbox/column and `MemberFeeUpdate.last_channel`'s
+    `"whatsapp"` option are gone (Fee Tracking's Channel select is now
+    Mail/Manual only).
+  - **Deliberately NOT touched**: the Postgres `fee_channel` enum still has
+    `'whatsapp'` as an allowed value (removing an enum value needs the
+    harder rename→create→cast→drop migration pattern — not worth the risk
+    for an already-inert value; any historical rows with
+    `last_channel='whatsapp'` just can't be set that way again via the API).
+    The **Rotary Friends `whatsapp` contact field is untouched** — it's a
+    real phone-number data column, not a send feature, and the user
+    explicitly said to keep it.
+  - Stories 8.4/8.5/8.6 stay in ClickUp as backlog/on-hold — revisit once
+    there's budget/appetite confirmed for a real provider.
+
+## Previous status (2026-07-14)
 - **Everything below marked "not committed/pushed" or "migrations not run
   against dev" has since been resolved, explicitly requested by the user
   2026-07-14**: all outstanding work (remaining Epic 8 backlog items 8.3/

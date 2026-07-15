@@ -34,7 +34,6 @@ export default function FeeRunManagement() {
   const [sendError, setSendError] = useState(null);
   const [sendResult, setSendResult] = useState(null);
 
-  const [whatsappErrorByMember, setWhatsappErrorByMember] = useState({});
   const [emailErrorByMember, setEmailErrorByMember] = useState({});
   const [sendingEmailMemberId, setSendingEmailMemberId] = useState(null);
 
@@ -133,7 +132,7 @@ export default function FeeRunManagement() {
     setIsSending(true);
     setSendError(null);
     try {
-      const result = await sendFeeInvoices(year, { channel: "email" });
+      const result = await sendFeeInvoices(year, {});
       setSendResult(result);
       setMemberFees(result.member_fees);
       setIsConfirmingSend(false);
@@ -150,7 +149,6 @@ export default function FeeRunManagement() {
     try {
       const result = await sendFeeInvoices(year, {
         member_ids: [memberId],
-        channel: "email",
       });
       setMemberFees((current) => {
         const updated = new Map(current.map((fee) => [fee.member_id, fee]));
@@ -170,26 +168,6 @@ export default function FeeRunManagement() {
       }));
     } finally {
       setSendingEmailMemberId(null);
-    }
-  }
-
-  async function handleMarkSentViaWhatsapp(memberId) {
-    setWhatsappErrorByMember((current) => ({ ...current, [memberId]: null }));
-    try {
-      const result = await sendFeeInvoices(year, {
-        member_ids: [memberId],
-        channel: "whatsapp",
-      });
-      setMemberFees((current) => {
-        const updated = new Map(current.map((fee) => [fee.member_id, fee]));
-        result.member_fees.forEach((fee) => updated.set(fee.member_id, fee));
-        return Array.from(updated.values());
-      });
-    } catch (err) {
-      setWhatsappErrorByMember((current) => ({
-        ...current,
-        [memberId]: err.detail || "Failed to mark as sent",
-      }));
     }
   }
 
@@ -262,7 +240,6 @@ export default function FeeRunManagement() {
                 <th>Amount to apply</th>
                 <th>Invoice sent</th>
                 <th>Send email</th>
-                <th>Sent via WhatsApp</th>
               </tr>
             </thead>
             <tbody>
@@ -298,23 +275,6 @@ export default function FeeRunManagement() {
                           </button>
                           {emailErrorByMember[member.id] && (
                             <span role="alert">{emailErrorByMember[member.id]}</span>
-                          )}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>
-                      {existing ? (
-                        <>
-                          <input
-                            type="checkbox"
-                            aria-label={`Mark ${member.first_name} ${member.last_name} sent via WhatsApp`}
-                            checked={existing.last_channel === "whatsapp"}
-                            onChange={() => handleMarkSentViaWhatsapp(member.id)}
-                          />
-                          {whatsappErrorByMember[member.id] && (
-                            <span role="alert">{whatsappErrorByMember[member.id]}</span>
                           )}
                         </>
                       ) : (

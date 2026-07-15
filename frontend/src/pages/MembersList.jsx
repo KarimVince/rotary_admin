@@ -106,7 +106,7 @@ export default function MembersList() {
   const [applicationResult, setApplicationResult] = useState(null);
   const [isCreatingApplication, setIsCreatingApplication] = useState(false);
   const [applicationError, setApplicationError] = useState(null);
-  const [sendingChannel, setSendingChannel] = useState(null);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isDownloadingApplication, setIsDownloadingApplication] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState("active");
@@ -374,16 +374,16 @@ export default function MembersList() {
     }
   }
 
-  async function handleSendApplication(channel) {
+  async function handleSendApplication() {
     setApplicationError(null);
-    setSendingChannel(channel);
+    setIsSendingEmail(true);
     try {
-      const updated = await sendMemberApplication(applicationResult.id, channel);
+      const updated = await sendMemberApplication(applicationResult.id);
       setApplicationResult(updated);
     } catch (err) {
       setApplicationError(err.detail || "Failed to send application");
     } finally {
-      setSendingChannel(null);
+      setIsSendingEmail(false);
     }
   }
 
@@ -493,24 +493,11 @@ export default function MembersList() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => handleSendApplication("email")}
-                  disabled={!applicationResult.email || sendingChannel === "email"}
+                  onClick={handleSendApplication}
+                  disabled={!applicationResult.email || isSendingEmail}
                 >
-                  {sendingChannel === "email" ? "Sending…" : "Send email"}
+                  {isSendingEmail ? "Sending…" : "Send email"}
                 </button>
-
-                <p>
-                  <label htmlFor="application-whatsapp-sent">
-                    <input
-                      id="application-whatsapp-sent"
-                      type="checkbox"
-                      checked={Boolean(applicationResult.whatsapp_sent_at)}
-                      disabled={sendingChannel === "whatsapp"}
-                      onChange={() => handleSendApplication("whatsapp")}
-                    />
-                    Sent via WhatsApp
-                  </label>
-                </p>
 
                 <div className="modal-actions">
                   <button type="button" onClick={closeApplicationModal}>

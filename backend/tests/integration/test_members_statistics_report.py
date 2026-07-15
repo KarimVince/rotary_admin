@@ -119,7 +119,12 @@ def test_invalid_report_type_returns_422(admin_client):
     assert response.status_code == 422
 
 
-def test_use_template_without_upload_returns_400(admin_client):
+def test_use_template_without_upload_returns_400(admin_client, monkeypatch, tmp_path):
+    # Isolated from any real template file that might exist in the ambient
+    # local uploads/ dir (e.g. from manual testing) — otherwise this test's
+    # result depends on whatever happens to be on disk for the current year.
+    monkeypatch.setattr("app.api.ppt_templates.settings.upload_dir", str(tmp_path))
+
     response = admin_client.post(
         "/api/v1/members/statistics/report",
         params={"format": "pptx", "use_template": "true"},

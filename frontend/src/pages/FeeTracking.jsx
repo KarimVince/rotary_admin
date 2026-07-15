@@ -14,7 +14,6 @@ const PAID_FILTERS = [
 
 const CHANNEL_OPTIONS = [
   { value: "email", label: "Mail" },
-  { value: "whatsapp", label: "WhatsApp" },
   { value: "manual", label: "Manual" },
 ];
 

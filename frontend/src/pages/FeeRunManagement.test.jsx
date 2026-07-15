@@ -181,7 +181,6 @@ describe("FeeRunManagement", () => {
         HttpResponse.json(
           {
             rotary_year: YEAR,
-            channel: "email",
             sent_count: 1,
             skipped_paid_count: 1,
             failed_count: 0,
@@ -240,7 +239,6 @@ describe("FeeRunManagement", () => {
         return HttpResponse.json(
           {
             rotary_year: YEAR,
-            channel: "email",
             sent_count: 1,
             skipped_paid_count: 0,
             failed_count: 0,

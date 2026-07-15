@@ -10,9 +10,9 @@ from app.db.session import Base
 class MemberApplication(Base):
     """Story 8.3: a generated new-member application PDF (fillable AcroForm),
     pre-populated with the prospect's name/email/phone, plus send tracking.
-    WhatsApp has no real integration yet (Epic 8's WhatsApp block is
-    deferred) — whatsapp_sent_at is a manual flag only, same convention as
-    MemberFee.last_channel="whatsapp" in the fee invoice flow."""
+    Email is the only send channel — the WhatsApp block (Epic 8) is deferred
+    with no provider chosen yet, so the placeholder "mark sent via WhatsApp"
+    flow this used to have was removed rather than kept as dead UI."""
 
     __tablename__ = "member_applications"
 
@@ -24,7 +24,6 @@ class MemberApplication(Base):
     phone: Mapped[str | None] = mapped_column(String(30))
     pdf_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     email_sent_at: Mapped["DateTime | None"] = mapped_column(DateTime(timezone=True))
-    whatsapp_sent_at: Mapped["DateTime | None"] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )

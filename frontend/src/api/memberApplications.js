@@ -7,10 +7,9 @@ export function createMemberApplication(payload) {
   });
 }
 
-export function sendMemberApplication(applicationId, channel) {
+export function sendMemberApplication(applicationId) {
   return apiFetch(`/member-applications/${applicationId}/send`, {
     method: "POST",
-    body: JSON.stringify({ channel }),
   });
 }
 

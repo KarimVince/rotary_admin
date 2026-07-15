@@ -54,12 +54,10 @@ class FeeRunResult(BaseModel):
 class FeeInvoiceSendRequest(BaseModel):
     # None => every unpaid member_fees row for the rotary year.
     member_ids: list[uuid.UUID] | None = None
-    channel: Literal["email", "whatsapp"] = "email"
 
 
 class FeeInvoiceSendResult(BaseModel):
     rotary_year: int
-    channel: str
     sent_count: int
     skipped_paid_count: int
     failed_count: int
@@ -77,9 +75,13 @@ class MemberFeeUpdate(BaseModel):
     # in the tracker at a zero amount) — ge=0, not gt=0.
     amount_paid: float | None = Field(default=None, ge=0)
     notes: str | None = None
-    # Story 8.29: payment update sub-screen fields. "manual" (not sent by
-    # the app's own email/WhatsApp send flow) is new; see fee_channel_enum.
-    last_channel: Literal["email", "whatsapp", "manual"] | None = None
+    # Story 8.29: payment update sub-screen fields. "manual" (not sent by the
+    # app's own automated send flow) marks external confirmation of any kind.
+    # "whatsapp" is intentionally not offered here — the WhatsApp send effort
+    # (Epic 8) is deferred with no provider chosen; the Postgres enum still
+    # allows the value for any pre-existing historical rows, but the API no
+    # longer accepts new writes of it.
+    last_channel: Literal["email", "manual"] | None = None
     # Not a raw column — translated to invoice_sent_at (set/cleared) in the
     # endpoint, keeping invoice_sent_at/invoice_send_count as the automated
     # send flow's own audit trail rather than overloading them here.

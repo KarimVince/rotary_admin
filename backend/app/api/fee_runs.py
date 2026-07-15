@@ -187,26 +187,25 @@ def send_fee_invoices(
 
         member = members_by_id.get(fee.member_id)
 
-        if payload.channel == "email":
-            if member is None or not member.email:
-                failed_count += 1
-                result_fees.append(fee)
-                continue
-            try:
-                send_email(
-                    to_email=member.email,
-                    to_name=f"{member.first_name} {member.last_name}",
-                    subject=f"Rotary membership fee invoice — {rotary_year}-{rotary_year + 1}",
-                    html_body=_invoice_html(member, fee, fee_settings),
-                )
-            except EmailSendError:
-                failed_count += 1
-                result_fees.append(fee)
-                continue
+        if member is None or not member.email:
+            failed_count += 1
+            result_fees.append(fee)
+            continue
+        try:
+            send_email(
+                to_email=member.email,
+                to_name=f"{member.first_name} {member.last_name}",
+                subject=f"Rotary membership fee invoice — {rotary_year}-{rotary_year + 1}",
+                html_body=_invoice_html(member, fee, fee_settings),
+            )
+        except EmailSendError:
+            failed_count += 1
+            result_fees.append(fee)
+            continue
 
         fee.invoice_send_count += 1
         fee.invoice_sent_at = datetime.now(timezone.utc)
-        fee.last_channel = payload.channel
+        fee.last_channel = "email"
         sent_count += 1
         result_fees.append(fee)
 
@@ -233,7 +232,6 @@ def send_fee_invoices(
 
     return FeeInvoiceSendResult(
         rotary_year=rotary_year,
-        channel=payload.channel,
         sent_count=sent_count,
         skipped_paid_count=skipped_paid_count,
         failed_count=failed_count,

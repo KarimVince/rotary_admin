@@ -98,28 +98,6 @@ def test_send_fails_for_member_without_email(
     assert body["sent_count"] == 0
 
 
-def test_whatsapp_channel_marks_sent_without_calling_email(
-    admin_client, make_fee_settings, make_member, make_member_fee, monkeypatch
-):
-    def _fail_if_called(**_kwargs):
-        raise AssertionError("send_email should not be called for whatsapp channel")
-
-    monkeypatch.setattr("app.api.fee_runs.send_email", _fail_if_called)
-    make_fee_settings(rotary_year=2025)
-    member = make_member(email=None)
-    make_member_fee(member_id=member.id, rotary_year=2025, is_paid=False)
-
-    response = admin_client.post(
-        "/api/v1/fee-runs/2025/send", json={"channel": "whatsapp"}
-    )
-    assert response.status_code == 201
-    body = response.json()
-    assert body["sent_count"] == 1
-    fee = body["member_fees"][0]
-    assert fee["last_channel"] == "whatsapp"
-    assert fee["invoice_send_count"] == 1
-
-
 def test_send_with_explicit_member_ids(
     admin_client, make_fee_settings, make_member, make_member_fee, monkeypatch
 ):

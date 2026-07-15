@@ -264,7 +264,6 @@ describe("MembersList", () => {
             id: "application-3",
             ...body,
             email_sent_at: null,
-            whatsapp_sent_at: null,
             created_at: new Date().toISOString(),
             pdf_url: "/static/applications/ghi789.pdf",
             download_url: "/member-applications/application-3/download",
@@ -308,18 +307,13 @@ describe("MembersList", () => {
             id: "application-1",
             ...body,
             email_sent_at: null,
-            whatsapp_sent_at: null,
             created_at: new Date().toISOString(),
             pdf_url: "/static/applications/abc123.pdf",
           };
           return HttpResponse.json(application, { status: 201 });
         }),
-        http.post(`${API_BASE_URL}/member-applications/application-1/send`, async ({ request }) => {
-          const { channel } = await request.json();
-          application = {
-            ...application,
-            email_sent_at: channel === "email" ? new Date().toISOString() : application.email_sent_at,
-          };
+        http.post(`${API_BASE_URL}/member-applications/application-1/send`, async () => {
+          application = { ...application, email_sent_at: new Date().toISOString() };
           return HttpResponse.json(application);
         }),
       );
@@ -338,40 +332,6 @@ describe("MembersList", () => {
       await userEvent.click(screen.getByRole("button", { name: /^send email$/i }));
 
       expect(await screen.findByText(/emailed/i)).toBeInTheDocument();
-    });
-
-    it("marks a new member application sent via WhatsApp with a manual checkbox", async () => {
-      let application;
-      server.use(
-        http.post(`${API_BASE_URL}/member-applications`, async ({ request }) => {
-          const body = await request.json();
-          application = {
-            id: "application-2",
-            ...body,
-            email_sent_at: null,
-            whatsapp_sent_at: null,
-            created_at: new Date().toISOString(),
-            pdf_url: "/static/applications/def456.pdf",
-          };
-          return HttpResponse.json(application, { status: 201 });
-        }),
-        http.post(`${API_BASE_URL}/member-applications/application-2/send`, async () => {
-          application = { ...application, whatsapp_sent_at: new Date().toISOString() };
-          return HttpResponse.json(application);
-        }),
-      );
-
-      renderMembersList();
-      await waitForLoaded();
-
-      await userEvent.click(screen.getByRole("button", { name: /^application$/i }));
-      await userEvent.type(screen.getByLabelText(/^name$/i), "Prospective Member");
-      await userEvent.click(screen.getByRole("button", { name: /generate application/i }));
-
-      await screen.findByText(/download the pdf/i);
-      await userEvent.click(screen.getByLabelText(/sent via whatsapp/i));
-
-      await waitFor(() => expect(screen.getByLabelText(/sent via whatsapp/i)).toBeChecked());
     });
 
     it("includes the honorary flag (Story 8.14) when creating a member", async () => {

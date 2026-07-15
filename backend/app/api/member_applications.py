@@ -12,11 +12,7 @@ from app.core.member_application_pdf import build_member_application_pdf
 from app.core.report_filename import generate_report_filename
 from app.db.session import get_db
 from app.models import MemberApplication, User
-from app.schemas.member_application import (
-    MemberApplicationCreate,
-    MemberApplicationRead,
-    MemberApplicationSendRequest,
-)
+from app.schemas.member_application import MemberApplicationCreate, MemberApplicationRead
 
 router = APIRouter()
 
@@ -36,7 +32,6 @@ def _serialize(application: MemberApplication) -> MemberApplicationRead:
         email=application.email,
         phone=application.phone,
         email_sent_at=application.email_sent_at,
-        whatsapp_sent_at=application.whatsapp_sent_at,
         created_at=application.created_at,
         pdf_url=f"/static/applications/{application.pdf_filename}",
         download_url=f"/api/v1/member-applications/{application.id}/download",
@@ -72,7 +67,6 @@ def create_member_application(
 @router.post("/member-applications/{application_id}/send", response_model=MemberApplicationRead)
 def send_member_application(
     application_id: uuid.UUID,
-    payload: MemberApplicationSendRequest,
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(MEMBERS_DIRECTORY, "write")),
 ):
@@ -82,34 +76,28 @@ def send_member_application(
             status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
         )
 
-    if payload.channel == "email":
-        if not application.email:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="This application has no email address on file",
-            )
-        pdf_url = f"{settings.public_base_url}/static/applications/{application.pdf_filename}"
-        try:
-            send_email(
-                to_email=application.email,
-                to_name=application.name,
-                subject=f"{application.name} — Rotary Club membership application",
-                html_body=(
-                    "<p>Please find attached your membership application form. "
-                    "Complete the remaining fields, sign, and return it to the club.</p>"
-                ),
-                attachments={"Membership Application.pdf": pdf_url},
-            )
-        except EmailSendError as err:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to send email"
-            ) from err
-        application.email_sent_at = datetime.now(timezone.utc)
-    else:
-        # Story 8.3: WhatsApp send has no real integration yet (Epic 8's
-        # WhatsApp block is deferred) — this is a manual "mark sent" flag
-        # only, same convention as MemberFee.last_channel="whatsapp".
-        application.whatsapp_sent_at = datetime.now(timezone.utc)
+    if not application.email:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="This application has no email address on file",
+        )
+    pdf_url = f"{settings.public_base_url}/static/applications/{application.pdf_filename}"
+    try:
+        send_email(
+            to_email=application.email,
+            to_name=application.name,
+            subject=f"{application.name} — Rotary Club membership application",
+            html_body=(
+                "<p>Please find attached your membership application form. "
+                "Complete the remaining fields, sign, and return it to the club.</p>"
+            ),
+            attachments={"Membership Application.pdf": pdf_url},
+        )
+    except EmailSendError as err:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to send email"
+        ) from err
+    application.email_sent_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(application)

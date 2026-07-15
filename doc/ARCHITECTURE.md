@@ -56,7 +56,7 @@ Built with a **custom, owned stack** (not Lovable/no-code) via **Claude Code**, 
 | 2 | Members Management | Members CRUD, titles, statistics, email to members |
 | 3 | NGOs & Donations Tracking | Organisations CRUD, multi-year donations, statistics |
 | 4 | Friends of Rotary | Rotary Friends CRUD, email, WhatsApp (backlog), CSV import/export |
-| 5 | Annual Fees & Invoicing | Treasurer role, fee settings (4 prices/year), fee generation, invoice send/resend (email + manual WhatsApp tracking), payment tracking |
+| 5 | Annual Fees & Invoicing | Treasurer role, fee settings (4 prices/year), fee generation, invoice send/resend (email only — the placeholder manual WhatsApp checkbox was removed 2026-07-15, see CLAUDE.md), payment tracking |
 
 Recommended build order: **Epic 1 → Epic 2 → Epic 3 → Epic 4 → Epic 5** (Epic 4's email reuses Epic 2's Resend integration; Epic 5 depends on Members' couple flag and the shared email_log/Resend setup).
 
