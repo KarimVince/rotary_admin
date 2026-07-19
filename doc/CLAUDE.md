@@ -378,15 +378,33 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
    unit tests (business logic), integration tests (API endpoints: happy path +
    at least one failure/permission case), and component tests (non-trivial UI).
    Tests run against an **isolated test DB — never dev/prod**.
-   **Never run the test suites (backend `pytest`, frontend `npm run test`,
-   or even a single new test file) on your own initiative — not between
-   stories, not right after finishing a story to "check it works," not for
-   any reason.** Implement the story, write its tests, and stop. There are
-   only two exceptions: (1) I explicitly ask you to run tests, or (2) you are
-   working the epic's dedicated `x.99` "test & fix" story, whose whole job is
-   to run the full backend + frontend suites together and fix whatever the
-   batch run turns up. Likewise, **never commit or push to GitHub unless I
-   explicitly ask** — see "Branching & commits" below.
+   **Default: never run the full backend/frontend test suites on your own
+   initiative** — not between stories, not right after finishing a story to
+   "check it works," not for any reason, unless (1) I explicitly ask, or
+   (2) you are working the epic's dedicated `x.99` "test & fix" story, whose
+   whole job is to run the full backend + frontend suites together and fix
+   whatever the batch run turns up.
+   **When I ask you to work through several stories in one batch** (e.g.
+   "implement 14.6 to 14.11"), the default narrows rather than disappears:
+   run only the **new test file(s) for the story you just finished** before
+   moving to the next one (fast, scoped, catches obvious breakage early) —
+   do **not** run the full backend/frontend suites between stories in that
+   batch. Run the full suites once at the end of the batch/epic, same as the
+   `x.99` story would. If I ask you to run the full suite after every story
+   in a given session, that's a one-off override for that session only —
+   revert to this default afterward unless told otherwise.
+   **This restraint is about test suites only, not database scripts.**
+   Migrations (`alembic upgrade head`) and idempotent seed scripts (e.g.
+   `scripts/seed_permission_matrix.py`) for the epic/story currently being
+   worked should be run against the **dev** database proactively, as soon as
+   they're written, without waiting to be asked — a story isn't actually
+   usable in dev until its migration + seed have been applied there (e.g.
+   Story 14.12's nav entry was invisible until the dev DB was migrated and
+   reseeded). Still never run these against prod without being asked, and
+   still never run migrations/seeds against the **test** DB manually (the
+   test suite's own fixtures handle that in isolation).
+   Likewise, **never commit or push to GitHub unless I explicitly ask** —
+   see "Branching & commits" below.
    **GitHub Actions CI no longer runs tests automatically** (see `.github/workflows/ci.yml` —
    disabled for now, triggered manually via `workflow_dispatch` only) since test
    running is handled by the epic-end test & fix story instead.
@@ -495,11 +513,12 @@ only when asked.
 
 ## Workflow when implementing a story (important)
 Implement the story, write its tests, then **STOP and wait**. Specifically:
-- **Never run tests on your own initiative** — not between stories, not right
-  after finishing a story "just to check it works," backend or frontend, full
-  suite or just the new files. Write them and move on. Running tests only
-  happens when (1) I explicitly ask, or (2) you're working the epic's
-  dedicated `x.99` test & fix story.
+- **Only run the tests for the story/change you just made** — the specific
+  new/touched test file(s), backend or frontend. That's it, then move on.
+- **Never run the full backend or frontend suite on your own initiative** —
+  not between stories, not "just to check nothing else broke." Full-suite
+  runs only happen when (1) I explicitly ask, or (2) you're working the
+  epic's dedicated `x.99` test & fix story.
 - **Add a final "test & fix" story at the end of every epic's story list**
   (create it in ClickUp if it doesn't already exist) whose job is: run the
   full backend + frontend suites together, fix whatever breaks, and confirm
@@ -509,8 +528,9 @@ Implement the story, write its tests, then **STOP and wait**. Specifically:
   manually when I ask.
 - **Do not commit or `git push` automatically** — see "Branching & commits"
   below; both only happen when I explicitly ask.
-No CI runs, no test runs, no commits, and no pushes happen on your
-initiative — I decide when each of those happens.
+No CI runs, no full-suite test runs, no commits, and no pushes happen on
+your initiative — I decide when each of those happens. Scoped tests for the
+story you're currently on are the one exception.
 
 ## Branching & commits (keeps rollback easy)
 - **At the start of each epic, create a dedicated git branch** for that epic
