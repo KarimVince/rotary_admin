@@ -30,6 +30,10 @@ BOARD_POSITIONS = "board.positions"
 
 _ACCESS_LEVEL_ORDER = {"no_access": 0, "read": 1, "write": 2}
 
+# Story 16.7: these three positions are always board seats — "at_the_board"
+# is force-true and non-editable for them, regardless of what the client sends.
+_ALWAYS_AT_THE_BOARD = {"president", "treasurer", "secretary"}
+
 router = APIRouter()
 
 
@@ -63,7 +67,10 @@ def create_board_position(
             status_code=status.HTTP_409_CONFLICT, detail="Position name already exists"
         )
 
-    position = BoardPosition(**payload.model_dump())
+    data = payload.model_dump()
+    if data["name"].strip().lower() in _ALWAYS_AT_THE_BOARD:
+        data["at_the_board"] = True
+    position = BoardPosition(**data)
     db.add(position)
     db.commit()
     db.refresh(position)
@@ -91,6 +98,9 @@ def update_board_position(
 
     for field, value in update_data.items():
         setattr(position, field, value)
+
+    if position.name.strip().lower() in _ALWAYS_AT_THE_BOARD:
+        position.at_the_board = True
 
     db.commit()
     db.refresh(position)

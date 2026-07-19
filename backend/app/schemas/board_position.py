@@ -8,6 +8,7 @@ class BoardPositionCreate(BaseModel):
     name: str
     description: str | None = None
     display_order: int = 0
+    at_the_board: bool = False
 
 
 class BoardPositionUpdate(BaseModel):
@@ -15,6 +16,7 @@ class BoardPositionUpdate(BaseModel):
     description: str | None = None
     display_order: int | None = None
     active: bool | None = None
+    at_the_board: bool | None = None
 
 
 class BoardPositionRead(BaseModel):
@@ -25,4 +27,5 @@ class BoardPositionRead(BaseModel):
     description: str | None
     display_order: int
     active: bool
+    at_the_board: bool
     created_at: datetime

@@ -17,6 +17,7 @@ class BoardPosition(Base):
     description: Mapped[str | None] = mapped_column(Text)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    at_the_board: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -254,6 +254,7 @@ def make_board_position(db_session):
         description: str | None = None,
         display_order: int = 0,
         active: bool = True,
+        at_the_board: bool = False,
     ) -> BoardPosition:
         # Get-or-create: Story 12.10 seeds real board positions (President/
         # Treasurer/Secretary) via migration, so tests using those names as
@@ -263,12 +264,17 @@ def make_board_position(db_session):
             existing.description = description
             existing.display_order = display_order
             existing.active = active
+            existing.at_the_board = at_the_board
             db_session.commit()
             db_session.refresh(existing)
             return existing
 
         board_position = BoardPosition(
-            name=name, description=description, display_order=display_order, active=active
+            name=name,
+            description=description,
+            display_order=display_order,
+            active=active,
+            at_the_board=at_the_board,
         )
         db_session.add(board_position)
         db_session.commit()

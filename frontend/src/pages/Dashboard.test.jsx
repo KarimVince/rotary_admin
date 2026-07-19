@@ -107,7 +107,7 @@ describe("Dashboard", () => {
     );
     expect(screen.getByRole("link", { name: /dinner attendance/i })).toHaveAttribute(
       "href",
-      "/dinners/attendance",
+      "/dinners",
     );
   });
 
@@ -156,8 +156,8 @@ describe("Dashboard", () => {
 
   describe("board strip", () => {
     const POSITIONS = [
-      { id: "pos-president", name: "President", display_order: 1 },
-      { id: "pos-secretary", name: "Secretary", display_order: 2 },
+      { id: "pos-president", name: "President", display_order: 1, at_the_board: true },
+      { id: "pos-secretary", name: "Secretary", display_order: 2, at_the_board: true },
     ];
 
     // A birthdate exactly 45 years before "today" (same month/day), so the
@@ -245,6 +245,40 @@ describe("Dashboard", () => {
 
       await screen.findByText("President");
       expect(screen.queryByText("Secretary")).not.toBeInTheDocument();
+    });
+
+    it("omits an assigned position whose at_the_board flag is false", async () => {
+      mockRole = "admin";
+      mockDeniedKeys = new Set();
+      server.use(
+        http.get(`${API_BASE_URL}/dashboard/summary`, () => HttpResponse.json({})),
+        http.get(`${API_BASE_URL}/board/positions`, () =>
+          HttpResponse.json([
+            ...POSITIONS,
+            { id: "pos-speaker", name: "Speaker Coordinator", display_order: 3, at_the_board: false },
+          ]),
+        ),
+        http.get(`${API_BASE_URL}/board/assignments`, () =>
+          HttpResponse.json([
+            {
+              board_position_id: "pos-president",
+              end_date: null,
+              member: { first_name: "Jane", last_name: "Doe" },
+            },
+            {
+              board_position_id: "pos-speaker",
+              end_date: null,
+              member: { first_name: "Sam", last_name: "Lee" },
+            },
+          ]),
+        ),
+      );
+
+      renderDashboard();
+
+      await screen.findByText("President");
+      expect(screen.queryByText("Speaker Coordinator")).not.toBeInTheDocument();
+      expect(screen.queryByText("Sam Lee")).not.toBeInTheDocument();
     });
 
     it("hides the whole zone when no positions are assigned", async () => {

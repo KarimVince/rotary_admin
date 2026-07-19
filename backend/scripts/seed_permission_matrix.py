@@ -29,7 +29,17 @@ BOARD_POSITIONS = [
     ("President Elect", 2),
     ("Treasurer", 3),
     ("Secretary", 4),
+    # Story 14.12: the Event module's permission table names both of these
+    # as write-tier positions, and neither existed yet — the story's own
+    # note only calls out "Chair Event" explicitly, but "Chair Service
+    # Project" is equally absent and equally required by that same table.
+    ("Chair Service Project", 5),
+    ("Chair Event", 6),
 ]
+
+# Story 16.7: these are always board seats — "at_the_board" is force-true
+# for them on every run (locked), same rule enforced in app/api/board.py.
+_ALWAYS_AT_THE_BOARD = {"President", "Treasurer", "Secretary"}
 
 # function_key -> (default_user_level, {position_name: level, ... "*": level})
 # "*" is shorthand for "every named position gets this level unless
@@ -85,6 +95,13 @@ DEFAULT_MATRIX = {
         "no_access",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
     ),
+    # Story 16.10 — same write tier as NGO Classifications/PPT Template
+    # (Secretary/President/President Elect manage the Dinner Event Types
+    # list; everyone else has no access).
+    "admin.dinner_event_types": (
+        "no_access",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
+    ),
     # Story 10.10 — Secretary / President / President Elect can create events
     # and mark attendance; every other board position and the default
     # (non-board) user get read-only, per Story 10.6's permission matrix.
@@ -106,6 +123,105 @@ DEFAULT_MATRIX = {
         "read",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
     ),
+    # Story 14.12 — Event module. President, President Elect, Chair Service
+    # Project, and Chair Event get Write on every Event page except Setup
+    # (Read only there — only Admin gets Write on Setup). Every other named
+    # board position (Treasurer, Secretary) falls back to the same Read
+    # tier as a regular member for the pages, and no_access for Setup —
+    # neither is named in the story's own permission table.
+    "event": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.list": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.guests": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.auction": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.costs": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.sponsors": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.summary": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    "event.rundown": (
+        "read",
+        {
+            "President": "write",
+            "President Elect": "write",
+            "Chair Service Project": "write",
+            "Chair Event": "write",
+            "*": "read",
+        },
+    ),
+    # Setup is NA (no_access) for regular members and Read-only for the 4
+    # named roles — Admin is the only Write (admin bypasses the matrix
+    # entirely at the code level, so no explicit admin entry is needed).
+    "event.setup": (
+        "no_access",
+        {
+            "President": "read",
+            "President Elect": "read",
+            "Chair Service Project": "read",
+            "Chair Event": "read",
+            "*": "no_access",
+        },
+    ),
 }
 
 
@@ -115,16 +231,22 @@ def run() -> None:
         # 1. Board Position definitions — idempotent (unique on name).
         position_ids: dict[str, uuid.UUID] = {}
         for name, order in BOARD_POSITIONS:
+            at_the_board = name in _ALWAYS_AT_THE_BOARD
             row = db.execute(
                 text(
                     """
-                    INSERT INTO board_positions (id, name, display_order, active)
-                    VALUES (gen_random_uuid(), :name, :order, true)
-                    ON CONFLICT (name) DO UPDATE SET name = board_positions.name
+                    INSERT INTO board_positions (id, name, display_order, active, at_the_board)
+                    VALUES (gen_random_uuid(), :name, :order, true, :at_the_board)
+                    ON CONFLICT (name) DO UPDATE SET
+                        name = board_positions.name,
+                        at_the_board = CASE
+                            WHEN :at_the_board THEN true
+                            ELSE board_positions.at_the_board
+                        END
                     RETURNING id
                     """
                 ),
-                {"name": name, "order": order},
+                {"name": name, "order": order, "at_the_board": at_the_board},
             ).first()
             position_ids[name] = row[0]
 

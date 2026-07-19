@@ -20,6 +20,7 @@ const PRESIDENT = {
   description: "",
   display_order: 0,
   active: true,
+  at_the_board: true,
   created_at: new Date().toISOString(),
 };
 
@@ -29,6 +30,17 @@ const SECRETARY = {
   description: "",
   display_order: 1,
   active: true,
+  at_the_board: true,
+  created_at: new Date().toISOString(),
+};
+
+const SPEAKER_COORDINATOR = {
+  id: "position-3",
+  name: "Speaker Coordinator",
+  description: "",
+  display_order: 2,
+  active: true,
+  at_the_board: false,
   created_at: new Date().toISOString(),
 };
 
@@ -153,5 +165,26 @@ describe("BoardMembers", () => {
 
     expect(screen.getByText(/read-only/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /assign/i })).not.toBeInTheDocument();
+  });
+
+  it("splits positions into Board Members and Non-Board Members sections", async () => {
+    mockAccess = { canRead: true, canWrite: false };
+    mockBaseData({ positions: [PRESIDENT, SECRETARY, SPEAKER_COORDINATOR], assignments: [] });
+
+    render(<BoardMembers />);
+    await waitForLoaded();
+
+    const boardHeading = screen.getByRole("heading", { level: 2, name: "Board Members" });
+    const nonBoardHeading = screen.getByRole("heading", { level: 2, name: "Non-Board Members" });
+    expect(boardHeading.compareDocumentPosition(nonBoardHeading))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    const boardSection = boardHeading.nextElementSibling;
+    const nonBoardSection = nonBoardHeading.nextElementSibling;
+    expect(boardSection).toHaveTextContent("President");
+    expect(boardSection).toHaveTextContent("Secretary");
+    expect(boardSection).not.toHaveTextContent("Speaker Coordinator");
+    expect(nonBoardSection).toHaveTextContent("Speaker Coordinator");
+    expect(nonBoardSection).not.toHaveTextContent("President");
   });
 });

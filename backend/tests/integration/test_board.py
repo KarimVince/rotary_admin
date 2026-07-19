@@ -98,6 +98,72 @@ def test_create_board_position_duplicate_name_case_insensitive_returns_409(admin
     assert response.status_code == 409
 
 
+# --- Story 16.7: at_the_board flag -------------------------------------------
+
+
+def test_create_board_position_at_the_board_defaults_to_false(admin_client):
+    response = admin_client.post("/api/v1/board/positions", json={"name": "Chair Raffle"})
+
+    assert response.status_code == 201
+    assert response.json()["at_the_board"] is False
+
+
+def test_create_board_position_at_the_board_can_be_set_true(admin_client):
+    response = admin_client.post(
+        "/api/v1/board/positions", json={"name": "Chair Raffle", "at_the_board": True}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["at_the_board"] is True
+
+
+@pytest.mark.parametrize("name", ["President", "Treasurer", "Secretary"])
+def test_create_board_position_forces_at_the_board_true_for_locked_positions(
+    admin_client, name
+):
+    response = admin_client.post(
+        "/api/v1/board/positions", json={"name": name, "at_the_board": False}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["at_the_board"] is True
+
+
+@pytest.mark.parametrize("name", ["president", "TREASURER", " Secretary "])
+def test_create_board_position_locked_match_is_case_and_whitespace_insensitive(
+    admin_client, name
+):
+    response = admin_client.post(
+        "/api/v1/board/positions", json={"name": name, "at_the_board": False}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["at_the_board"] is True
+
+
+def test_update_board_position_cannot_unset_at_the_board_for_locked_position(admin_client):
+    created = admin_client.post("/api/v1/board/positions", json={"name": "President"}).json()
+
+    response = admin_client.patch(
+        f"/api/v1/board/positions/{created['id']}", json={"at_the_board": False}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["at_the_board"] is True
+
+
+def test_update_board_position_can_toggle_at_the_board_for_non_locked_position(admin_client):
+    created = admin_client.post("/api/v1/board/positions", json={"name": "Chair Raffle"}).json()
+    assert created["at_the_board"] is False
+
+    response = admin_client.patch(
+        f"/api/v1/board/positions/{created['id']}", json={"at_the_board": True}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["at_the_board"] is True
+
+
 # --- PATCH /board/positions/{id} --------------------------------------------
 
 

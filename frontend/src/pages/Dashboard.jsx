@@ -88,7 +88,7 @@ const MODULE_LINKS = [
   // Story 8.18: gated on the "attendance" menu-level function (10.10),
   // same pattern as every other module card here — no new App Function.
   {
-    to: "/dinners/attendance",
+    to: "/dinners",
     label: "Dinner Attendance",
     icon: UtensilsCrossed,
     requiredPermission: "attendance",
@@ -129,7 +129,7 @@ export default function Dashboard() {
             activeAssignmentByPosition.set(assignment.board_position_id, assignment),
           );
         const cards = positions
-          .filter((position) => activeAssignmentByPosition.has(position.id))
+          .filter((position) => position.at_the_board && activeAssignmentByPosition.has(position.id))
           .sort((a, b) => a.display_order - b.display_order)
           .map((position) => ({
             position,

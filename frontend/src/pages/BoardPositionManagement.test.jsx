@@ -17,6 +17,7 @@ const BASE_POSITION = {
   description: "Club president",
   display_order: 0,
   active: true,
+  at_the_board: true,
   created_at: new Date().toISOString(),
 };
 
@@ -114,5 +115,46 @@ describe("BoardPositionManagement", () => {
     await userEvent.click(screen.getByRole("button", { name: /deactivate/i }));
 
     expect(await screen.findByText("Inactive")).toBeInTheDocument();
+  });
+
+  it("shows the At the board column value", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/board/positions`, () => HttpResponse.json([BASE_POSITION])),
+    );
+
+    render(<BoardPositionManagement />);
+    await screen.findByText("President");
+
+    const row = screen.getByText("President").closest("tr");
+    expect(row).toHaveTextContent("Yes");
+  });
+
+  it("locks and checks the At the board checkbox for President/Treasurer/Secretary", async () => {
+    server.use(http.get(`${API_BASE_URL}/board/positions`, () => HttpResponse.json([])));
+
+    render(<BoardPositionManagement />);
+    await waitForLoaded();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "Secretary");
+
+    const checkbox = screen.getByLabelText(/at the board/i);
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeDisabled();
+  });
+
+  it("leaves the At the board checkbox editable for other positions", async () => {
+    server.use(http.get(`${API_BASE_URL}/board/positions`, () => HttpResponse.json([])));
+
+    render(<BoardPositionManagement />);
+    await waitForLoaded();
+
+    await userEvent.type(screen.getByLabelText(/name/i), "Speaker Coordinator");
+
+    const checkbox = screen.getByLabelText(/at the board/i);
+    expect(checkbox).not.toBeChecked();
+    expect(checkbox).toBeEnabled();
+
+    await userEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
   });
 });

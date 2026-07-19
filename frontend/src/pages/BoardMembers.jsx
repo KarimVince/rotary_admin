@@ -36,6 +36,15 @@ export default function BoardMembers() {
   const isCurrentTerm = year === CURRENT_YEAR;
   const canAssign = canManage && isCurrentTerm;
 
+  const boardPositions = useMemo(
+    () => positions.filter((position) => position.at_the_board),
+    [positions],
+  );
+  const nonBoardPositions = useMemo(
+    () => positions.filter((position) => !position.at_the_board),
+    [positions],
+  );
+
   async function loadAll() {
     setIsLoading(true);
     try {
@@ -165,40 +174,23 @@ export default function BoardMembers() {
       {loadError && <p role="alert">{loadError}</p>}
 
       {!isLoading && !loadError && (
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Position</th>
-              <th>Member</th>
-              <th>Start date</th>
-              {canAssign && <th></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {positions.map((position) => {
-              const assignment = latestAssignmentFor(assignments, position.id);
-              const isVacant = !assignment || assignment.end_date !== null;
-              return (
-                <tr key={position.id}>
-                  <td>{position.name}</td>
-                  <td>
-                    {isVacant
-                      ? "— Vacant —"
-                      : `${assignment.member.first_name} ${assignment.member.last_name}`}
-                  </td>
-                  <td>{isVacant ? "—" : assignment.start_date}</td>
-                  {canAssign && (
-                    <td>
-                      <button type="button" onClick={() => openAssignForm(position.id)}>
-                        {isVacant ? "Assign" : "Change"}
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <>
+          <h2>Board Members</h2>
+          <BoardPositionTable
+            positions={boardPositions}
+            assignments={assignments}
+            canAssign={canAssign}
+            onAssign={openAssignForm}
+          />
+
+          <h2>Non-Board Members</h2>
+          <BoardPositionTable
+            positions={nonBoardPositions}
+            assignments={assignments}
+            canAssign={canAssign}
+            onAssign={openAssignForm}
+          />
+        </>
       )}
 
       {assigningPositionId && (
@@ -243,5 +235,47 @@ export default function BoardMembers() {
         </form>
       )}
     </div>
+  );
+}
+
+function BoardPositionTable({ positions, assignments, canAssign, onAssign }) {
+  if (positions.length === 0) {
+    return <p>None.</p>;
+  }
+  return (
+    <table className="admin-table">
+      <thead>
+        <tr>
+          <th>Position</th>
+          <th>Member</th>
+          <th>Start date</th>
+          {canAssign && <th></th>}
+        </tr>
+      </thead>
+      <tbody>
+        {positions.map((position) => {
+          const assignment = latestAssignmentFor(assignments, position.id);
+          const isVacant = !assignment || assignment.end_date !== null;
+          return (
+            <tr key={position.id}>
+              <td>{position.name}</td>
+              <td>
+                {isVacant
+                  ? "— Vacant —"
+                  : `${assignment.member.first_name} ${assignment.member.last_name}`}
+              </td>
+              <td>{isVacant ? "—" : assignment.start_date}</td>
+              {canAssign && (
+                <td>
+                  <button type="button" onClick={() => onAssign(position.id)}>
+                    {isVacant ? "Assign" : "Change"}
+                  </button>
+                </td>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

@@ -10,7 +10,13 @@ import {
 } from "../api/boardPositions";
 import { useAccess } from "../hooks/useAccess";
 
-const EMPTY_FORM = { name: "", display_order: 0 };
+const EMPTY_FORM = { name: "", display_order: 0, at_the_board: false };
+
+const ALWAYS_AT_THE_BOARD = new Set(["president", "treasurer", "secretary"]);
+
+function isLockedAtTheBoard(name) {
+  return ALWAYS_AT_THE_BOARD.has(name.trim().toLowerCase());
+}
 
 export default function BoardPositionManagement() {
   const { canRead, canWrite } = useAccess("board.positions");
@@ -52,6 +58,7 @@ export default function BoardPositionManagement() {
     setForm({
       name: position.name,
       display_order: position.display_order,
+      at_the_board: position.at_the_board,
     });
     setSaveError(null);
   }
@@ -68,7 +75,11 @@ export default function BoardPositionManagement() {
     setIsSaving(true);
 
     try {
-      const payload = { ...form, display_order: Number(form.display_order) };
+      const payload = {
+        ...form,
+        display_order: Number(form.display_order),
+        at_the_board: isLockedAtTheBoard(form.name) ? true : form.at_the_board,
+      };
       if (editingId) {
         await updateBoardPosition(editingId, payload);
       } else {
@@ -150,6 +161,21 @@ export default function BoardPositionManagement() {
           value={form.display_order}
           onChange={(event) => setForm({ ...form, display_order: event.target.value })}
         />
+        <label htmlFor="position-at-the-board">
+          <input
+            id="position-at-the-board"
+            type="checkbox"
+            checked={isLockedAtTheBoard(form.name) ? true : form.at_the_board}
+            disabled={isLockedAtTheBoard(form.name)}
+            onChange={(event) => setForm({ ...form, at_the_board: event.target.checked })}
+          />
+          {" "}At the board
+        </label>
+        {isLockedAtTheBoard(form.name) && (
+          <p style={{ fontSize: 12, color: "var(--text-h)" }}>
+            President, Treasurer and Secretary are always board seats.
+          </p>
+        )}
         {saveError && <p role="alert">{saveError}</p>}
         <button type="submit" disabled={isSaving}>
           {isSaving ? "Saving…" : editingId ? "Update position" : "Add position"}
@@ -171,6 +197,7 @@ export default function BoardPositionManagement() {
             <tr>
               <th>Name</th>
               <th>Display order</th>
+              <th>At the board</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -180,6 +207,7 @@ export default function BoardPositionManagement() {
               <tr key={position.id}>
                 <td>{position.name}</td>
                 <td>{position.display_order}</td>
+                <td>{position.at_the_board ? "Yes" : "No"}</td>
                 <td>{position.active ? "Active" : "Inactive"}</td>
                 <td>
                   {canWrite && (
