@@ -186,13 +186,18 @@ function MonthCard({
                 <span className="text-[12px] text-[var(--color-muted-text)]">{event.location}</span>
               )}
             </div>
-            <span className="text-[13px] text-[var(--color-muted-text)]">
+            <span className="flex flex-col gap-[2px] text-[13px] text-[var(--color-muted-text)]">
               {speakerLabel(event) ? (
-                <>
+                <span>
                   <span className="text-[#9aa7ba]">Speaker:</span> {speakerLabel(event)}
-                </>
+                </span>
               ) : (
                 "—"
+              )}
+              {event.ngo_organisation_name && (
+                <span className="text-[12px]">
+                  <span className="text-[#9aa7ba]">NGO:</span> {event.ngo_organisation_name}
+                </span>
               )}
             </span>
             {event.member_only ? <MemberOnlyChip /> : <span />}
@@ -373,8 +378,8 @@ export default function DinnerEvents() {
   if (!canRead) {
     return (
       <div className="admin-page admin-page-wide">
-        <h1>Dinner Events</h1>
-        <p role="alert">You do not have permission to view Dinner Events.</p>
+        <h1>Dinner / Events</h1>
+        <p role="alert">You do not have permission to view Dinner / Events.</p>
       </div>
     );
   }
@@ -382,7 +387,7 @@ export default function DinnerEvents() {
   return (
     <div className="admin-page admin-page-wide">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="m-0 text-2xl font-semibold text-[#0c2340]">Dinner Events</h1>
+        <h1 className="m-0 text-2xl font-semibold text-[#0c2340]">Dinner / Events</h1>
         {canWrite && (
           <button
             type="button"

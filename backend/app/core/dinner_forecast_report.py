@@ -278,6 +278,13 @@ def _month_card(
                     location_style,
                 )
             )
+        if event.ngo_organisation_name:
+            content.append(
+                Paragraph(
+                    f'<font color="#9aa7ba">NGO:</font> {escape(event.ngo_organisation_name)}',
+                    location_style,
+                )
+            )
         if index < len(month_events) - 1:
             content.append(Spacer(1, 7))
 

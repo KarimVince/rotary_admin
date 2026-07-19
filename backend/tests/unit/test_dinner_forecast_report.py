@@ -62,6 +62,14 @@ def test_pdf_report_falls_back_to_default_chip_for_malformed_type_color(db_sessi
     assert pdf_bytes[:4] == b"%PDF"
 
 
+def test_pdf_report_renders_speaker_and_ngo_together(db_session):
+    event = _make_event(
+        db_session, speaker_name="Jane Speaker", ngo_organisation_name="Helping Hands"
+    )
+    pdf_bytes = build_pdf_report([event], rotary_year(event.event_date))
+    assert pdf_bytes[:4] == b"%PDF"
+
+
 def test_pdf_report_resolves_speaker_rotary_contact_member(db_session, make_member):
     contact = make_member(first_name="Contact", last_name="Person")
     event = _make_event(db_session, speaker_rotary_contact_member_id=contact.id)

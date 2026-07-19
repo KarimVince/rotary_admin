@@ -210,7 +210,7 @@ export default function AttendanceSheet() {
         to="/dinners"
         className="mb-3 inline-block text-[12px] font-semibold text-[var(--color-brand-blue)] no-underline"
       >
-        ← Dinner Events
+        ← Dinner / Events
       </Link>
 
       <div className="mb-4 flex items-center justify-between">

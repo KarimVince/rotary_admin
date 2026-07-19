@@ -125,6 +125,32 @@ describe("DinnerEvents", () => {
     expect(chip.className).toMatch(/bg-\[#f0f2f6\]/);
   });
 
+  it("shows the NGO/Organisation name next to the speaker when set", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+        HttpResponse.json([{ ...NOT_STARTED_EVENT, ngo_organisation_name: "Helping Hands" }]),
+      ),
+    );
+    renderPage();
+    await waitForLoaded();
+
+    expect(await screen.findAllByText("Jane Speaker")).not.toHaveLength(0);
+    expect(screen.getByText("Helping Hands")).toBeInTheDocument();
+  });
+
+  it("omits the NGO line when no NGO/Organisation is set", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+        HttpResponse.json([NOT_STARTED_EVENT]),
+      ),
+    );
+    renderPage();
+    await waitForLoaded();
+
+    await screen.findByText("Jane Speaker");
+    expect(screen.queryByText(/^NGO:$/)).not.toBeInTheDocument();
+  });
+
   it("populates the event-type filter dropdown from the admin-configured list", async () => {
     renderPage();
     await waitForLoaded();

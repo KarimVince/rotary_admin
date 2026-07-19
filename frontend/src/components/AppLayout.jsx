@@ -100,7 +100,7 @@ const NAV_ITEMS = [
     // item (same treatment as Dashboard below), gated by attendance.forecast
     // since that's the permission key the merged page itself checks.
     to: "/dinners",
-    label: "Dinner Events",
+    label: "Dinner / Events",
     icon: Utensils,
     requiredPermission: "attendance.forecast",
   },
