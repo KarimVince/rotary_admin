@@ -1,10 +1,14 @@
 import uuid
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-EventType = Literal["dinner", "fellowship"]
+# Story 16.10: was Literal["dinner", "fellowship"] — event types are now an
+# admin-managed list (DinnerEventType), so this just carries the type's
+# name string. Validity against the live list is checked at the API layer
+# (app/api/attendance.py / app/api/dinner_forecast.py), not by pydantic.
+EventType = Annotated[str, Field(min_length=1, max_length=50)]
 MemberStatusSnapshot = Literal["active", "honorary", "past"]
 
 

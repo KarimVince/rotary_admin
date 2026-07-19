@@ -6,7 +6,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
 
-event_guest_payment_status_enum = Enum("paid", "not_paid", name="event_guest_payment_status")
+event_guest_payment_status_enum = Enum(
+    "paid", "not_paid", "guest", name="event_guest_payment_status"
+)
 
 
 class EventGuest(Base):

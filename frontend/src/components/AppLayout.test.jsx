@@ -182,6 +182,24 @@ describe("AppLayout — Admin nav section", () => {
   });
 });
 
+describe("AppLayout — Event nav section (Story 14.13)", () => {
+  it("shows the Event section with the 2 consolidated links", async () => {
+    renderNav("admin");
+
+    expect(screen.getByRole("button", { name: /^event$/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^event$/i }));
+    expect(screen.getByRole("link", { name: "Event List" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage Project" })).toBeInTheDocument();
+  });
+
+  it("hides the Event section entirely for a user without event matrix access", () => {
+    mockDeniedKeys = new Set(["event"]);
+    renderNav("user");
+
+    expect(screen.queryByRole("button", { name: /^event$/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("AppLayout — mobile nav", () => {
   it("opens and closes the mobile drawer via the hamburger button", async () => {
     renderNav("admin", "/dashboard");

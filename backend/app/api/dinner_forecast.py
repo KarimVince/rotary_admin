@@ -6,12 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.core.attendance_support import (
+    compute_event_counts,
+    eligible_and_present,
+    validate_event_type,
+)
 from app.core.dinner_forecast_report import build_csv_report, build_pdf_report
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
-from app.models import AttendanceEvent, AttendanceRecord, User
+from app.models import AttendanceEvent, AttendanceRecord, DinnerEventType, User
 from app.schemas.attendance import AttendanceEventRead
 from app.schemas.dinner_forecast import (
     DinnerForecastEventCreate,
@@ -23,7 +28,10 @@ router = APIRouter()
 
 FORECAST_KEY = "attendance.forecast"
 
-EventFilter = Literal["all", "dinner", "fellowship"]
+# Story 16.10: was Literal["all", "dinner", "fellowship"] — now any
+# admin-configured type name, checked against the live list at request time
+# rather than fixed at the type level.
+EventFilter = str
 ReportFormat = Literal["pdf", "csv"]
 
 
@@ -50,10 +58,21 @@ def _started_event_ids(db: Session, event_ids: list[uuid.UUID]) -> set[uuid.UUID
     return {row[0] for row in rows}
 
 
-def _to_forecast_read(event: AttendanceEvent, started: bool) -> DinnerForecastEventRead:
+def _to_forecast_read(
+    event: AttendanceEvent, started: bool, bucket: dict[str, int] | None = None
+) -> DinnerForecastEventRead:
+    present_count = eligible_total = attendance_percentage = None
+    if started and bucket is not None:
+        eligible_total, present_count = eligible_and_present(bucket)
+        attendance_percentage = (
+            round(present_count / eligible_total * 100, 1) if eligible_total else 0.0
+        )
     return DinnerForecastEventRead(
         **AttendanceEventRead.model_validate(event).model_dump(),
         attendance_started=started,
+        present_count=present_count,
+        eligible_total=eligible_total,
+        attendance_percentage=attendance_percentage,
     )
 
 
@@ -86,7 +105,10 @@ def list_dinner_forecast_events(
     started = _started_event_ids(db, [event.id for event in events])
     if unstarted_only:
         events = [event for event in events if event.id not in started]
-    return [_to_forecast_read(event, event.id in started) for event in events]
+    counts = compute_event_counts(db, [event.id for event in events if event.id in started])
+    return [
+        _to_forecast_read(event, event.id in started, counts.get(event.id)) for event in events
+    ]
 
 
 @router.post("/dinner-forecast/events", response_model=DinnerForecastEventRead, status_code=201)
@@ -95,6 +117,7 @@ def create_dinner_forecast_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_access(FORECAST_KEY, "write")),
 ):
+    validate_event_type(db, payload.event_type)
     event = AttendanceEvent(
         name=payload.name,
         event_date=payload.event_date,
@@ -124,6 +147,8 @@ def update_dinner_forecast_event(
     event = _get_event_or_404(db, event_id)
 
     data = payload.model_dump(exclude_unset=True)
+    if data.get("event_type") is not None:
+        validate_event_type(db, data["event_type"])
     for field, value in data.items():
         setattr(event, field, value)
     if "event_date" in data:
@@ -132,7 +157,8 @@ def update_dinner_forecast_event(
     db.commit()
     db.refresh(event)
     started = bool(_started_event_ids(db, [event.id]))
-    return _to_forecast_read(event, started)
+    bucket = compute_event_counts(db, [event.id]).get(event.id) if started else None
+    return _to_forecast_read(event, started, bucket)
 
 
 @router.delete("/dinner-forecast/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -169,7 +195,12 @@ def generate_dinner_forecast_report(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    content = build_pdf_report(db, events, selected_year)
+    type_colors = {
+        t.name: (t.color_bg, t.color_text)
+        for t in db.query(DinnerEventType).all()
+        if t.color_bg and t.color_text
+    }
+    content = build_pdf_report(events, selected_year, type_colors)
     filename = generate_report_filename("dinner-forecast", "pdf", rotary_year=selected_year)
     return Response(
         content=content,

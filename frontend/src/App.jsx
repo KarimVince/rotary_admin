@@ -4,14 +4,16 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionsProvider } from "./context/PermissionsContext";
 import AdminPptTemplate from "./pages/AdminPptTemplate";
-import AttendanceHistory from "./pages/AttendanceHistory";
 import AttendanceSheet from "./pages/AttendanceSheet";
 import BoardMembers from "./pages/BoardMembers";
 import BoardPositionManagement from "./pages/BoardPositionManagement";
 import CurrencyManagement from "./pages/CurrencyManagement";
 import Dashboard from "./pages/Dashboard";
-import DinnerForecast from "./pages/DinnerForecast";
+import DinnerEvents from "./pages/DinnerEvents";
+import DinnerEventTypeManagement from "./pages/DinnerEventTypeManagement";
 import DonationsStatistics from "./pages/DonationsStatistics";
+import EventList from "./pages/EventList";
+import EventManageProject from "./pages/EventManageProject";
 import FeeRunManagement from "./pages/FeeRunManagement";
 import FeeSettingsManagement from "./pages/FeeSettingsManagement";
 import FeeStatistics from "./pages/FeeStatistics";
@@ -61,6 +63,12 @@ function App() {
               {/* Story 8.23 — same reasoning as NGO Classifications above:
                   matrix-driven (admin.ppt_template), not admin-role-only. */}
               <Route path="/admin/ppt-template" element={<AdminPptTemplate />} />
+              {/* Story 16.10 — same reasoning: matrix-driven
+                  (admin.dinner_event_types), not admin-role-only. */}
+              <Route
+                path="/admin/dinner-event-types"
+                element={<DinnerEventTypeManagement />}
+              />
               <Route path="/fees/settings" element={<FeeSettingsManagement />} />
               <Route path="/fees/run" element={<FeeRunManagement />} />
               <Route path="/fees/tracking" element={<FeeTracking />} />
@@ -69,9 +77,10 @@ function App() {
               <Route path="/friends/statistics" element={<RotaryFriendsStatistics />} />
               <Route path="/friends/email" element={<RotaryFriendsEmail />} />
               <Route path="/board/members" element={<BoardMembers />} />
-              <Route path="/dinners/attendance" element={<AttendanceHistory />} />
-              <Route path="/dinners/attendance/:eventId" element={<AttendanceSheet />} />
-              <Route path="/dinners/forecast" element={<DinnerForecast />} />
+              <Route path="/dinners" element={<DinnerEvents />} />
+              <Route path="/dinners/:eventId" element={<AttendanceSheet />} />
+              <Route path="/events" element={<EventList />} />
+              <Route path="/events/manage" element={<EventManageProject />} />
               {/* Story 13.2/13.3 — static legal pages, no permission gating,
                   linked from the app-wide footer (Story 13.1). */}
               <Route path="/terms" element={<TermsOfUsage />} />

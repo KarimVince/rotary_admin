@@ -34,6 +34,12 @@ class DinnerForecastEventRead(AttendanceEventRead):
     # Story 15.3 — whether this forecast event already has an attendance
     # sheet started (i.e. records seeded) for it.
     attendance_started: bool
+    # Story 16.8 — merged Dinner Events list needs attendance results
+    # alongside forecast fields in one call. Populated only when
+    # attendance_started is true; None otherwise (no data to show yet).
+    present_count: int | None = None
+    eligible_total: int | None = None
+    attendance_percentage: float | None = None
 
 
 __all__ = ["DinnerForecastEventCreate", "DinnerForecastEventUpdate", "DinnerForecastEventRead"]

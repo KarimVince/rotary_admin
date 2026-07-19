@@ -60,9 +60,9 @@ function buildSheet({ active = [activeMember()], past = [] } = {}) {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/dinners/attendance/event-1"]}>
+    <MemoryRouter initialEntries={["/dinners/event-1"]}>
       <Routes>
-        <Route path="/dinners/attendance/:eventId" element={<AttendanceSheet />} />
+        <Route path="/dinners/:eventId" element={<AttendanceSheet />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -147,5 +147,30 @@ describe("AttendanceSheet", () => {
     mockCanWrite = false;
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
+  });
+
+  describe("future-dated event (Story 16.9)", () => {
+    it("shows a banner, hides the stat pill, and disables the checklist even with saved marks", async () => {
+      mockCanRead = true;
+      mockCanWrite = true;
+      const futureSheet = {
+        ...buildSheet({ active: [activeMember(true)] }),
+        event: { ...EVENT, event_date: "2027-03-15" },
+      };
+      server.use(
+        http.get(`${API_BASE_URL}/attendance/events/event-1/sheet`, () =>
+          HttpResponse.json(futureSheet),
+        ),
+      );
+
+      renderPage();
+      await waitForLoaded();
+
+      expect(screen.getByText(/hasn't taken place yet/i)).toBeInTheDocument();
+      expect(screen.queryByText(/present \(/i)).not.toBeInTheDocument();
+      const checkbox = screen.getByLabelText(/mark jane doe present/i);
+      expect(checkbox).toBeDisabled();
+      expect(checkbox).toBeChecked();
+    });
   });
 });

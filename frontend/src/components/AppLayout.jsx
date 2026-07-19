@@ -1,12 +1,13 @@
 import {
   Building2,
+  CalendarDays,
   HeartHandshake,
   Landmark,
   LayoutDashboard,
   Menu,
   Shield,
-  UtensilsCrossed,
   Users,
+  Utensils,
   Wallet,
   X,
 } from "lucide-react";
@@ -94,29 +95,25 @@ const NAV_ITEMS = [
     ],
   },
   {
-    // Story 10.2/10.10: single "Attendance" child under the new "Dinner"
-    // section, gated at menu-level by "attendance" and at the item level by
-    // "attendance.history" (the history/stats list it links to).
-    section: "Dinner",
-    icon: UtensilsCrossed,
-    requiredPermission: "attendance",
+    // Story 16.8 — Dinner Forecast + Attendance merged into one page/route,
+    // so the nav collapses from a 2-child section to a single top-level
+    // item (same treatment as Dashboard below), gated by attendance.forecast
+    // since that's the permission key the merged page itself checks.
+    to: "/dinners",
+    label: "Dinner Events",
+    icon: Utensils,
+    requiredPermission: "attendance.forecast",
+  },
+  {
+    // Story 14.13: consolidated from 7 sub-pages into 2 — Event List and
+    // the bento-style Manage Project page (panels reached via ?panel=,
+    // each still individually gated by its own matrix key at render time).
+    section: "Event",
+    icon: CalendarDays,
+    requiredPermission: "event",
     children: [
-      {
-        // Story 15.1 — Dinner event planning list, matrix-driven via the
-        // attendance.forecast submenu key (internal key name unchanged;
-        // user-facing label dropped "Forecast" since the list holds past
-        // events too, not just upcoming ones). Ordered ahead of Attendance
-        // since planning a dinner comes before tracking who showed up.
-        to: "/dinners/forecast",
-        label: "Dinner Events",
-        requiredPermission: "attendance.forecast",
-      },
-      {
-        to: "/dinners/attendance",
-        label: "Attendance",
-        end: true,
-        requiredPermission: "attendance.history",
-      },
+      { to: "/events", label: "Event List", end: true, requiredPermission: "event.list" },
+      { to: "/events/manage", label: "Manage Project", requiredPermission: "event" },
     ],
   },
   {
@@ -171,6 +168,11 @@ const NAV_ITEMS = [
         label: "PPT Template",
         requiredPermission: "admin.ppt_template",
       },
+      {
+        to: "/admin/dinner-event-types",
+        label: "Dinner Event Types",
+        requiredPermission: "admin.dinner_event_types",
+      },
     ],
   },
 ];
@@ -213,9 +215,17 @@ export default function AppLayout() {
   const { canRead: canViewAdminCurrencies } = useAccess("admin.currencies");
   const { canRead: canViewAdminNgoClassifications } = useAccess("admin.ngo_classifications");
   const { canRead: canViewAdminPptTemplate } = useAccess("admin.ppt_template");
-  const { canRead: canViewAttendance } = useAccess("attendance");
-  const { canRead: canViewAttendanceHistory } = useAccess("attendance.history");
+  const { canRead: canViewAdminDinnerEventTypes } = useAccess("admin.dinner_event_types");
   const { canRead: canViewAttendanceForecast } = useAccess("attendance.forecast");
+  const { canRead: canViewEvent } = useAccess("event");
+  const { canRead: canViewEventList } = useAccess("event.list");
+  const { canRead: canViewEventGuests } = useAccess("event.guests");
+  const { canRead: canViewEventAuction } = useAccess("event.auction");
+  const { canRead: canViewEventCosts } = useAccess("event.costs");
+  const { canRead: canViewEventSponsors } = useAccess("event.sponsors");
+  const { canRead: canViewEventSummary } = useAccess("event.summary");
+  const { canRead: canViewEventRundown } = useAccess("event.rundown");
+  const { canRead: canViewEventSetup } = useAccess("event.setup");
 
   const permissionChecks = {
     fees: canViewFees,
@@ -243,9 +253,17 @@ export default function AppLayout() {
     "admin.currencies": canViewAdminCurrencies,
     "admin.ngo_classifications": canViewAdminNgoClassifications,
     "admin.ppt_template": canViewAdminPptTemplate,
-    attendance: canViewAttendance,
-    "attendance.history": canViewAttendanceHistory,
+    "admin.dinner_event_types": canViewAdminDinnerEventTypes,
     "attendance.forecast": canViewAttendanceForecast,
+    event: canViewEvent,
+    "event.list": canViewEventList,
+    "event.guests": canViewEventGuests,
+    "event.auction": canViewEventAuction,
+    "event.costs": canViewEventCosts,
+    "event.sponsors": canViewEventSponsors,
+    "event.summary": canViewEventSummary,
+    "event.rundown": canViewEventRundown,
+    "event.setup": canViewEventSetup,
   };
 
   // Story 12.9: one consistent rule for the whole nav — Menu-level

@@ -40,20 +40,20 @@ def test_csv_report_empty_events(db_session):
 
 def test_pdf_report_starts_with_pdf_header(db_session):
     event = _make_event(db_session)
-    pdf_bytes = build_pdf_report(db_session, [event], rotary_year(event.event_date))
+    pdf_bytes = build_pdf_report([event], rotary_year(event.event_date))
     assert pdf_bytes[:4] == b"%PDF"
 
 
 def test_pdf_report_renders_free_text_ngo_organisation(db_session):
     event = _make_event(db_session, ngo_organisation_name="Helping Hands")
-    pdf_bytes = build_pdf_report(db_session, [event], rotary_year(event.event_date))
+    pdf_bytes = build_pdf_report([event], rotary_year(event.event_date))
     assert pdf_bytes[:4] == b"%PDF"
 
 
 def test_pdf_report_resolves_speaker_rotary_contact_member(db_session, make_member):
     contact = make_member(first_name="Contact", last_name="Person")
     event = _make_event(db_session, speaker_rotary_contact_member_id=contact.id)
-    pdf_bytes = build_pdf_report(db_session, [event], rotary_year(event.event_date))
+    pdf_bytes = build_pdf_report([event], rotary_year(event.event_date))
     assert pdf_bytes[:4] == b"%PDF"
 
 
@@ -69,10 +69,16 @@ def test_csv_report_includes_member_only_column(db_session):
     event = _make_event(db_session, member_only=True)
     csv_text = build_csv_report(db_session, [event])
     assert "Member Only" in csv_text
-    assert "TRUE" in csv_text
+    assert "MEMBER ONLY" in csv_text
+
+
+def test_csv_report_member_only_column_blank_when_false(db_session):
+    event = _make_event(db_session, member_only=False)
+    csv_text = build_csv_report(db_session, [event])
+    assert "MEMBER ONLY" not in csv_text
 
 
 def test_pdf_report_renders_member_only_event(db_session):
     event = _make_event(db_session, member_only=True)
-    pdf_bytes = build_pdf_report(db_session, [event], rotary_year(event.event_date))
+    pdf_bytes = build_pdf_report([event], rotary_year(event.event_date))
     assert pdf_bytes[:4] == b"%PDF"

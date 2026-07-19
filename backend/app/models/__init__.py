@@ -4,6 +4,7 @@ from app.models.attendance_record import AttendanceRecord
 from app.models.auth_token import AuthToken
 from app.models.board_position import BoardPosition
 from app.models.board_position_assignment import BoardPositionAssignment
+from app.models.dinner_event_type import DinnerEventType
 from app.models.donation import Donation
 from app.models.email_log import EmailLog
 from app.models.event import Event
@@ -38,6 +39,7 @@ __all__ = [
     "AuthToken",
     "BoardPosition",
     "BoardPositionAssignment",
+    "DinnerEventType",
     "Donation",
     "EmailLog",
     "Event",

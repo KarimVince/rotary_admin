@@ -25,4 +25,17 @@
   --color-card-border: #dde3ec;
   --shadow-card: 0 4px 12px -2px rgba(12, 35, 64, 0.08);
   --shadow-nav-card: 0 6px 20px -4px rgba(12, 35, 64, 0.12);
+
+  /* Story 14.13: Events module redesign tokens — muted text, border shades
+     and tone *text* colours (the tone *background* pastels already exist as
+     --tone-*-bg in index.css and match these hex values exactly). */
+  --color-muted-text: #6b7686;
+  --color-muted-text-strong: #3c4655;
+  --color-border-light: #f4f6fa;
+  --color-border-faint: #eef1f5;
+  --color-tone-lavender-text: #5b3fa0;
+  --color-tone-teal-text: #1a7a68;
+  --color-tone-amber-text: #b8760f;
+  --color-tone-rose-text: #b8384a;
+  --shadow-card-lg: 0 4px 14px -4px rgba(12, 35, 64, 0.1);
 }

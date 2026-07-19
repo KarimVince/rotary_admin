@@ -2,10 +2,16 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.core.attendance_support import (
+    compute_attendance_stats,
+    compute_event_counts,
+    eligible_and_present,
+    member_status_as_of,
+    validate_event_type,
+)
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
@@ -40,75 +46,50 @@ def _get_event_or_404(db: Session, event_id: uuid.UUID) -> AttendanceEvent:
 
 
 def _seed_records_for_event(db: Session, event: AttendanceEvent) -> None:
-    # Story 10.3/10.1: snapshot every member's current status at event
-    # creation time. There's no status-history table in this app (Member.status
-    # is a single current value), so "as of the event date" is approximated
-    # with "as of now" — acceptable since events can't be created for a
-    # future date and are normally logged the same day.
+    # Story 16.5: snapshot every member's status as of the event's own date
+    # (via join_date/leave_date), not "now" — a Dinner Forecast event can be
+    # planned well ahead of its date and attendance started long after, by
+    # which point the roster may have changed.
     members = db.query(Member).all()
     for member in members:
         db.add(
             AttendanceRecord(
                 event_id=event.id,
                 member_id=member.id,
-                # Story 8.14: honorary is Member.is_honorary now, not a
-                # status value — this snapshot enum is independent of
-                # Member.status and still has its own "honorary" bucket.
-                member_status_snapshot=(
-                    "honorary"
-                    if member.status == "active" and member.is_honorary
-                    else member.status
-                ),
+                member_status_snapshot=member_status_as_of(member, event.event_date),
             )
         )
 
 
-def _event_counts(db: Session, event_ids: list[uuid.UUID]) -> dict[uuid.UUID, dict[str, int]]:
-    if not event_ids:
-        return {}
-
-    rows = (
-        db.query(
-            AttendanceRecord.event_id,
-            AttendanceRecord.member_status_snapshot,
-            AttendanceRecord.present,
-            func.count(AttendanceRecord.id),
-        )
-        .filter(AttendanceRecord.event_id.in_(event_ids))
-        .group_by(
-            AttendanceRecord.event_id,
-            AttendanceRecord.member_status_snapshot,
-            AttendanceRecord.present,
-        )
-        .all()
-    )
-
-    counts: dict[uuid.UUID, dict[str, int]] = {
-        event_id: {
-            "active_total": 0,
-            "active_present": 0,
-            "honorary_total": 0,
-            "honorary_present": 0,
-            "past_present": 0,
-        }
-        for event_id in event_ids
+def _refresh_records_for_event(db: Session, event: AttendanceEvent) -> None:
+    # Story 16.5's "Refresh List": re-derive every current member's snapshot
+    # as of the event date. Existing records keep their `present` mark —
+    # only the snapshot bucket (active/honorary/past) is recomputed, so a
+    # member whose join/leave dates were corrected after the fact moves to
+    # the right bucket without losing recorded attendance. Members with no
+    # record yet (joined the roster after the event was first started) get
+    # one seeded now, defaulting to not present.
+    existing = {
+        record.member_id: record
+        for record in db.query(AttendanceRecord).filter(AttendanceRecord.event_id == event.id)
     }
-
-    for event_id, snapshot, present, count in rows:
-        bucket = counts[event_id]
-        if snapshot in ("active", "honorary"):
-            bucket[f"{snapshot}_total"] += count
-            if present:
-                bucket[f"{snapshot}_present"] += count
-        elif snapshot == "past" and present:
-            bucket["past_present"] += count
-
-    return counts
+    for member in db.query(Member).all():
+        snapshot = member_status_as_of(member, event.event_date)
+        record = existing.get(member.id)
+        if record is None:
+            db.add(
+                AttendanceRecord(
+                    event_id=event.id,
+                    member_id=member.id,
+                    member_status_snapshot=snapshot,
+                )
+            )
+        elif record.member_status_snapshot != snapshot:
+            record.member_status_snapshot = snapshot
 
 
 def _list_item(event: AttendanceEvent, bucket: dict[str, int]) -> AttendanceEventListItem:
-    eligible_total = bucket["active_total"] + bucket["honorary_total"]
-    present_count = bucket["active_present"] + bucket["honorary_present"] + bucket["past_present"]
+    eligible_total, present_count = eligible_and_present(bucket)
     percentage = round(present_count / eligible_total * 100, 1) if eligible_total else 0.0
     return AttendanceEventListItem(
         **AttendanceEventRead.model_validate(event).model_dump(),
@@ -138,7 +119,7 @@ def list_attendance_events(
         .order_by(AttendanceEvent.event_date.desc())
         .all()
     )
-    counts = _event_counts(db, [event.id for event in events])
+    counts = compute_event_counts(db, [event.id for event in events])
     return [_list_item(event, counts[event.id]) for event in events]
 
 
@@ -153,50 +134,13 @@ def attendance_stats(
     selected_year = rotary_year if rotary_year is not None else compute_current_rotary_year(
         date.today()
     )
-    # Story 15.1 follow-up: the Dinner Events list can now hold future-dated,
-    # not-yet-started planning events (no attendance taken yet) — excluded
-    # here so they don't drag the average down with a phantom 0% turnout.
-    events = (
-        db.query(AttendanceEvent)
-        .filter(
-            AttendanceEvent.rotary_year == selected_year,
-            AttendanceEvent.event_date <= date.today(),
-        )
-        .all()
-    )
-    counts = _event_counts(db, [event.id for event in events])
-
-    eligible_member_count = (
-        db.query(func.count(Member.id)).filter(Member.status == "active").scalar()
-        or 0
-    )
-
-    if not events:
-        return AttendanceStatsResponse(
-            rotary_year=selected_year,
-            total_events=0,
-            average_attendance=None,
-            average_attendance_percentage=None,
-            eligible_member_count=eligible_member_count,
-        )
-
-    percentages = []
-    present_counts = []
-    for event in events:
-        bucket = counts[event.id]
-        eligible_total = bucket["active_total"] + bucket["honorary_total"]
-        present_count = (
-            bucket["active_present"] + bucket["honorary_present"] + bucket["past_present"]
-        )
-        present_counts.append(present_count)
-        percentages.append(present_count / eligible_total * 100 if eligible_total else 0.0)
-
+    stats = compute_attendance_stats(db, selected_year)
     return AttendanceStatsResponse(
-        rotary_year=selected_year,
-        total_events=len(events),
-        average_attendance=round(sum(present_counts) / len(present_counts), 1),
-        average_attendance_percentage=round(sum(percentages) / len(percentages), 1),
-        eligible_member_count=eligible_member_count,
+        rotary_year=stats.rotary_year,
+        total_events=stats.total_events,
+        average_attendance=stats.average_attendance,
+        average_attendance_percentage=stats.average_attendance_percentage,
+        eligible_member_count=stats.eligible_member_count,
     )
 
 
@@ -206,6 +150,7 @@ def create_attendance_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_access(ATTENDANCE_SHEET, "write")),
 ):
+    validate_event_type(db, payload.event_type)
     event = AttendanceEvent(
         name=payload.name,
         event_date=payload.event_date,
@@ -258,6 +203,8 @@ def update_attendance_event(
     event = _get_event_or_404(db, event_id)
 
     data = payload.model_dump(exclude_unset=True)
+    if data.get("event_type") is not None:
+        validate_event_type(db, data["event_type"])
     for field, value in data.items():
         setattr(event, field, value)
     if "event_date" in data:
@@ -290,18 +237,11 @@ def _record_read(member: Member, record: AttendanceRecord) -> AttendanceRecordRe
     )
 
 
-@router.get("/attendance/events/{event_id}/sheet", response_model=AttendanceSheetResponse)
-def get_attendance_sheet(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    _current_user: User = Depends(require_access(ATTENDANCE_SHEET, "read")),
-):
-    event = _get_event_or_404(db, event_id)
-
+def _build_sheet_response(db: Session, event: AttendanceEvent) -> AttendanceSheetResponse:
     rows = (
         db.query(AttendanceRecord, Member)
         .join(Member, AttendanceRecord.member_id == Member.id)
-        .filter(AttendanceRecord.event_id == event_id)
+        .filter(AttendanceRecord.event_id == event.id)
         .order_by(Member.last_name, Member.first_name)
         .all()
     )
@@ -333,6 +273,32 @@ def get_attendance_sheet(
         eligible_total=eligible_total,
         attendance_percentage=percentage,
     )
+
+
+@router.get("/attendance/events/{event_id}/sheet", response_model=AttendanceSheetResponse)
+def get_attendance_sheet(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_access(ATTENDANCE_SHEET, "read")),
+):
+    event = _get_event_or_404(db, event_id)
+    return _build_sheet_response(db, event)
+
+
+@router.post("/attendance/events/{event_id}/refresh", response_model=AttendanceSheetResponse)
+def refresh_attendance_sheet(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_access(ATTENDANCE_SHEET, "write")),
+):
+    # Story 16.5's "Refresh List" — re-derives every member's active/
+    # honorary/past bucket as of the event's date from the current roster,
+    # adding records for members not yet on the list. Existing `present`
+    # marks are never touched.
+    event = _get_event_or_404(db, event_id)
+    _refresh_records_for_event(db, event)
+    db.commit()
+    return _build_sheet_response(db, event)
 
 
 @router.patch(

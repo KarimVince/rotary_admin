@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { createDinnerForecastEvent, updateDinnerForecastEvent } from "../api/dinnerForecast";
 
-export default function DinnerForecastEventFormModal({ event, members, onClose, onSaved }) {
+export default function DinnerForecastEventFormModal({ event, members, eventTypes, onClose, onSaved }) {
   const isEditing = Boolean(event);
   const [form, setForm] = useState({
     name: event?.name || "",
     event_date: event?.event_date || "",
-    event_type: event?.event_type || "dinner",
+    event_type: event?.event_type || eventTypes[0]?.name || "",
     location: event?.location || "",
     speaker_name: event?.speaker_name || "",
     ngo_organisation_name: event?.ngo_organisation_name || "",
@@ -75,8 +75,11 @@ export default function DinnerForecastEventFormModal({ event, members, onClose, 
                 value={form.event_type}
                 onChange={(e2) => setForm({ ...form, event_type: e2.target.value })}
               >
-                <option value="dinner">Dinner</option>
-                <option value="fellowship">Fellowship</option>
+                {eventTypes.map((type) => (
+                  <option key={type.id} value={type.name}>
+                    {type.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="field-full">

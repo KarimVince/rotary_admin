@@ -1,12 +1,10 @@
 import uuid
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
-
-attendance_event_type_enum = Enum("dinner", "fellowship", name="attendance_event_type")
 
 
 class AttendanceEvent(Base):
@@ -17,7 +15,12 @@ class AttendanceEvent(Base):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     event_date: Mapped["Date"] = mapped_column(Date, nullable=False)
-    event_type: Mapped[str] = mapped_column(attendance_event_type_enum, nullable=False)
+    # Story 16.10: was a fixed 2-value Postgres enum ("dinner"/"fellowship")
+    # — now a plain name string referencing DinnerEventType.name (no DB-level
+    # FK; validated at the API layer) so types are admin-configurable
+    # without a migration. Stores the type's exact display name, e.g.
+    # "Dinner", "Gala" — renaming a type re-points existing rows to match.
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # Integer, like every other rotary_year column in this app (Donation,
     # MemberFee, BoardPositionAssignment) — computed server-side from
     # event_date via app.core.rotary_year.rotary_year(). Display as

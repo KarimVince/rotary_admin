@@ -52,7 +52,7 @@ def test_user_can_read_but_not_create(user_client, secretary_client):
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -67,7 +67,7 @@ def test_user_can_read_but_not_create(user_client, secretary_client):
         json={
             "name": "Another Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -82,7 +82,7 @@ def test_create_allows_future_dates_and_does_not_seed_records(secretary_client, 
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -99,7 +99,7 @@ def test_create_allows_future_dates_and_does_not_seed_records(secretary_client, 
 def test_create_requires_location(secretary_client):
     response = secretary_client.post(
         "/api/v1/dinner-forecast/events",
-        json={"name": "No Location", "event_date": str(FUTURE), "event_type": "dinner"},
+        json={"name": "No Location", "event_date": str(FUTURE), "event_type": "Dinner"},
     )
     assert response.status_code == 422
 
@@ -113,7 +113,7 @@ def test_create_with_free_text_ngo_organisation(secretary_client):
         json={
             "name": "NGO Night",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
             "ngo_organisation_name": "Helping Hands (not yet in Organisations)",
         },
@@ -129,7 +129,7 @@ def test_create_with_speaker_rotary_contact(secretary_client, make_member):
         json={
             "name": "Guest Speaker Night",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
             "speaker_rotary_contact_member_id": str(contact.id),
         },
@@ -144,7 +144,7 @@ def test_create_defaults_member_only_to_false_and_can_set_true(secretary_client)
         json={
             "name": "Open Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -156,7 +156,7 @@ def test_create_defaults_member_only_to_false_and_can_set_true(secretary_client)
         json={
             "name": "Members Only Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
             "member_only": True,
         },
@@ -171,7 +171,7 @@ def test_update_event_member_only_flag(secretary_client):
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -190,7 +190,7 @@ def test_update_event(secretary_client):
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -212,7 +212,7 @@ def test_soft_delete_hides_from_list_but_keeps_started_attendance(secretary_clie
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -242,7 +242,7 @@ def test_start_attendance_seeds_records_and_is_idempotent_guarded(secretary_clie
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -264,7 +264,7 @@ def test_unstarted_only_filter(secretary_client):
         json={
             "name": "Not Started",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -275,7 +275,7 @@ def test_unstarted_only_filter(secretary_client):
         json={
             "name": "Already Started",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -296,7 +296,7 @@ def test_pdf_report_returns_pdf(secretary_client):
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -314,7 +314,7 @@ def test_csv_report_returns_csv(secretary_client):
         json={
             "name": "Welcome Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
         },
     )
@@ -332,7 +332,7 @@ def test_csv_report_includes_member_only_column(secretary_client):
         json={
             "name": "Members Only Dinner",
             "event_date": str(FUTURE),
-            "event_type": "dinner",
+            "event_type": "Dinner",
             "location": "Club House",
             "member_only": True,
         },
@@ -342,4 +342,4 @@ def test_csv_report_includes_member_only_column(secretary_client):
     )
     assert response.status_code == 200
     assert "Member Only" in response.text
-    assert "TRUE" in response.text
+    assert "MEMBER ONLY" in response.text

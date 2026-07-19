@@ -4,9 +4,16 @@ PDF header renders the club logo top-left and the Rotary International logo
 top-right. Only the club logo (`LOGO_PATH`) exists in this repo so far —
 `INTL_LOGO_PATH` renders automatically the moment that file is added at
 `backend/app/assets/rotary-international-logo.png`, no code change needed.
+
+Story 16.9: the PDF is a two-page month-by-month calendar (matching the
+"Dinner Calendar Report" design handoff) — 6 month cards per page, July-
+December then January-June of the rotary year, each card listing its
+events' date/type/name/location — deliberately no attendance data, per
+that handoff's explicit instruction.
 """
+import calendar
 import csv
-from datetime import datetime, timezone
+from datetime import date as date_type, datetime, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -15,18 +22,35 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
-from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Image,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 from sqlalchemy.orm import Session
 
-from app.core.pdf_style import PDF_BODY_FONT_SIZE, PDF_TABLE_HEADER_FONT_SIZE
-from app.core.statistics_report import CLUB_NAME, LOGO_PATH, ROTARY_BLUE
+from app.core.statistics_report import CLUB_NAME, LOGO_PATH
 from app.models import AttendanceEvent, Member
 
 # See module docstring — not present in this repo yet, render it once it is.
 INTL_LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "rotary-international-logo.png"
 
-EVENT_TYPE_LABEL = {"dinner": "Dinner", "fellowship": "Fellowship"}
+# Story 16.10: event types are admin-configurable now — event.event_type
+# already holds the exact display name, and colors come from the live
+# DinnerEventType table (passed in as type_colors). This is just the
+# fallback for a type with no configured colors.
+DEFAULT_TYPE_CHIP = ("#f0f2f6", "#6b7686")
+
+# Matches the app's --tone-amber-bg / --color-tone-amber-text tokens — same
+# "Members Only" chip on both the live Dinner Events page and this report.
+MEMBER_ONLY_BG = "#fdf0da"
+MEMBER_ONLY_TEXT = "#b8760f"
 
 CSV_COLUMNS = [
     "Date",
@@ -66,7 +90,7 @@ def build_csv_report(db: Session, events: list[AttendanceEvent]) -> str:
         writer.writerow(
             {
                 "Date": event.event_date.isoformat(),
-                "Type": EVENT_TYPE_LABEL[event.event_type],
+                "Type": event.event_type,
                 "Event Name": event.name,
                 "Location": event.location or "",
                 "Speaker Name": event.speaker_name or "",
@@ -75,7 +99,7 @@ def build_csv_report(db: Session, events: list[AttendanceEvent]) -> str:
                 ),
                 "NGO-Organisation": event.ngo_organisation_name or "",
                 "Topics/Description": event.topics_description or "",
-                "Member Only": "TRUE" if event.member_only else "FALSE",
+                "Member Only": "MEMBER ONLY" if event.member_only else "",
             }
         )
     return buffer.getvalue()
@@ -103,46 +127,224 @@ class _NumberedCanvas(Canvas):
 
     def _draw_footer(self, total_pages: int) -> None:
         page_width = self._pagesize[0]
+        self.setStrokeColor(colors.HexColor("#dde3ec"))
+        self.setLineWidth(0.5)
+        self.line(0.6 * inch, 0.55 * inch, page_width - 0.6 * inch, 0.55 * inch)
         self.setFont("Helvetica", 8)
-        self.setFillColor(colors.HexColor("#5b6472"))
-        self.drawString(
-            0.6 * inch, 0.4 * inch, f"Page {self.getPageNumber()} of {total_pages}"
-        )
+        self.setFillColor(colors.HexColor("#9aa7ba"))
         generated = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        self.drawRightString(page_width - 0.6 * inch, 0.4 * inch, f"Generated {generated}")
+        self.drawString(0.6 * inch, 0.4 * inch, f"Generated {generated}")
+        self.drawCentredString(
+            page_width / 2, 0.4 * inch, f"Page {self.getPageNumber()} of {total_pages}"
+        )
+        self.drawRightString(
+            page_width - 0.6 * inch, 0.4 * inch, f"{CLUB_NAME} — Dinner & Fellowship Calendar"
+        )
 
 
-PAGE_MARGIN = 0.3 * inch
+PAGE_MARGIN = 0.4 * inch
+CARD_GAP = 0.12 * inch
 
-# Explicit widths — landscape letter minus PAGE_MARGIN*2 is ~10.4in of usable
-# width; these sum to exactly that. Date widened so the ISO "YYYY-MM-DD"
-# string never wraps (reportlab's Paragraph treats the hyphens as breakable,
-# which is what caused the two-line wrap at the old 0.65in). Event Name and
-# Location also widened; Speaker/Speaker Rotary Contact/NGO-Organisation
-# narrowed to free up space for Topics/Description, the widest column.
-COLUMN_WIDTHS = [
-    1.1 * inch,  # Date
-    0.6 * inch,  # Type
-    1.35 * inch,  # Event Name
-    1.5 * inch,  # Location
-    1.0 * inch,  # Speaker
-    1.05 * inch,  # Speaker Rotary Contact
-    1.0 * inch,  # NGO-Organisation
-    2.15 * inch,  # Topics/Description
-    0.65 * inch,  # Member Only (Story 15.6/15.7)
-]
+# 3 columns x 2 rows = 6 month cards per page; 12 months of a rotary year
+# (Jul-Jun) split into exactly 2 pages of 6.
+MONTHS_PER_ROW = 3
+ROWS_PER_PAGE = 2
 
 
-def _cell_style(styles, *, bold: bool = False):
-    style = styles["BodyText"].clone("cell")
-    style.fontSize = PDF_TABLE_HEADER_FONT_SIZE if bold else PDF_BODY_FONT_SIZE
-    style.leading = style.fontSize + 2.5
-    style.fontName = "Helvetica-Bold" if bold else "Helvetica"
-    return style
+def _rotary_year_months(rotary_year_value: int) -> list[date_type]:
+    """The 12 (year, month) starts of a rotary year, Jul -> Jun, as the 1st
+    of each month — used only as bucket keys/labels, never compared as a
+    real event date."""
+    months = [date_type(rotary_year_value, m, 1) for m in range(7, 13)]
+    months += [date_type(rotary_year_value + 1, m, 1) for m in range(1, 7)]
+    return months
 
 
-def build_pdf_report(db: Session, events: list[AttendanceEvent], rotary_year_value: int) -> bytes:
-    member_names = _member_names(db, events)
+def _group_by_month(
+    events: list[AttendanceEvent], months: list[date_type]
+) -> dict[date_type, list[AttendanceEvent]]:
+    buckets: dict[date_type, list[AttendanceEvent]] = {m: [] for m in months}
+    for event in sorted(events, key=lambda e: e.event_date):
+        key = date_type(event.event_date.year, event.event_date.month, 1)
+        if key in buckets:
+            buckets[key].append(event)
+    return buckets
+
+
+def _month_card(
+    month: date_type,
+    month_events: list[AttendanceEvent],
+    styles,
+    width: float,
+    type_colors: dict[str, tuple[str, str]],
+) -> Table:
+    title_style = styles["BodyText"].clone("month-title")
+    title_style.fontSize = 15
+    title_style.fontName = "Helvetica-Bold"
+    title_style.textColor = colors.HexColor("#17458f")
+
+    date_style = styles["BodyText"].clone("event-date")
+    date_style.fontSize = 10.5
+    date_style.fontName = "Helvetica-Bold"
+    date_style.textColor = colors.HexColor("#0c2340")
+    date_style.leading = 13
+
+    chip_style = styles["BodyText"].clone("event-chip")
+    chip_style.fontSize = 8
+    chip_style.fontName = "Helvetica-Bold"
+    chip_style.leading = 9
+
+    name_style = styles["BodyText"].clone("event-name")
+    name_style.fontSize = 10.5
+    name_style.fontName = "Helvetica"
+    name_style.textColor = colors.HexColor("#0c2340")
+    name_style.leading = 13
+    name_style.spaceBefore = 2
+
+    location_style = styles["BodyText"].clone("event-location")
+    location_style.fontSize = 10.5
+    location_style.textColor = colors.HexColor("#6b7686")
+    location_style.leading = 13
+
+    title = Table([[Paragraph(month.strftime("%B %Y"), title_style)]], colWidths=[width - 28])
+    title.setStyle(
+        TableStyle(
+            [
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.75, colors.HexColor("#eef1f5")),
+            ]
+        )
+    )
+
+    content: list = [title, Spacer(1, 8)]
+    for index, event in enumerate(month_events):
+        bg, fg = type_colors.get(event.event_type, DEFAULT_TYPE_CHIP)
+        chip_style_colored = chip_style.clone(f"chip-{month}-{index}")
+        chip_style_colored.textColor = colors.HexColor(fg)
+        # "3 Jul" — no leading zero, matching the design handoff exactly.
+        date_label = f"{event.event_date.day} {event.event_date.strftime('%b')}"
+
+        row_cells = [Paragraph(date_label, date_style), Paragraph(escape(event.event_type), chip_style_colored)]
+        row_style_commands = [
+            ("LEFTPADDING", (0, 0), (0, 0), 0),
+            ("RIGHTPADDING", (0, 0), (0, 0), 8),
+            ("LEFTPADDING", (1, 0), (1, 0), 6),
+            ("RIGHTPADDING", (1, 0), (1, 0), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("BACKGROUND", (1, 0), (1, 0), colors.HexColor(bg)),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        if event.member_only:
+            member_only_style = chip_style.clone(f"member-only-{month}-{index}")
+            member_only_style.textColor = colors.HexColor(MEMBER_ONLY_TEXT)
+            row_cells.append(Paragraph("Members Only", member_only_style))
+            row_style_commands += [
+                ("LEFTPADDING", (2, 0), (2, 0), 6),
+                ("RIGHTPADDING", (2, 0), (2, 0), 6),
+                ("BACKGROUND", (2, 0), (2, 0), colors.HexColor(MEMBER_ONLY_BG)),
+            ]
+        date_row = Table([row_cells], colWidths=[None] * len(row_cells))
+        date_row.setStyle(TableStyle(row_style_commands))
+        content.append(date_row)
+        # Name and location share a line (location right after the name,
+        # not buried below the speaker) — speaker gets its own labelled
+        # line underneath since it's a distinct fact, not part of "where".
+        name_line = f'<font color="#0c2340"><b>{escape(event.name)}</b></font>'
+        if event.location:
+            name_line += f' — <font color="#6b7686">{escape(event.location)}</font>'
+        content.append(Paragraph(name_line, name_style))
+        if event.speaker_name:
+            content.append(
+                Paragraph(
+                    f'<font color="#9aa7ba">Speaker:</font> {escape(event.speaker_name)}',
+                    location_style,
+                )
+            )
+        if index < len(month_events) - 1:
+            content.append(Spacer(1, 7))
+
+    if not month_events:
+        empty_style = location_style.clone("month-empty")
+        empty_style.textColor = colors.HexColor("#9aa7ba")
+        content.append(Paragraph("No events", empty_style))
+
+    card = Table([[content]], colWidths=[width])
+    card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#dde3ec")),
+                ("ROUNDEDCORNERS", [10, 10, 10, 10]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    return card
+
+
+def _calendar_page(
+    months: list[date_type],
+    buckets: dict,
+    styles,
+    usable_width: float,
+    type_colors: dict[str, tuple[str, str]],
+) -> Table:
+    card_width = (usable_width - (MONTHS_PER_ROW - 1) * CARD_GAP) / MONTHS_PER_ROW
+    rows: list[list] = []
+    for row_index in range(ROWS_PER_PAGE):
+        row_months = months[row_index * MONTHS_PER_ROW : (row_index + 1) * MONTHS_PER_ROW]
+        row: list = []
+        for i, month in enumerate(row_months):
+            row.append(_month_card(month, buckets[month], styles, card_width, type_colors))
+            if i < len(row_months) - 1:
+                row.append("")
+        rows.append(row)
+        if row_index < ROWS_PER_PAGE - 1:
+            rows.append(["" for _ in row])
+
+    col_widths = [card_width, CARD_GAP, card_width, CARD_GAP, card_width]
+    row_heights = [None, CARD_GAP, None]
+    grid = Table(rows, colWidths=col_widths, rowHeights=row_heights)
+    grid.setStyle(
+        TableStyle(
+            [
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    return grid
+
+
+def _logo_image(path: Path, target_height: float):
+    """Scales to a target height while preserving the source image's own
+    aspect ratio — a fixed width+height box (the old approach) squashed
+    non-square logos out of shape."""
+    if not path.exists():
+        return ""
+    reader = ImageReader(str(path))
+    native_width, native_height = reader.getSize()
+    width = target_height * (native_width / native_height)
+    return Image(str(path), width=width, height=target_height)
+
+
+def build_pdf_report(
+    events: list[AttendanceEvent],
+    rotary_year_value: int,
+    type_colors: dict[str, tuple[str, str]] | None = None,
+) -> bytes:
+    type_colors = type_colors or {}
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -155,94 +357,52 @@ def build_pdf_report(db: Session, events: list[AttendanceEvent], rotary_year_val
     styles = getSampleStyleSheet()
     story = []
 
-    usable_width = sum(COLUMN_WIDTHS)
-    left_logo = Image(str(LOGO_PATH), width=0.7 * inch, height=0.7 * inch) if LOGO_PATH.exists() else ""
-    right_logo = (
-        Image(str(INTL_LOGO_PATH), width=0.7 * inch, height=0.7 * inch)
-        if INTL_LOGO_PATH.exists()
-        else ""
-    )
-    if left_logo or right_logo:
-        # Club logo top-left, Rotary International logo top-right — opposite
-        # corners of the page, not stacked together.
-        logo_row = Table([[left_logo, right_logo]], colWidths=[usable_width / 2, usable_width / 2])
-        logo_row.setStyle(
-            TableStyle(
-                [
-                    ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                    ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ]
-            )
-        )
-        story.append(logo_row)
-    story.append(Paragraph(CLUB_NAME, styles["Title"]))
-    story.append(
-        Paragraph(
-            f"Dinner Events — Rotary Year {rotary_year_value}–{rotary_year_value + 1}",
-            styles["Heading2"],
-        )
-    )
-    story.append(Spacer(1, 0.15 * inch))
+    usable_width = landscape(letter)[0] - 2 * PAGE_MARGIN
+    # Club logo (left) rendered larger and at its native aspect ratio —
+    # the old fixed width==height box squashed it out of shape.
+    left_logo = _logo_image(LOGO_PATH, 0.75 * inch)
+    right_logo = _logo_image(INTL_LOGO_PATH, 0.55 * inch)
+    title_style = styles["BodyText"].clone("report-title")
+    title_style.fontSize = 17
+    title_style.fontName = "Helvetica-Bold"
+    title_style.textColor = colors.HexColor("#0c2340")
+    title_style.alignment = 1
+    subtitle_style = styles["BodyText"].clone("report-subtitle")
+    subtitle_style.fontSize = 11
+    subtitle_style.textColor = colors.HexColor("#6b7686")
+    subtitle_style.alignment = 1
 
-    header_style = _cell_style(styles, bold=True)
-    header_style.textColor = colors.white
-    body_style = _cell_style(styles)
-
-    header = [
-        "Date",
-        "Type",
-        "Event Name",
-        "Location",
-        "Speaker",
-        "Speaker Rotary Contact",
-        "NGO-Organisation",
-        "Topics/Description",
-        "Member Only",
+    title_block = [
+        Paragraph("Dinner &amp; Fellowship Calendar", title_style),
+        Paragraph(f"Rotary Year {rotary_year_value}–{rotary_year_value + 1}", subtitle_style),
     ]
-    rows = [[Paragraph(text, header_style) for text in header]]
-    for event in events:
-        # "13 Jul 2026" with non-breaking spaces baked into the strftime
-        # format itself — not the ISO "YYYY-MM-DD" form, whose hyphens
-        # reportlab's Paragraph treats as breakable (that's what caused
-        # the two-line wrap at the old column width). Non-breaking spaces
-        # mean this can never wrap either way.
-        date_display = event.event_date.strftime("%d %b %Y")
-        rows.append(
-            [
-                Paragraph(date_display, body_style),
-                Paragraph(escape(EVENT_TYPE_LABEL[event.event_type]), body_style),
-                Paragraph(escape(event.name), body_style),
-                Paragraph(escape(event.location or ""), body_style),
-                Paragraph(escape(event.speaker_name or ""), body_style),
-                Paragraph(
-                    escape(member_names.get(str(event.speaker_rotary_contact_member_id), "")),
-                    body_style,
-                ),
-                Paragraph(escape(event.ngo_organisation_name or ""), body_style),
-                Paragraph(escape(event.topics_description or "").replace("\n", "<br/>"), body_style),
-                Paragraph("Yes" if event.member_only else "No", body_style),
-            ]
-        )
-
-    table = Table(rows, colWidths=COLUMN_WIDTHS, repeatRows=1)
-    table.setStyle(
+    header_row = Table(
+        [[left_logo, title_block, right_logo]],
+        colWidths=[usable_width * 0.15, usable_width * 0.7, usable_width * 0.15],
+    )
+    header_row.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(ROTARY_BLUE)),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d0d5dd")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f7fa")]),
+                ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ("LINEBELOW", (0, 0), (-1, -1), 1.5, colors.HexColor("#17458f")),
             ]
         )
     )
-    story.append(table)
+    story.append(header_row)
+    story.append(Spacer(1, 0.2 * inch))
+
+    months = _rotary_year_months(rotary_year_value)
+    buckets = _group_by_month(events, months)
+
+    story.append(_calendar_page(months[:6], buckets, styles, usable_width, type_colors))
+    story.append(PageBreak())
+    story.append(_calendar_page(months[6:], buckets, styles, usable_width, type_colors))
 
     doc.build(story, canvasmaker=_NumberedCanvas)
     return buffer.getvalue()

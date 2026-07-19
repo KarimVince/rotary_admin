@@ -1,13 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createAttendanceEvent, updateAttendanceEvent } from "../api/attendance";
+import { listDinnerEventTypes } from "../api/dinnerEventTypes";
 
 export default function AttendanceEventFormModal({ event, onClose, onSaved }) {
   const isEditing = Boolean(event);
+  const [eventTypes, setEventTypes] = useState([]);
   const [form, setForm] = useState({
     name: event?.name || "",
     event_date: event?.event_date || "",
-    event_type: event?.event_type || "dinner",
+    event_type: event?.event_type || "",
   });
+
+  useEffect(() => {
+    listDinnerEventTypes()
+      .then((types) => {
+        setEventTypes(types);
+        setForm((current) => ({ ...current, event_type: current.event_type || types[0]?.name || "" }));
+      })
+      .catch(() => setEventTypes([]));
+  }, []);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
@@ -63,8 +74,11 @@ export default function AttendanceEventFormModal({ event, onClose, onSaved }) {
                 value={form.event_type}
                 onChange={(e2) => setForm({ ...form, event_type: e2.target.value })}
               >
-                <option value="dinner">Dinner</option>
-                <option value="fellowship">Fellowship</option>
+                {eventTypes.map((type) => (
+                  <option key={type.id} value={type.name}>
+                    {type.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

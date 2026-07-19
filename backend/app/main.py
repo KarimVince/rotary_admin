@@ -9,8 +9,17 @@ from app.api import (
     auth,
     board,
     dashboard,
+    dinner_event_types,
     dinner_forecast,
     donations,
+    event,
+    event_cost,
+    event_guest,
+    event_item,
+    event_rundown,
+    event_setup,
+    event_sponsor,
+    event_summary,
     exchange_rates,
     fee_runs,
     fee_settings,
@@ -72,4 +81,13 @@ app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(board.router, prefix="/api/v1", tags=["board"])
 app.include_router(attendance.router, prefix="/api/v1", tags=["attendance"])
 app.include_router(dinner_forecast.router, prefix="/api/v1", tags=["dinner-forecast"])
+app.include_router(dinner_event_types.router, prefix="/api/v1", tags=["dinner-event-types"])
+app.include_router(event.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_setup.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_guest.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_item.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_cost.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_sponsor.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_summary.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_rundown.router, prefix="/api/v1", tags=["events"])
 app.include_router(auth.router)

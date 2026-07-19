@@ -42,6 +42,10 @@ export function fetchAttendanceSheet(eventId) {
   return apiFetch(`/attendance/events/${eventId}/sheet`);
 }
 
+export function refreshAttendanceList(eventId) {
+  return apiFetch(`/attendance/events/${eventId}/refresh`, { method: "POST" });
+}
+
 export function updateAttendanceRecord(eventId, memberId, present) {
   return apiFetch(`/attendance/events/${eventId}/records/${memberId}`, {
     method: "PATCH",

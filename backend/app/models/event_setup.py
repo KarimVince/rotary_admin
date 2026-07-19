@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, Numeric, text
+from sqlalchemy import Date, ForeignKey, Numeric, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,3 +22,8 @@ class EventSetup(Base):
     ticket_price_normal: Mapped["Numeric | None"] = mapped_column(Numeric(10, 2))
     ticket_price_early_bird: Mapped["Numeric | None"] = mapped_column(Numeric(10, 2))
     lucky_draw_ticket_price: Mapped["Numeric | None"] = mapped_column(Numeric(10, 2))
+    # Story 14.7: Auction Receipt report payment instructions — configurable
+    # per event rather than hardcoded in the report code.
+    payment_deadline: Mapped["Date | None"] = mapped_column(Date)
+    bank_account: Mapped[str | None] = mapped_column(String(200))
+    fps_id: Mapped[str | None] = mapped_column(String(100))
