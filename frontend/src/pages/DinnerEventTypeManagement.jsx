@@ -142,6 +142,8 @@ export default function DinnerEventTypeManagement() {
             id="event-type-color-bg"
             type="text"
             placeholder="#e3edfb"
+            pattern="#[0-9A-Fa-f]{6}"
+            title='Hex color like "#e3edfb"'
             maxLength={20}
             value={form.color_bg}
             onChange={(event) => setForm({ ...form, color_bg: event.target.value })}
@@ -151,6 +153,8 @@ export default function DinnerEventTypeManagement() {
             id="event-type-color-text"
             type="text"
             placeholder="#17458f"
+            pattern="#[0-9A-Fa-f]{6}"
+            title='Hex color like "#17458f"'
             maxLength={20}
             value={form.color_text}
             onChange={(event) => setForm({ ...form, color_text: event.target.value })}

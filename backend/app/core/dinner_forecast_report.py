@@ -47,6 +47,20 @@ INTL_LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "rotary-intern
 # fallback for a type with no configured colors.
 DEFAULT_TYPE_CHIP = ("#f0f2f6", "#6b7686")
 
+
+def _safe_type_colors(pair: tuple[str, str]) -> tuple[str, str]:
+    """A malformed color value already sitting in dinner_event_types (e.g.
+    hand-typed without the write-time validation added later) must not take
+    down the whole report — reportlab's HexColor() has zero tolerance for
+    anything that isn't a clean "#rrggbb" string."""
+    bg, fg = pair
+    try:
+        colors.HexColor(bg)
+        colors.HexColor(fg)
+    except ValueError:
+        return DEFAULT_TYPE_CHIP
+    return pair
+
 # Matches the app's --tone-amber-bg / --color-tone-amber-text tokens — same
 # "Members Only" chip on both the live Dinner Events page and this report.
 MEMBER_ONLY_BG = "#fdf0da"
@@ -221,7 +235,7 @@ def _month_card(
 
     content: list = [title, Spacer(1, 8)]
     for index, event in enumerate(month_events):
-        bg, fg = type_colors.get(event.event_type, DEFAULT_TYPE_CHIP)
+        bg, fg = _safe_type_colors(type_colors.get(event.event_type, DEFAULT_TYPE_CHIP))
         chip_style_colored = chip_style.clone(f"chip-{month}-{index}")
         chip_style_colored.textColor = colors.HexColor(fg)
         # "3 Jul" — no leading zero, matching the design handoff exactly.

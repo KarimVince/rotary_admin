@@ -50,6 +50,18 @@ def test_pdf_report_renders_free_text_ngo_organisation(db_session):
     assert pdf_bytes[:4] == b"%PDF"
 
 
+def test_pdf_report_falls_back_to_default_chip_for_malformed_type_color(db_session):
+    # Regression: a hand-typed color value that isn't clean "#rrggbb" hex
+    # (e.g. "FFD500." with no "#" and a stray trailing character) used to
+    # crash the whole report — reportlab's HexColor() has zero tolerance
+    # for malformed input. Must render using the default chip instead.
+    event = _make_event(db_session, event_type="Gala")
+    pdf_bytes = build_pdf_report(
+        [event], rotary_year(event.event_date), type_colors={"Gala": ("FFD500.", "#000000")}
+    )
+    assert pdf_bytes[:4] == b"%PDF"
+
+
 def test_pdf_report_resolves_speaker_rotary_contact_member(db_session, make_member):
     contact = make_member(first_name="Contact", last_name="Person")
     event = _make_event(db_session, speaker_rotary_contact_member_id=contact.id)

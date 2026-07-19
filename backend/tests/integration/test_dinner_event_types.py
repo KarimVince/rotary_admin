@@ -75,6 +75,31 @@ def test_create_type_appears_in_list(secretary_client):
     assert "Gala" in [t["name"] for t in listing]
 
 
+def test_create_type_rejects_malformed_color_bg(secretary_client):
+    response = secretary_client.post(
+        "/api/v1/dinner-event-types",
+        json={"name": "Gala", "color_bg": "FFD500."},
+    )
+    assert response.status_code == 422
+
+
+def test_create_type_rejects_malformed_color_text(secretary_client):
+    response = secretary_client.post(
+        "/api/v1/dinner-event-types",
+        json={"name": "Gala", "color_text": "not-a-color"},
+    )
+    assert response.status_code == 422
+
+
+def test_update_type_rejects_malformed_color(secretary_client):
+    gala = secretary_client.post("/api/v1/dinner-event-types", json={"name": "Gala"}).json()
+    response = secretary_client.patch(
+        f"/api/v1/dinner-event-types/{gala['id']}",
+        json={"color_bg": "FFD500."},
+    )
+    assert response.status_code == 422
+
+
 def test_create_duplicate_name_returns_409(secretary_client):
     secretary_client.post("/api/v1/dinner-event-types", json={"name": "District Training"})
     response = secretary_client.post(
