@@ -119,12 +119,7 @@ def test_invalid_report_type_returns_422(admin_client):
     assert response.status_code == 422
 
 
-def test_use_template_without_upload_returns_400(admin_client, monkeypatch, tmp_path):
-    # Isolated from any real template file that might exist in the ambient
-    # local uploads/ dir (e.g. from manual testing) — otherwise this test's
-    # result depends on whatever happens to be on disk for the current year.
-    monkeypatch.setattr("app.api.ppt_templates.settings.upload_dir", str(tmp_path))
-
+def test_use_template_without_upload_returns_400(admin_client, fake_storage):
     response = admin_client.post(
         "/api/v1/members/statistics/report",
         params={"format": "pptx", "use_template": "true"},
@@ -140,11 +135,10 @@ def test_use_template_with_pdf_format_returns_422(admin_client):
     assert response.status_code == 422
 
 
-def test_use_template_generates_pptx_from_uploaded_template(admin_client, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.api.ppt_templates.settings.upload_dir", str(tmp_path))
+def test_use_template_generates_pptx_from_uploaded_template(admin_client, fake_storage, tmp_path):
     # A python-pptx-readable template needs to actually be a valid .pptx —
     # build a minimal real one rather than faking bytes, since build_pptx_report
-    # opens it with Presentation(path).
+    # opens it with Presentation(...).
     from pptx import Presentation
 
     real_template = tmp_path / "seed-template.pptx"

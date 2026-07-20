@@ -1,7 +1,6 @@
 import uuid
 from collections import Counter
 from datetime import date
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
@@ -9,8 +8,8 @@ from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access, require_admin
-from app.api.ppt_templates import template_path_for_year
-from app.core.config import settings
+from app.api.ppt_templates import download_template_for_year
+from app.core import storage
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year, rotary_year_bounds
 from app.core.statistics_report import build_pdf_report, build_pptx_report
@@ -114,11 +113,11 @@ async def upload_member_photo(
         )
 
     filename = f"{uuid.uuid4().hex}{extension}"
-    upload_dir = Path(settings.upload_dir) / "members"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    (upload_dir / filename).write_bytes(contents)
+    photo_url = storage.upload_object(
+        storage.PUBLIC_ASSETS_BUCKET, f"members/{filename}", contents, file.content_type
+    )
 
-    return {"photo_url": f"/static/members/{filename}"}
+    return {"photo_url": photo_url}
 
 
 def compute_members_statistics(db: Session) -> MembersStatistics:
@@ -267,7 +266,7 @@ def generate_statistics_report(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="The annual club template only applies to PowerPoint (PPTX) reports",
             )
-        template_path = template_path_for_year(rotary_year(date.today()))
+        template_path = download_template_for_year(rotary_year(date.today()))
         if template_path is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -106,6 +106,7 @@ and exactly 1 row in `users`.
    | `CORS_ALLOWED_ORIGINS` | leave blank for now, come back and set it after Story 6.4 gives you the frontend URL |
    | `PUBLIC_BASE_URL` | Render tells you the service URL right after creation, e.g. `https://rotary-admin-backend.onrender.com` — you can set this once, right after first deploy |
    | `FRONTEND_BASE_URL` | same story as `CORS_ALLOWED_ORIGINS` — fill in after 6.4 |
+   | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Story 16.6 — from your Supabase project (Settings → API); see the "Known limitations" section below for the one-time bucket setup this depends on |
 
 4. Deploy. The `startCommand` in `render.yaml` runs `alembic upgrade head`
    before starting the server every time — this is a safety net if 6.2 was
@@ -244,14 +245,22 @@ localhost:
 
 ## Known limitations to decide on before real club data goes in
 
-- **Ephemeral file storage**: member photos, PPT templates, generated
-  member-application PDFs, and email attachments are stored on local disk
-  (`UPLOAD_DIR=uploads`) and served via `/static`. Render's free/starter web
-  services have an **ephemeral filesystem** — every deploy or restart wipes
-  this directory. This isn't one of Epic 6's stories, so it's out of scope
-  here, but it means: a member's uploaded photo will disappear the next time
-  you deploy a change, until this is fixed. Options if this matters before
-  real use: Render's paid persistent disk add-on, or migrating storage to
-  Supabase Storage / Cloudflare R2 (bigger change, not started).
+- **Ephemeral file storage — resolved for member photos, NGO logos, and PPT
+  templates (Story 16.6)**: these three now live in **Supabase Storage**
+  instead of local disk, so they survive restarts/redeploys. Setup:
+  1. Create (or reuse) a Supabase project → **Storage** → New bucket:
+     - `public-assets` — **public** (member photos under `members/`, NGO
+       logos under `organisations/`)
+     - `ppt-templates` — **private** (read only by the backend via the
+       service-role key; never served to the browser)
+  2. Settings → API → copy the **service_role** key (not the anon key —
+     never expose it to the frontend) and the project URL.
+  3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the Render
+     backend service's env vars.
+
+  Generated member-application PDFs and email attachments are still stored
+  on local disk (`UPLOAD_DIR=uploads`) and served via `/static` — they're
+  short-lived (built, emailed, done) and never need to survive a restart,
+  so migrating them wasn't worth the extra complexity.
 - **Resend sandbox sender**: see Story 6.5's note above — real invoice/member
   emails won't reach real recipients until a domain is verified in Resend.

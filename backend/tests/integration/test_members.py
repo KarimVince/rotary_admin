@@ -581,9 +581,7 @@ def test_delete_member_not_found_returns_404(admin_client):
     assert response.status_code == 404
 
 
-def test_admin_can_upload_member_photo(admin_client, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.api.members.settings.upload_dir", str(tmp_path))
-
+def test_admin_can_upload_member_photo(admin_client, fake_storage):
     response = admin_client.post(
         "/api/v1/members/photo",
         files={"file": ("photo.png", b"fake-png-bytes", "image/png")},
@@ -591,9 +589,11 @@ def test_admin_can_upload_member_photo(admin_client, monkeypatch, tmp_path):
 
     assert response.status_code == 201
     photo_url = response.json()["photo_url"]
-    assert photo_url.startswith("/static/members/")
+    assert photo_url.startswith("https://fake-supabase.test/")
+    assert "/public-assets/members/" in photo_url
     assert photo_url.endswith(".png")
-    assert (tmp_path / "members" / photo_url.rsplit("/", 1)[-1]).read_bytes() == b"fake-png-bytes"
+    stored_path = photo_url.rsplit("public-assets/", 1)[-1]
+    assert fake_storage[("public-assets", stored_path)] == b"fake-png-bytes"
 
 
 def test_non_admin_cannot_upload_member_photo(user_client):
@@ -605,9 +605,7 @@ def test_non_admin_cannot_upload_member_photo(user_client):
     assert response.status_code == 403
 
 
-def test_upload_member_photo_rejects_non_image_content_type(admin_client, tmp_path, monkeypatch):
-    monkeypatch.setattr("app.api.members.settings.upload_dir", str(tmp_path))
-
+def test_upload_member_photo_rejects_non_image_content_type(admin_client, fake_storage):
     response = admin_client.post(
         "/api/v1/members/photo",
         files={"file": ("notes.txt", b"hello", "text/plain")},
@@ -616,8 +614,7 @@ def test_upload_member_photo_rejects_non_image_content_type(admin_client, tmp_pa
     assert response.status_code == 422
 
 
-def test_upload_member_photo_rejects_oversized_file(admin_client, tmp_path, monkeypatch):
-    monkeypatch.setattr("app.api.members.settings.upload_dir", str(tmp_path))
+def test_upload_member_photo_rejects_oversized_file(admin_client, fake_storage, monkeypatch):
     monkeypatch.setattr("app.api.members.MAX_PHOTO_BYTES", 10)
 
     response = admin_client.post(

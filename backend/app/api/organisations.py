@@ -1,12 +1,11 @@
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
-from app.core.config import settings
+from app.core import storage
 from app.core.currency_conversion import convert_totals
 from app.db.session import get_db
 from app.models import Donation, ExchangeRate, NgoClassification, Organisation
@@ -122,11 +121,11 @@ async def upload_organisation_logo(
         )
 
     filename = f"{uuid.uuid4().hex}{extension}"
-    upload_dir = Path(settings.upload_dir) / "organisations"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    (upload_dir / filename).write_bytes(contents)
+    logo_url = storage.upload_object(
+        storage.PUBLIC_ASSETS_BUCKET, f"organisations/{filename}", contents, file.content_type
+    )
 
-    return {"logo_url": f"/static/organisations/{filename}"}
+    return {"logo_url": logo_url}
 
 
 @router.get("/organisations/{organisation_id}", response_model=OrganisationRead)

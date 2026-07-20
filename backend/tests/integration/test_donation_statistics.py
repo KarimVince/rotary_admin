@@ -1,6 +1,9 @@
 from datetime import date
+from io import BytesIO
 
+import httpx
 import pytest
+from PIL import Image
 
 from app.core.rotary_year import rotary_year
 
@@ -235,6 +238,36 @@ def test_generate_pptx_report(admin_client, make_organisation):
     assert response.content[:2] == b"PK"
 
 
+def test_generate_pdf_report_embeds_organisation_logo_from_supabase_url(
+    admin_client, make_organisation, monkeypatch
+):
+    # Story 16.6 — logo_url is now a Supabase Storage public URL; the report
+    # fetches it via a plain HTTP GET (no service-role auth needed, it's a
+    # public bucket) rather than reading local disk.
+    org = make_organisation(name="Alpha")
+    admin_client.patch(
+        f"/api/v1/organisations/{org.id}",
+        json={
+            "logo_url": "https://proj.supabase.co/storage/v1/object/public/public-assets/organisations/a.png"
+        },
+    )
+    _seed(admin_client, org.id, 100, "2024-09-01")
+
+    # A real 1x1 PNG — reportlab's Image flowable decodes it via PIL, so
+    # arbitrary fake bytes would fail with UnidentifiedImageError.
+    png_buf = BytesIO()
+    Image.new("RGB", (1, 1)).save(png_buf, format="PNG")
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: httpx.Response(200, content=png_buf.getvalue()))
+
+    response = admin_client.post(
+        "/api/v1/donations/statistics/report",
+        params={"format": "pdf", "type": "integral", "rotary_year": 2024},
+    )
+
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+
+
 def test_generate_integral_report_with_donations(admin_client, make_organisation):
     org_a = make_organisation(name="Alpha")
     org_b = make_organisation(name="Beta")
@@ -257,12 +290,7 @@ def test_use_template_on_pdf_returns_422(admin_client):
     assert response.status_code == 422
 
 
-def test_use_template_without_upload_returns_400(admin_client, monkeypatch, tmp_path):
-    # Isolated from any real template file that might exist in the ambient
-    # local uploads/ dir (e.g. from manual testing) — otherwise this test's
-    # result depends on whatever happens to be on disk for the current year.
-    monkeypatch.setattr("app.api.ppt_templates.settings.upload_dir", str(tmp_path))
-
+def test_use_template_without_upload_returns_400(admin_client, fake_storage):
     response = admin_client.post(
         "/api/v1/donations/statistics/report?format=pptx&use_template=true"
     )

@@ -14,6 +14,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
+import httpx
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
@@ -128,12 +129,23 @@ def render_charts(
     return charts
 
 
-def resolve_logo_path(logo_url: str | None) -> Path | None:
+def resolve_logo_bytes(logo_url: str | None) -> BytesIO | None:
+    """Story 16.6 — logo_url is now a full Supabase Storage public URL for any
+    logo uploaded after the migration; fetch it directly. A pre-migration
+    relative "/static/..." path is tried against local disk as a best-effort
+    fallback, in case the ephemeral filesystem still happens to have it since
+    the last restart."""
     if not logo_url:
         return None
+    if logo_url.startswith("http://") or logo_url.startswith("https://"):
+        try:
+            response = httpx.get(logo_url, timeout=10.0)
+        except httpx.HTTPError:
+            return None
+        return BytesIO(response.content) if response.status_code == 200 else None
     filename = logo_url.rsplit("/", 1)[-1]
     path = Path(settings.upload_dir) / "organisations" / filename
-    return path if path.exists() else None
+    return BytesIO(path.read_bytes()) if path.exists() else None
 
 
 def build_pdf_report(
@@ -236,8 +248,8 @@ def build_pdf_report(
         else:
             rows = []
             for row in ngo_breakdown:
-                logo_path = row.get("logo_path")
-                logo_cell = Image(str(logo_path), width=0.3 * inch, height=0.3 * inch) if logo_path else "—"
+                logo_bytes = row.get("logo_bytes")
+                logo_cell = Image(logo_bytes, width=0.3 * inch, height=0.3 * inch) if logo_bytes else "—"
                 rows.append(
                     [logo_cell, row["name"], _format_currency(row["total"], currency_stats.currency)]
                 )
@@ -270,14 +282,14 @@ def build_pptx_report(
     currency: str | None,
     ngo_breakdown: list[dict],
     report_type: str = "simplified",
-    template_path: Path | None = None,
+    template_path: BytesIO | None = None,
 ) -> bytes:
     currency_stats = _current_currency_stats(stats, currency)
     report_type_label = "Integral" if report_type == "integral" else "Simplified"
 
     using_template = template_path is not None
     if using_template:
-        prs = Presentation(str(template_path))
+        prs = Presentation(template_path)
         blank_layout = _pick_blank_layout(prs)
     else:
         prs = Presentation()

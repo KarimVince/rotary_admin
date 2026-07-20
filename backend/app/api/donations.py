@@ -7,12 +7,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
-from app.api.ppt_templates import template_path_for_year
+from app.api.ppt_templates import download_template_for_year
 from app.core.currency_conversion import convert_totals
 from app.core.donation_statistics_report import (
     build_pdf_report,
     build_pptx_report,
-    resolve_logo_path,
+    resolve_logo_bytes,
 )
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
@@ -332,7 +332,7 @@ def _ngo_breakdown_for_selected_year(
         .all()
     )
     return [
-        {"name": name, "total": float(total), "logo_path": resolve_logo_path(logo_url)}
+        {"name": name, "total": float(total), "logo_bytes": resolve_logo_bytes(logo_url)}
         for name, logo_url, total in rows
     ]
 
@@ -385,7 +385,7 @@ def generate_donation_statistics_report(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="The annual club template only applies to PowerPoint (PPTX) reports",
             )
-        template_path = template_path_for_year(compute_current_rotary_year(date.today()))
+        template_path = download_template_for_year(compute_current_rotary_year(date.today()))
         if template_path is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -138,9 +138,7 @@ def test_delete_organisation_not_found_returns_404(admin_client):
     assert response.status_code == 404
 
 
-def test_admin_can_upload_organisation_logo(admin_client, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.api.organisations.settings.upload_dir", str(tmp_path))
-
+def test_admin_can_upload_organisation_logo(admin_client, fake_storage):
     response = admin_client.post(
         "/api/v1/organisations/logo",
         files={"file": ("logo.png", b"fake-png-bytes", "image/png")},
@@ -148,11 +146,11 @@ def test_admin_can_upload_organisation_logo(admin_client, monkeypatch, tmp_path)
 
     assert response.status_code == 201
     logo_url = response.json()["logo_url"]
-    assert logo_url.startswith("/static/organisations/")
+    assert logo_url.startswith("https://fake-supabase.test/")
+    assert "/public-assets/organisations/" in logo_url
     assert logo_url.endswith(".png")
-    assert (
-        tmp_path / "organisations" / logo_url.rsplit("/", 1)[-1]
-    ).read_bytes() == b"fake-png-bytes"
+    stored_path = logo_url.rsplit("public-assets/", 1)[-1]
+    assert fake_storage[("public-assets", stored_path)] == b"fake-png-bytes"
 
 
 def test_non_admin_cannot_upload_organisation_logo(user_client):
@@ -164,9 +162,7 @@ def test_non_admin_cannot_upload_organisation_logo(user_client):
     assert response.status_code == 403
 
 
-def test_upload_organisation_logo_rejects_non_image_content_type(admin_client, tmp_path, monkeypatch):
-    monkeypatch.setattr("app.api.organisations.settings.upload_dir", str(tmp_path))
-
+def test_upload_organisation_logo_rejects_non_image_content_type(admin_client, fake_storage):
     response = admin_client.post(
         "/api/v1/organisations/logo",
         files={"file": ("notes.txt", b"hello", "text/plain")},
@@ -175,8 +171,7 @@ def test_upload_organisation_logo_rejects_non_image_content_type(admin_client, t
     assert response.status_code == 422
 
 
-def test_upload_organisation_logo_rejects_oversized_file(admin_client, tmp_path, monkeypatch):
-    monkeypatch.setattr("app.api.organisations.settings.upload_dir", str(tmp_path))
+def test_upload_organisation_logo_rejects_oversized_file(admin_client, fake_storage, monkeypatch):
     monkeypatch.setattr("app.api.organisations.MAX_LOGO_BYTES", 10)
 
     response = admin_client.post(

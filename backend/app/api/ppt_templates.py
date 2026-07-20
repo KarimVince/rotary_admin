@@ -1,11 +1,11 @@
 from datetime import date
-from pathlib import Path
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
-from app.core.config import settings
+from app.core import storage
 from app.core.rotary_year import rotary_year as compute_rotary_year
 from app.db.session import get_db
 from app.models import PptTemplate, User
@@ -25,17 +25,15 @@ PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationm
 MAX_TEMPLATE_BYTES = 20 * 1024 * 1024
 
 
-def _template_dir() -> Path:
-    path = Path(settings.upload_dir) / "ppt-templates"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def template_path_for_year(year: int) -> Path | None:
-    """Used by report generation (app.core.statistics_report) to resolve the
-    active template file for a rotary year, if one exists."""
-    path = _template_dir() / f"{year}.pptx"
-    return path if path.exists() else None
+def download_template_for_year(year: int) -> BytesIO | None:
+    """Used by report generation (app.core.statistics_report and friends) to
+    fetch the active template's bytes for a rotary year, if one exists.
+    Story 16.6 — lives in Supabase Storage (private bucket), not local disk."""
+    try:
+        content = storage.download_object(storage.PPT_TEMPLATES_BUCKET, f"{year}.pptx")
+    except storage.StorageNotFoundError:
+        return None
+    return BytesIO(content)
 
 
 def _serialize(template: PptTemplate, db: Session) -> PptTemplateRead:
@@ -89,10 +87,10 @@ async def upload_ppt_template(
 
     year = compute_rotary_year(date.today())
     # Deterministic filename per year (not a random uuid like member photos /
-    # NGO logos) — a Replace upload can then just overwrite the same path,
+    # NGO logos) — a Replace upload just overwrites the same object (x-upsert),
     # with no orphaned file left behind from the previous upload.
     stored_filename = f"{year}.pptx"
-    (_template_dir() / stored_filename).write_bytes(contents)
+    storage.upload_object(storage.PPT_TEMPLATES_BUCKET, stored_filename, contents, PPTX_CONTENT_TYPE)
 
     template = db.query(PptTemplate).filter(PptTemplate.rotary_year == year).first()
     if template is None:
@@ -124,9 +122,10 @@ def delete_ppt_template(
             detail="No annual template uploaded for this rotary year",
         )
 
-    stored_path = _template_dir() / template.filename
-    if stored_path.exists():
-        stored_path.unlink()
+    try:
+        storage.delete_object(storage.PPT_TEMPLATES_BUCKET, template.filename)
+    except storage.StorageNotFoundError:
+        pass
 
     db.delete(template)
     db.commit()

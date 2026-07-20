@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from app.core import storage
 from app.core.access_control import clear_access_cache
 from app.core.config import settings
 from app.core.security import create_access_token, hash_password
@@ -80,6 +81,34 @@ def db_session(test_engine):
     session.close()
     outer_transaction.rollback()
     connection.close()
+
+
+@pytest.fixture
+def fake_storage(monkeypatch):
+    """Story 16.6 — an in-memory stand-in for Supabase Storage, so upload/
+    download/delete tests don't need real Supabase credentials or network
+    access. Returns the backing dict (keyed by (bucket, path)) for tests
+    that want to inspect what got stored."""
+    store: dict[tuple[str, str], bytes] = {}
+
+    def fake_upload(bucket: str, path: str, content: bytes, content_type: str) -> str:
+        store[(bucket, path)] = content
+        return f"https://fake-supabase.test/storage/v1/object/public/{bucket}/{path}"
+
+    def fake_delete(bucket: str, path: str) -> None:
+        if (bucket, path) not in store:
+            raise storage.StorageNotFoundError(f"{bucket}/{path} not found")
+        del store[(bucket, path)]
+
+    def fake_download(bucket: str, path: str) -> bytes:
+        if (bucket, path) not in store:
+            raise storage.StorageNotFoundError(f"{bucket}/{path} not found")
+        return store[(bucket, path)]
+
+    monkeypatch.setattr(storage, "upload_object", fake_upload)
+    monkeypatch.setattr(storage, "delete_object", fake_delete)
+    monkeypatch.setattr(storage, "download_object", fake_download)
+    return store
 
 
 @pytest.fixture

@@ -52,6 +52,10 @@ services:
         sync: false
       - key: MAX_EMAIL_ATTACHMENT_BYTES
         value: "10485760"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
 
   - type: web
     name: rotary-admin-frontend

@@ -17,7 +17,6 @@ matching the live page (which has no year filter either).
 
 from datetime import date
 from io import BytesIO
-from pathlib import Path
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -166,13 +165,13 @@ def build_pptx_report(
     stats: RotaryFriendStatistics,
     friends: list[RotaryFriend],
     report_type: str = "simplified",
-    template_path: Path | None = None,
+    template_path: BytesIO | None = None,
 ) -> bytes:
     report_type_label = "Integral" if report_type == "integral" else "Simplified"
 
     using_template = template_path is not None
     if using_template:
-        prs = Presentation(str(template_path))
+        prs = Presentation(template_path)
         blank_layout = _pick_blank_layout(prs)
     else:
         prs = Presentation()

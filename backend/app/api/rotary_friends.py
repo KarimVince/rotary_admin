@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
-from app.api.ppt_templates import template_path_for_year
+from app.api.ppt_templates import download_template_for_year
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_friend_statistics_report import build_pdf_report, build_pptx_report
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
@@ -113,7 +113,7 @@ def generate_rotary_friend_statistics_report(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="The annual club template only applies to PowerPoint (PPTX) reports",
             )
-        template_path = template_path_for_year(compute_current_rotary_year(date.today()))
+        template_path = download_template_for_year(compute_current_rotary_year(date.today()))
         if template_path is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -463,13 +463,13 @@ def style_card_text_color(paragraph, using_template: bool) -> None:
 def build_pptx_report(
     stats: MembersStatistics,
     report_type: str = "simplified",
-    template_path: Path | None = None,
+    template_path: BytesIO | None = None,
 ) -> bytes:
     # Everything (heading, stat cards, all 6 charts) condensed onto a single
     # widescreen slide rather than one-section-per-slide, per request.
     using_template = template_path is not None
     if using_template:
-        prs = Presentation(str(template_path))
+        prs = Presentation(template_path)
         blank_layout = _pick_blank_layout(prs)
     else:
         prs = Presentation()

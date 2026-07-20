@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     max_email_attachment_bytes: int = 10 * 1024 * 1024
 
+    # Story 16.6 — member photos, NGO logos, and PPT templates are stored in
+    # Supabase Storage instead of local disk, which Render's free tier wipes
+    # on every restart/redeploy (see app/core/storage.py). Email attachments
+    # and generated application PDFs stay on local disk — they're short-lived
+    # (built, emailed, done) and never need to survive a restart.
+    supabase_url: str = Field(default="", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field(default="", alias="SUPABASE_SERVICE_ROLE_KEY")
+
     # CORS_ALLOWED_ORIGINS is comma-separated, e.g.
     # "http://localhost:5173,https://staging.example.com". Kept as a plain
     # string field (rather than list[str]) so pydantic-settings doesn't try
