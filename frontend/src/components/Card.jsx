@@ -2,10 +2,10 @@ const VARIANT_CLASSES = {
   default: "bg-white border border-[var(--color-card-border)] shadow-[var(--shadow-card)] rounded-xl p-4",
   elevated:
     "bg-white shadow-[var(--shadow-card)] rounded-2xl p-5 hover:-translate-y-0.5 transition-transform",
-  // Dashboard's module-link cards (Members, NGOs & Donations, ...) — light
-  // blue instead of white so they read as a distinct, related group.
+  // Dashboard's module-link and board-member cards — white with the
+  // redesign's card shadow, matching the 1b mockup.
   "module-link":
-    "bg-[var(--color-brand-blue-light)] shadow-[var(--shadow-card)] rounded-2xl p-5 hover:-translate-y-0.5 transition-transform",
+    "bg-white shadow-[var(--shadow-card-lg)] rounded-2xl p-5 hover:-translate-y-0.5 transition-transform",
   hero: "bg-[var(--color-brand-blue-light)] rounded-2xl p-8",
   // Redesign: individual stat cards, one per figure, cycled across a
   // pastel palette (mirrors the existing --tone-*-bg tokens already used by

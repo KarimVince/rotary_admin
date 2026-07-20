@@ -101,7 +101,7 @@ describe("Dashboard", () => {
       "href",
       "/fees/settings",
     );
-    expect(screen.getByRole("link", { name: /^board$/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /board/i })).toHaveAttribute(
       "href",
       "/board/positions",
     );
@@ -121,7 +121,7 @@ describe("Dashboard", () => {
     renderDashboard();
 
     expect(screen.queryByRole("link", { name: /member fees/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /^board$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /board/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /members/i })).toBeInTheDocument();
   });
 
@@ -160,14 +160,7 @@ describe("Dashboard", () => {
       { id: "pos-secretary", name: "Secretary", display_order: 2, at_the_board: true },
     ];
 
-    // A birthdate exactly 45 years before "today" (same month/day), so the
-    // component's age computation is deterministic regardless of test run date.
-    const today = new Date();
-    const DOB_45_YEARS_AGO = new Date(today.getFullYear() - 45, today.getMonth(), today.getDate())
-      .toISOString()
-      .slice(0, 10);
-
-    it("shows a card per assigned position, ordered by display_order, with photo/monogram and age/gender/country", async () => {
+    it("shows a card per assigned member, ordered by display_order, with photo/monogram and role", async () => {
       mockRole = "admin";
       mockDeniedKeys = new Set();
       server.use(
@@ -178,23 +171,16 @@ describe("Dashboard", () => {
             {
               board_position_id: "pos-secretary",
               end_date: null,
-              member: {
-                first_name: "Sam",
-                last_name: "Lee",
-                gender: "Female",
-                nationality: "Hong Kong",
-              },
+              member: { id: "mem-sam", first_name: "Sam", last_name: "Lee" },
             },
             {
               board_position_id: "pos-president",
               end_date: null,
               member: {
+                id: "mem-jane",
                 first_name: "Jane",
                 last_name: "Doe",
                 photo_url: "/uploads/jane.jpg",
-                date_of_birth: DOB_45_YEARS_AGO,
-                gender: "Female",
-                nationality: "France",
               },
             },
           ]),
@@ -211,17 +197,41 @@ describe("Dashboard", () => {
       ).toBeTruthy();
 
       expect(screen.getByText("Jane Doe")).toBeInTheDocument();
-      expect(screen.getByText("45y · Female · France")).toBeInTheDocument();
       expect(screen.getByAltText("")).toHaveAttribute(
         "src",
         expect.stringContaining("/uploads/jane.jpg"),
       );
 
       expect(screen.getByText("Sam Lee")).toBeInTheDocument();
-      // No email/phone shown — only age/gender/country, and age is omitted
-      // when date_of_birth is missing.
-      expect(screen.getByText("Female · Hong Kong")).toBeInTheDocument();
       expect(screen.getByText("SL")).toBeInTheDocument(); // monogram fallback, no photo
+    });
+
+    it("shows one card listing every role when a member holds multiple positions", async () => {
+      mockRole = "admin";
+      mockDeniedKeys = new Set();
+      server.use(
+        http.get(`${API_BASE_URL}/dashboard/summary`, () => HttpResponse.json({})),
+        http.get(`${API_BASE_URL}/board/positions`, () => HttpResponse.json(POSITIONS)),
+        http.get(`${API_BASE_URL}/board/assignments`, () =>
+          HttpResponse.json([
+            {
+              board_position_id: "pos-secretary",
+              end_date: null,
+              member: { id: "mem-jane", first_name: "Jane", last_name: "Doe" },
+            },
+            {
+              board_position_id: "pos-president",
+              end_date: null,
+              member: { id: "mem-jane", first_name: "Jane", last_name: "Doe" },
+            },
+          ]),
+        ),
+      );
+
+      renderDashboard();
+
+      expect(await screen.findByText("Jane Doe")).toBeInTheDocument();
+      expect(screen.getByText("President · Secretary")).toBeInTheDocument();
     });
 
     it("omits vacant positions", async () => {
@@ -235,7 +245,7 @@ describe("Dashboard", () => {
             {
               board_position_id: "pos-president",
               end_date: null,
-              member: { first_name: "Jane", last_name: "Doe" },
+              member: { id: "mem-jane", first_name: "Jane", last_name: "Doe" },
             },
           ]),
         ),
@@ -263,12 +273,12 @@ describe("Dashboard", () => {
             {
               board_position_id: "pos-president",
               end_date: null,
-              member: { first_name: "Jane", last_name: "Doe" },
+              member: { id: "mem-jane", first_name: "Jane", last_name: "Doe" },
             },
             {
               board_position_id: "pos-speaker",
               end_date: null,
-              member: { first_name: "Sam", last_name: "Lee" },
+              member: { id: "mem-sam", first_name: "Sam", last_name: "Lee" },
             },
           ]),
         ),
@@ -308,7 +318,7 @@ describe("Dashboard", () => {
             {
               board_position_id: "pos-president",
               end_date: null,
-              member: { first_name: "Jane", last_name: "Doe" },
+              member: { id: "mem-jane", first_name: "Jane", last_name: "Doe" },
             },
           ]),
         ),

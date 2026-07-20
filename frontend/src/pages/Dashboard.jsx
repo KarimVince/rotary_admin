@@ -10,6 +10,18 @@ import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
 import { currentRotaryYear } from "../utils/rotaryYear";
 
+function SectionLabel({ children, action, className = "" }) {
+  return (
+    <div className={`flex items-center gap-2 ${className}`.trim()}>
+      <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
+        {children}
+      </span>
+      <div className="flex-1 h-px bg-[var(--color-card-border)]" />
+      {action}
+    </div>
+  );
+}
+
 function initials(member) {
   return `${member.first_name?.[0] ?? ""}${member.last_name?.[0] ?? ""}`.toUpperCase();
 }
@@ -17,25 +29,6 @@ function initials(member) {
 function resolvePhotoUrl(photoUrl) {
   if (!photoUrl) return null;
   return /^https?:\/\//.test(photoUrl) ? photoUrl : `${API_ORIGIN}${photoUrl}`;
-}
-
-function computeAge(dateOfBirth) {
-  if (!dateOfBirth) return null;
-  const dob = new Date(dateOfBirth);
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const hasHadBirthdayThisYear =
-    today.getMonth() > dob.getMonth() ||
-    (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
-  if (!hasHadBirthdayThisYear) age -= 1;
-  return age;
-}
-
-function boardCardDetail(member) {
-  const age = computeAge(member.date_of_birth);
-  return [age !== null ? `${age}y` : null, member.gender, member.nationality]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 const formatEuros = (value) =>
@@ -77,20 +70,72 @@ const STAT_CARDS = [
   },
 ];
 
+// Board member card avatars cycle through the same pastel tones as the
+// stat cards above, matching the 1b mockup's per-avatar tinting.
+const AVATAR_TONES = [
+  { bgClass: "bg-[var(--tone-blue-bg)]", textClass: "text-[var(--color-brand-blue)]" },
+  { bgClass: "bg-[var(--tone-lavender-bg)]", textClass: "text-[#5b3fa0]" },
+  { bgClass: "bg-[var(--tone-teal-bg)]", textClass: "text-[#1a7a68]" },
+  { bgClass: "bg-[var(--tone-amber-bg)]", textClass: "text-[#b8760f]" },
+];
+
 // Story 12.8: each module card's visibility is canRead on its Menu-level
 // function (built by 12.1/12.3-12.7) — no separate "dashboard" permission.
 const MODULE_LINKS = [
-  { to: "/members", label: "Members", icon: Users, requiredPermission: "members" },
-  { to: "/ngos", label: "NGOs & Donations", icon: Building2, requiredPermission: "ngos" },
-  { to: "/friends", label: "Friends of Rotary", icon: HeartHandshake, requiredPermission: "friends" },
-  { to: "/fees/settings", label: "Member Fees", icon: Wallet, requiredPermission: "fees" },
-  { to: "/board/positions", label: "Board", icon: Landmark, requiredPermission: "board" },
+  {
+    to: "/members",
+    label: "Members",
+    description: "Directory & statistics",
+    icon: Users,
+    tone: "stat-blue",
+    iconClass: "text-[var(--color-brand-blue)]",
+    requiredPermission: "members",
+  },
+  {
+    to: "/ngos",
+    label: "NGOs & Donations",
+    description: "Partners & giving",
+    icon: Building2,
+    tone: "stat-lavender",
+    iconClass: "text-[#5b3fa0]",
+    requiredPermission: "ngos",
+  },
+  {
+    to: "/friends",
+    label: "Friends of Rotary",
+    description: "Community contacts",
+    icon: HeartHandshake,
+    tone: "stat-teal",
+    iconClass: "text-[#1a7a68]",
+    requiredPermission: "friends",
+  },
+  {
+    to: "/fees/settings",
+    label: "Member Fees",
+    description: "Billing & collection",
+    icon: Wallet,
+    tone: "stat-amber",
+    iconClass: "text-[#b8760f]",
+    requiredPermission: "fees",
+  },
+  {
+    to: "/board/positions",
+    label: "Board",
+    description: "Positions & assignments",
+    icon: Landmark,
+    tone: "stat-rose",
+    iconClass: "text-[#b8384a]",
+    requiredPermission: "board",
+  },
   // Story 8.18: gated on the "attendance" menu-level function (10.10),
   // same pattern as every other module card here — no new App Function.
   {
     to: "/dinners",
     label: "Dinner Attendance",
+    description: "Events & attendance",
     icon: UtensilsCrossed,
+    tone: "stat-green",
+    iconClass: "text-[#1f7a3d]",
     requiredPermission: "attendance",
   },
 ];
@@ -128,13 +173,25 @@ export default function Dashboard() {
           .forEach((assignment) =>
             activeAssignmentByPosition.set(assignment.board_position_id, assignment),
           );
-        const cards = positions
+        const heldPositions = positions
           .filter((position) => position.at_the_board && activeAssignmentByPosition.has(position.id))
-          .sort((a, b) => a.display_order - b.display_order)
-          .map((position) => ({
-            position,
-            member: activeAssignmentByPosition.get(position.id).member,
-          }));
+          .sort((a, b) => a.display_order - b.display_order);
+
+        // Story: a member holding multiple board positions gets one card
+        // listing every role, instead of one duplicate card per position.
+        const cardByMemberId = new Map();
+        const cards = [];
+        heldPositions.forEach((position) => {
+          const member = activeAssignmentByPosition.get(position.id).member;
+          const existing = cardByMemberId.get(member.id);
+          if (existing) {
+            existing.positionNames.push(position.name);
+            return;
+          }
+          const card = { member, positionNames: [position.name] };
+          cardByMemberId.set(member.id, card);
+          cards.push(card);
+        });
         setBoardCards(cards);
       })
       .catch(() => setBoardCards([]));
@@ -157,12 +214,23 @@ export default function Dashboard() {
     (card) => !card.requiredPermission || permissionChecks[card.requiredPermission],
   );
 
+  const rotaryYear = currentRotaryYear();
+
   return (
     <div className="dashboard-page">
-      <h1>Welcome, {user?.full_name}</h1>
+      <div className="flex items-baseline justify-between">
+        <h1 className="mb-1">Welcome, {user?.full_name}</h1>
+        <span className="text-sm text-[var(--color-muted-text)]">
+          Rotary year {rotaryYear}–{String(rotaryYear + 1).slice(-2)}
+        </span>
+      </div>
+      <p className="mt-0 mb-5 text-sm text-[var(--color-muted-text)]">
+        Here's how the club is doing this year.
+      </p>
       {error && <p role="alert">{error}</p>}
 
-      <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <SectionLabel className="mt-6">Club overview</SectionLabel>
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
         {visibleStatCards.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
             <span className={`text-3xl font-bold ${card.valueClass}`}>
@@ -178,53 +246,63 @@ export default function Dashboard() {
       </div>
 
       {boardCards.length > 0 && (
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {boardCards.map(({ position, member }) => {
-            const detail = boardCardDetail(member);
-            return (
-              <Card
-                key={position.id}
-                variant="module-link"
-                className="flex flex-col items-center text-center gap-1"
-              >
-                {member.photo_url ? (
-                  <img
-                    className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full object-cover bg-[var(--color-card-border)] shrink-0"
-                    src={resolvePhotoUrl(member.photo_url)}
-                    alt=""
-                  />
-                ) : (
-                  <div className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full bg-[var(--color-card-border)] flex items-center justify-center text-base font-semibold text-[var(--color-brand-blue-dark)] shrink-0">
-                    {initials(member)}
+        <>
+          <SectionLabel className="mt-6">Board members</SectionLabel>
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {boardCards.map(({ member, positionNames }, index) => {
+              const tone = AVATAR_TONES[index % AVATAR_TONES.length];
+              return (
+                <Card
+                  key={member.id}
+                  variant="module-link"
+                  className="flex items-center gap-3 text-left"
+                >
+                  {member.photo_url ? (
+                    <img
+                      className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full object-cover shrink-0"
+                      src={resolvePhotoUrl(member.photo_url)}
+                      alt=""
+                    />
+                  ) : (
+                    <div
+                      className={`w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${tone.bgClass} ${tone.textClass}`}
+                    >
+                      {initials(member)}
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-semibold text-[var(--color-brand-blue-dark)] text-sm truncate">
+                      {member.first_name} {member.last_name}
+                    </span>
+                    <span className="text-xs text-[var(--color-muted-text)]">
+                      {positionNames.join(" · ")}
+                    </span>
                   </div>
-                )}
-                <span className="mt-2 font-bold text-[var(--color-brand-blue-dark)]">
-                  {position.name}
-                </span>
-                <span className="text-sm text-[var(--color-brand-blue-dark)]">
-                  {member.first_name} {member.last_name}
-                </span>
-                {detail && (
-                  <span className="text-xs text-[var(--color-brand-blue-dark)] truncate w-full">
-                    {detail}
-                  </span>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <SectionLabel className="mt-6">Module access</SectionLabel>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {visibleModules.map((module) => {
           const Icon = module.icon;
           return (
             <Link key={module.to} to={module.to} className="no-underline">
               <Card variant="module-link" className="flex items-center gap-3 cursor-pointer">
-                <Icon className="w-6 h-6 text-[var(--color-brand-blue)] shrink-0" aria-hidden="true" />
-                <span className="font-semibold text-[var(--color-brand-blue-dark)]">
-                  {module.label}
-                </span>
+                <Card variant={module.tone} className="w-10 h-10 !p-0 !rounded-[10px] flex items-center justify-center shrink-0">
+                  <Icon className={`w-5 h-5 ${module.iconClass}`} aria-hidden="true" />
+                </Card>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-semibold text-[var(--color-brand-blue-dark)] text-sm">
+                    {module.label}
+                  </span>
+                  <span className="text-xs text-[var(--color-muted-text)] truncate">
+                    {module.description}
+                  </span>
+                </div>
               </Card>
             </Link>
           );
