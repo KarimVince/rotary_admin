@@ -77,8 +77,19 @@ def create_fee_run(
         Member.join_date <= year_end,
         or_(Member.leave_date.is_(None), Member.leave_date >= year_start),
     )
-    if payload.target == "member_ids":
-        members_query = members_query.filter(Member.id.in_(payload.member_ids))
+
+    # Per-member tier assignment (Fee Run tab's "assign tiers" step) — each
+    # member in member_tiers gets their own price_type, instead of one
+    # shared payload.price_type applied to everyone.
+    if payload.member_tiers is not None:
+        tier_by_member_id = {
+            assignment.member_id: assignment.price_type for assignment in payload.member_tiers
+        }
+        members_query = members_query.filter(Member.id.in_(tier_by_member_id.keys()))
+    else:
+        tier_by_member_id = None
+        if payload.target == "member_ids":
+            members_query = members_query.filter(Member.id.in_(payload.member_ids))
     members = members_query.all()
 
     existing_fees = {
@@ -101,13 +112,14 @@ def create_fee_run(
             result_fees.append(existing)
             continue
 
-        amount_due = _resolve_amount_due(fee_settings, payload.price_type, member.is_couple)
+        price_type = tier_by_member_id[member.id] if tier_by_member_id is not None else payload.price_type
+        amount_due = _resolve_amount_due(fee_settings, price_type, member.is_couple)
 
         if existing is None:
             fee = MemberFee(
                 member_id=member.id,
                 rotary_year=payload.rotary_year,
-                price_type=payload.price_type,
+                price_type=price_type,
                 is_couple_at_billing=member.is_couple,
                 amount_due=amount_due,
                 created_by=current_user.id,
@@ -116,7 +128,7 @@ def create_fee_run(
             created_count += 1
             result_fees.append(fee)
         else:
-            existing.price_type = payload.price_type
+            existing.price_type = price_type
             existing.is_couple_at_billing = member.is_couple
             existing.amount_due = amount_due
             updated_count += 1
@@ -128,7 +140,7 @@ def create_fee_run(
 
     return FeeRunResult(
         rotary_year=payload.rotary_year,
-        price_type=payload.price_type,
+        price_type=None if tier_by_member_id is not None else payload.price_type,
         created_count=created_count,
         updated_count=updated_count,
         skipped_paid_count=skipped_paid_count,

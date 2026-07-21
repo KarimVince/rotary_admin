@@ -73,26 +73,14 @@ const NAV_ITEMS = [
     ],
   },
   {
-    // Story 12.5: visibility driven by the fees/fees.* permissions
-    // (re-pointed from the flat invoices.view/invoices.manage pair).
-    section: "Member Fees",
+    // Consolidated from 4 sub-pages into one tabbed page (?tab=), same
+    // treatment as Dinner/Events below — nav collapses to a single
+    // top-level item, each tab still individually gated by its own matrix
+    // key at render time.
+    to: "/fees",
+    label: "Member Fees",
     icon: Wallet,
     requiredPermission: "fees",
-    children: [
-      { to: "/fees/tracking", label: "Fee tracking", requiredPermission: "fees.tracking" },
-      { to: "/fees/run", label: "Fee run", requiredPermission: "fees.run" },
-      {
-        to: "/fees/settings",
-        label: "Fee settings",
-        end: true,
-        requiredPermission: "fees.settings",
-      },
-      {
-        to: "/fees/statistics",
-        label: "Fee statistics",
-        requiredPermission: "fees.statistics",
-      },
-    ],
   },
   {
     // Story 16.8 — Dinner Forecast + Attendance merged into one page/route,
@@ -148,30 +136,19 @@ const NAV_ITEMS = [
     children: [
       { to: "/admin/users", label: "Manage Users", adminOnly: true },
       {
-        to: "/admin/member-titles",
-        label: "Member Titles",
-        requiredPermission: "admin.member_titles",
-      },
-      {
-        to: "/admin/honorifics",
-        label: "Honorifics",
-        requiredPermission: "admin.honorifics",
+        // Merges Member Titles/Honorifics/NGO Classifications/Dinner Event
+        // Types into one page — visible if the user can read any of the 4
+        // (each card still self-gates via its own permission key), matching
+        // "admin.reference_lists" synthesized below in permissionChecks.
+        to: "/admin/reference-lists",
+        label: "Reference Lists",
+        requiredPermission: "admin.reference_lists",
       },
       { to: "/admin/currencies", label: "Currencies", requiredPermission: "admin.currencies" },
-      {
-        to: "/admin/ngo-classifications",
-        label: "NGO Classifications",
-        requiredPermission: "admin.ngo_classifications",
-      },
       {
         to: "/admin/ppt-template",
         label: "PPT Template",
         requiredPermission: "admin.ppt_template",
-      },
-      {
-        to: "/admin/dinner-event-types",
-        label: "Dinner Event Types",
-        requiredPermission: "admin.dinner_event_types",
       },
     ],
   },
@@ -191,10 +168,6 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { canRead: canViewFees } = useAccess("fees");
-  const { canRead: canViewFeesTracking } = useAccess("fees.tracking");
-  const { canRead: canViewFeesRun } = useAccess("fees.run");
-  const { canRead: canViewFeesSettings } = useAccess("fees.settings");
-  const { canRead: canViewFeesStatistics } = useAccess("fees.statistics");
   const { canRead: canViewFriends } = useAccess("friends");
   const { canRead: canViewFriendsDirectory } = useAccess("friends.directory");
   const { canRead: canViewFriendsStatistics } = useAccess("friends.statistics");
@@ -229,10 +202,6 @@ export default function AppLayout() {
 
   const permissionChecks = {
     fees: canViewFees,
-    "fees.tracking": canViewFeesTracking,
-    "fees.run": canViewFeesRun,
-    "fees.settings": canViewFeesSettings,
-    "fees.statistics": canViewFeesStatistics,
     friends: canViewFriends,
     "friends.directory": canViewFriendsDirectory,
     "friends.statistics": canViewFriendsStatistics,
@@ -248,12 +217,15 @@ export default function AppLayout() {
     "board.members": canViewBoardMembers,
     "board.positions": canViewBoardPositions,
     admin: canViewAdmin,
-    "admin.member_titles": canViewAdminMemberTitles,
-    "admin.honorifics": canViewAdminHonorifics,
     "admin.currencies": canViewAdminCurrencies,
-    "admin.ngo_classifications": canViewAdminNgoClassifications,
     "admin.ppt_template": canViewAdminPptTemplate,
-    "admin.dinner_event_types": canViewAdminDinnerEventTypes,
+    // Reference Lists nav link is visible if any of its 4 merged cards is
+    // readable — each card still self-gates on its own key at render time.
+    "admin.reference_lists":
+      canViewAdminMemberTitles ||
+      canViewAdminHonorifics ||
+      canViewAdminNgoClassifications ||
+      canViewAdminDinnerEventTypes,
     "attendance.forecast": canViewAttendanceForecast,
     event: canViewEvent,
     "event.list": canViewEventList,

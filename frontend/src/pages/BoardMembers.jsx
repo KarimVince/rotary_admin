@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listBoardPositions } from "../api/boardPositions";
 import { createBoardAssignment, listBoardAssignments } from "../api/boardAssignments";
 import { listMembers } from "../api/members";
+import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 
@@ -151,87 +152,114 @@ export default function BoardMembers() {
   return (
     <div className="admin-page">
       <h1>Board members</h1>
+      <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+        Link board and non-board positions to the members holding them this term.
+      </p>
 
-      <div className="email-controls-row">
-        <div>
-          <label htmlFor="board-members-year">Term</label>
-          <select
-            id="board-members-year"
-            value={year}
-            onChange={(event) => setYear(Number(event.target.value))}
-          >
-            {YEAR_OPTIONS.map((y) => (
-              <option key={y} value={y}>
-                {rotaryYearLabel(y)}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="mb-5">
+        <label htmlFor="board-members-year" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+          Term
+        </label>
+        <select
+          id="board-members-year"
+          value={year}
+          onChange={(event) => setYear(Number(event.target.value))}
+          className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[140px]"
+        >
+          {YEAR_OPTIONS.map((y) => (
+            <option key={y} value={y}>
+              {rotaryYearLabel(y)}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {!isCurrentTerm && <p>Viewing a past term — read-only.</p>}
+      {!isCurrentTerm && <p className="text-sm text-[var(--color-muted-text)] mb-4">Viewing a past term — read-only.</p>}
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
       {!isLoading && !loadError && (
         <>
-          <h2>Board Members</h2>
-          <BoardPositionTable
-            positions={boardPositions}
-            assignments={assignments}
-            canAssign={canAssign}
-            onAssign={openAssignForm}
-          />
+          <h2 className="text-[15px] font-bold text-[var(--color-brand-blue-dark)] mb-2">Board Members</h2>
+          <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden mb-6">
+            <BoardPositionTable
+              positions={boardPositions}
+              assignments={assignments}
+              canAssign={canAssign}
+              onAssign={openAssignForm}
+            />
+          </Card>
 
-          <h2>Non-Board Members</h2>
-          <BoardPositionTable
-            positions={nonBoardPositions}
-            assignments={assignments}
-            canAssign={canAssign}
-            onAssign={openAssignForm}
-          />
+          <h2 className="text-[15px] font-bold text-[var(--color-brand-blue-dark)] mb-2">Non-Board Members</h2>
+          <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden">
+            <BoardPositionTable
+              positions={nonBoardPositions}
+              assignments={assignments}
+              canAssign={canAssign}
+              onAssign={openAssignForm}
+            />
+          </Card>
         </>
       )}
 
       {assigningPositionId && (
-        <form className="admin-form" onSubmit={handleSubmitAssign}>
-          <h2>Assign member</h2>
-          <label htmlFor="board-member-search">Member</label>
-          <input
-            id="board-member-search"
-            type="text"
-            autoComplete="off"
-            value={memberSearch}
-            onChange={(event) => {
-              setMemberSearch(event.target.value);
-              setSelectedMember(null);
-            }}
-            required
-          />
-          {filteredMembers.length > 0 && !selectedMember && (
-            <ul className="board-member-suggestions">
-              {filteredMembers.map((member) => (
-                <li key={member.id}>
-                  <button type="button" onClick={() => handleSelectMember(member)}>
-                    {member.first_name} {member.last_name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {memberAlreadyHoldsOtherPosition && (
-            <p>
-              Note: this member already holds {memberAlreadyHoldsOtherPosition} this term. They
-              can still be assigned here.
-            </p>
-          )}
-          {saveError && <p role="alert">{saveError}</p>}
-          <button type="submit" disabled={isSaving || !selectedMember}>
-            {isSaving ? "Saving…" : "Confirm assignment"}
-          </button>
-          <button type="button" onClick={cancelAssign}>
-            Cancel
-          </button>
+        <form onSubmit={handleSubmitAssign} className="mt-6 max-w-[420px]">
+          <Card variant="default" className="!p-6 !rounded-2xl relative">
+            <h2 className="text-base font-bold text-[var(--color-brand-blue-dark)] mb-3">Assign member</h2>
+            <label htmlFor="board-member-search" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+              Member
+            </label>
+            <input
+              id="board-member-search"
+              type="text"
+              autoComplete="off"
+              value={memberSearch}
+              onChange={(event) => {
+                setMemberSearch(event.target.value);
+                setSelectedMember(null);
+              }}
+              required
+              className="w-full border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm"
+            />
+            {filteredMembers.length > 0 && !selectedMember && (
+              <ul className="mt-1.5 border border-[var(--color-card-border)] rounded-lg overflow-hidden bg-white shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
+                {filteredMembers.map((member) => (
+                  <li key={member.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectMember(member)}
+                      className="w-full text-left border-none bg-transparent px-3 py-2 text-sm cursor-pointer hover:bg-[var(--color-brand-blue-light)]"
+                    >
+                      {member.first_name} {member.last_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {memberAlreadyHoldsOtherPosition && (
+              <p className="mt-2 text-sm text-[var(--color-muted-text)]">
+                Note: this member already holds {memberAlreadyHoldsOtherPosition} this term. They
+                can still be assigned here.
+              </p>
+            )}
+            {saveError && <p role="alert">{saveError}</p>}
+            <div className="flex gap-3 mt-4">
+              <button
+                type="submit"
+                disabled={isSaving || !selectedMember}
+                className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isSaving ? "Saving…" : "Confirm assignment"}
+              </button>
+              <button
+                type="button"
+                onClick={cancelAssign}
+                className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </Card>
         </form>
       )}
     </div>
@@ -240,16 +268,22 @@ export default function BoardMembers() {
 
 function BoardPositionTable({ positions, assignments, canAssign, onAssign }) {
   if (positions.length === 0) {
-    return <p>None.</p>;
+    return <p className="px-5 py-4 text-sm text-[var(--color-muted-text)]">None.</p>;
   }
   return (
-    <table className="admin-table">
+    <table className="w-full border-collapse text-left">
       <thead>
-        <tr>
-          <th>Position</th>
-          <th>Member</th>
-          <th>Start date</th>
-          {canAssign && <th></th>}
+        <tr className="bg-[var(--color-border-light)]">
+          <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">
+            Position
+          </th>
+          <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">
+            Member
+          </th>
+          <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">
+            Start date
+          </th>
+          {canAssign && <th className="px-5 py-3" />}
         </tr>
       </thead>
       <tbody>
@@ -257,17 +291,31 @@ function BoardPositionTable({ positions, assignments, canAssign, onAssign }) {
           const assignment = latestAssignmentFor(assignments, position.id);
           const isVacant = !assignment || assignment.end_date !== null;
           return (
-            <tr key={position.id}>
-              <td>{position.name}</td>
-              <td>
-                {isVacant
-                  ? "— Vacant —"
-                  : `${assignment.member.first_name} ${assignment.member.last_name}`}
+            <tr key={position.id} className="border-t border-[var(--color-border-light)]">
+              <td className="px-5 py-3 text-sm font-semibold text-[#0c2340]">{position.name}</td>
+              <td className="px-5 py-3 text-sm">
+                {isVacant ? (
+                  <span className="inline-block rounded-full px-2.5 py-1 text-xs font-bold bg-[var(--color-border-light)] text-[var(--color-muted-text)]">
+                    — Vacant —
+                  </span>
+                ) : (
+                  `${assignment.member.first_name} ${assignment.member.last_name}`
+                )}
               </td>
-              <td>{isVacant ? "—" : assignment.start_date}</td>
+              <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">
+                {isVacant ? "—" : assignment.start_date}
+              </td>
               {canAssign && (
-                <td>
-                  <button type="button" onClick={() => onAssign(position.id)}>
+                <td className="px-5 py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onAssign(position.id)}
+                    className={
+                      isVacant
+                        ? "rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-[var(--color-brand-blue)] border-none cursor-pointer"
+                        : "rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] cursor-pointer"
+                    }
+                  >
                     {isVacant ? "Assign" : "Change"}
                   </button>
                 </td>

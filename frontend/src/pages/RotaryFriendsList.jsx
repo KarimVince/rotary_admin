@@ -10,8 +10,19 @@ import {
   listRotaryFriends,
   updateRotaryFriend,
 } from "../api/rotaryFriends";
+import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
 import { splitTags } from "../utils/tags";
+
+const INPUT_CLASS = "w-full border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm";
+const PRIMARY_BUTTON_CLASS =
+  "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+const SECONDARY_BUTTON_CLASS =
+  "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+const ROW_BUTTON_CLASS =
+  "rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mr-2 border-none";
+const OUTLINE_BUTTON_CLASS =
+  "border border-[var(--color-brand-blue)] bg-white text-[var(--color-brand-blue)] rounded-lg px-4 py-2 text-[13.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap";
 
 const EMPTY_FORM = {
   first_name: "",
@@ -258,17 +269,22 @@ export default function RotaryFriendsList() {
 
   return (
     <div className="admin-page admin-page-wide">
-      <div className="page-header-row">
-        <h1>Friends of Rotary</h1>
+      <div className="flex justify-between items-start gap-3 flex-wrap mb-1">
+        <div>
+          <h1 className="mb-1">Friends of Rotary</h1>
+          <p className="text-sm text-[var(--color-muted-text)]">
+            Contacts outside the club roster — donors, sponsors, and supporters kept for outreach.
+          </p>
+        </div>
         {isAdmin && (
-          <div className="page-header-actions">
-            <button type="button" className="btn-add-member" onClick={handleExport} disabled={isExporting}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button type="button" className={OUTLINE_BUTTON_CLASS} onClick={handleExport} disabled={isExporting}>
               {isExporting ? "Exporting…" : "Export CSV"}
             </button>
-            <button type="button" className="btn-add-member" onClick={openImportModal}>
+            <button type="button" className={OUTLINE_BUTTON_CLASS} onClick={openImportModal}>
               Import CSV
             </button>
-            <button type="button" className="btn-add-member" onClick={openAddModal}>
+            <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={openAddModal}>
               + Add Friend
             </button>
           </div>
@@ -278,11 +294,18 @@ export default function RotaryFriendsList() {
 
       {isImportModalOpen && isAdmin && (
         <div className="modal-overlay" onClick={closeImportModal}>
-          <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
-            <h2>Import friends from CSV</h2>
-            <p>
-              Columns: <code>name, email, whatsapp, tags, source, notes</code>. Duplicate
-              emails and validation errors are flagged below before anything is imported.
+          <div
+            className="modal-dialog !rounded-2xl !max-w-[640px] !text-[15px]"
+            role="dialog"
+            aria-label="Import friends from CSV"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-[19px] font-semibold text-[var(--color-brand-blue-dark)] mb-2">
+              Import friends from CSV
+            </h2>
+            <p className="text-sm text-[var(--color-muted-text)] mb-4">
+              Columns: <code>name, email, whatsapp, tags, source, notes</code>. Duplicate emails
+              and validation errors are flagged below before anything is imported.
             </p>
 
             <input
@@ -291,12 +314,13 @@ export default function RotaryFriendsList() {
               aria-label="CSV file"
               onChange={handleFileSelected}
               disabled={isPreviewing}
+              className="text-sm mb-3"
             />
-            {isPreviewing && <p>Parsing…</p>}
+            {isPreviewing && <p className="text-sm text-[var(--color-muted-text)]">Parsing…</p>}
             {importError && <p role="alert">{importError}</p>}
 
             {commitResult && (
-              <p>
+              <p role="status" className="text-sm text-[var(--color-muted-text)] mt-2">
                 Imported {commitResult.created_count} friend
                 {commitResult.created_count === 1 ? "" : "s"}
                 {commitResult.skipped_count > 0
@@ -308,46 +332,49 @@ export default function RotaryFriendsList() {
 
             {previewResult && (
               <>
-                <p>
+                <p className="text-sm text-[var(--color-muted-text)] mt-2 mb-3">
                   {previewResult.valid_count} valid, {previewResult.error_count} with errors,{" "}
                   {previewResult.duplicate_count} duplicate
                   {previewResult.duplicate_count === 1 ? "" : "s"} (of {previewResult.rows.length}{" "}
                   row{previewResult.rows.length === 1 ? "" : "s"}).
                 </p>
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Row</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>WhatsApp</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewResult.rows.map((row) => (
-                      <tr key={row.row_number}>
-                        <td>{row.row_number}</td>
-                        <td>
-                          {row.first_name} {row.last_name}
-                        </td>
-                        <td>{row.email ?? "—"}</td>
-                        <td>{row.whatsapp ?? "—"}</td>
-                        <td>
-                          {row.errors.length > 0
-                            ? row.errors.join("; ")
-                            : row.is_duplicate
-                              ? "Duplicate — skipped"
-                              : "Valid"}
-                        </td>
+                <div className="max-h-[280px] overflow-y-auto border border-[var(--color-card-border)] rounded-xl mb-3">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="bg-[var(--color-border-light)]">
+                        <th className="text-left px-3 py-2 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Row</th>
+                        <th className="text-left px-3 py-2 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Name</th>
+                        <th className="text-left px-3 py-2 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Email</th>
+                        <th className="text-left px-3 py-2 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">WhatsApp</th>
+                        <th className="text-left px-3 py-2 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {previewResult.rows.map((row) => (
+                        <tr key={row.row_number} className="border-t border-[var(--color-border-light)]">
+                          <td className="px-3 py-2 text-sm text-[var(--color-muted-text)]">{row.row_number}</td>
+                          <td className="px-3 py-2 text-sm">
+                            {row.first_name} {row.last_name}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-[var(--color-muted-text)]">{row.email ?? "—"}</td>
+                          <td className="px-3 py-2 text-sm text-[var(--color-muted-text)]">{row.whatsapp ?? "—"}</td>
+                          <td className="px-3 py-2 text-sm">
+                            {row.errors.length > 0
+                              ? row.errors.join("; ")
+                              : row.is_duplicate
+                                ? "Duplicate — skipped"
+                                : "Valid"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <button
                   type="button"
                   onClick={handleCommitImport}
                   disabled={isCommitting || previewResult.valid_count === 0}
+                  className={PRIMARY_BUTTON_CLASS}
                 >
                   {isCommitting
                     ? "Importing…"
@@ -358,8 +385,8 @@ export default function RotaryFriendsList() {
               </>
             )}
 
-            <div className="modal-actions">
-              <button type="button" onClick={closeImportModal}>
+            <div className="flex justify-end mt-5">
+              <button type="button" onClick={closeImportModal} className={SECONDARY_BUTTON_CLASS}>
                 Close
               </button>
             </div>
@@ -369,87 +396,115 @@ export default function RotaryFriendsList() {
 
       {isModalOpen && isAdmin && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="modal-dialog !rounded-2xl !max-w-[560px] !text-[15px]"
+            role="dialog"
+            aria-label={editingId ? "Edit friend" : "Add friend"}
+            onClick={(event) => event.stopPropagation()}
+          >
             <form onSubmit={handleSubmit}>
-              <h2>{editingId ? "Edit friend" : "Add friend"}</h2>
+              <h2 className="text-[19px] font-semibold text-[var(--color-brand-blue-dark)] mb-3">
+                {editingId ? "Edit friend" : "Add friend"}
+              </h2>
 
-              <div className="member-form-grid">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="friend-first-name">First name</label>
+                  <label htmlFor="friend-first-name" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    First name
+                  </label>
                   <input
                     id="friend-first-name"
                     type="text"
                     value={form.first_name}
                     onChange={(event) => setForm({ ...form, first_name: event.target.value })}
                     required
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
-                  <label htmlFor="friend-last-name">Last name</label>
+                  <label htmlFor="friend-last-name" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    Last name
+                  </label>
                   <input
                     id="friend-last-name"
                     type="text"
                     value={form.last_name}
                     onChange={(event) => setForm({ ...form, last_name: event.target.value })}
                     required
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
-                  <label htmlFor="friend-email">Email</label>
+                  <label htmlFor="friend-email" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    Email
+                  </label>
                   <input
                     id="friend-email"
                     type="email"
                     value={form.email}
                     onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
-                  <label htmlFor="friend-whatsapp">WhatsApp</label>
+                  <label htmlFor="friend-whatsapp" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    WhatsApp
+                  </label>
                   <input
                     id="friend-whatsapp"
                     type="text"
                     placeholder="+33612345678"
                     value={form.whatsapp}
                     onChange={(event) => setForm({ ...form, whatsapp: event.target.value })}
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
-                  <label htmlFor="friend-tags">Tags</label>
+                  <label htmlFor="friend-tags" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    Tags
+                  </label>
                   <input
                     id="friend-tags"
                     type="text"
                     placeholder="donor, alumni"
                     value={form.tags}
                     onChange={(event) => setForm({ ...form, tags: event.target.value })}
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
-                  <label htmlFor="friend-source">Source</label>
+                  <label htmlFor="friend-source" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    Source
+                  </label>
                   <input
                     id="friend-source"
                     type="text"
                     placeholder="How we met them"
                     value={form.source}
                     onChange={(event) => setForm({ ...form, source: event.target.value })}
+                    className={INPUT_CLASS}
                   />
                 </div>
-                <div className="field-full">
-                  <label htmlFor="friend-notes">Notes</label>
+                <div className="sm:col-span-2">
+                  <label htmlFor="friend-notes" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+                    Notes
+                  </label>
                   <input
                     id="friend-notes"
                     type="text"
                     value={form.notes}
                     onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                    className={INPUT_CLASS}
                   />
                 </div>
               </div>
 
               {saveError && <p role="alert">{saveError}</p>}
-              <div className="modal-actions">
-                <button type="submit" disabled={isSaving}>
+              <div className="flex gap-3 mt-5">
+                <button type="submit" disabled={isSaving} className={PRIMARY_BUTTON_CLASS}>
                   {isSaving ? "Saving…" : editingId ? "Update friend" : "Save friend"}
                 </button>
-                <button type="button" onClick={closeModal}>
+                <button type="button" onClick={closeModal} className={SECONDARY_BUTTON_CLASS}>
                   Cancel
                 </button>
               </div>
@@ -458,87 +513,116 @@ export default function RotaryFriendsList() {
         </div>
       )}
 
-      <div className="member-filter-bar">
-        <input
-          id="filter-search"
-          className="member-filter-search"
-          type="text"
-          placeholder="Search by name or email…"
-          aria-label="Search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <select
-          id="filter-tag"
-          aria-label="Tag"
-          value={tagFilter}
-          onChange={(event) => setTagFilter(event.target.value)}
-        >
-          <option value="">All tags</option>
-          {tagOptions.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
-        </select>
-        <select
-          id="filter-source"
-          aria-label="Source"
-          value={sourceFilter}
-          onChange={(event) => setSourceFilter(event.target.value)}
-        >
-          <option value="">All sources</option>
-          {sourceOptions.map((source) => (
-            <option key={source} value={source}>
-              {source}
-            </option>
-          ))}
-        </select>
+      <div className="flex items-end gap-4 flex-wrap mb-5">
+        <div className="flex-1 min-w-[220px]">
+          <label htmlFor="filter-search" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+            Search
+          </label>
+          <input
+            id="filter-search"
+            type="text"
+            placeholder="Search by name or email…"
+            aria-label="Search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className={INPUT_CLASS}
+          />
+        </div>
+        <div>
+          <label htmlFor="filter-tag" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+            Tag
+          </label>
+          <select
+            id="filter-tag"
+            aria-label="Tag"
+            value={tagFilter}
+            onChange={(event) => setTagFilter(event.target.value)}
+            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[150px]"
+          >
+            <option value="">All tags</option>
+            {tagOptions.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="filter-source" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
+            Source
+          </label>
+          <select
+            id="filter-source"
+            aria-label="Source"
+            value={sourceFilter}
+            onChange={(event) => setSourceFilter(event.target.value)}
+            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[150px]"
+          >
+            <option value="">All sources</option>
+            {sourceOptions.map((source) => (
+              <option key={source} value={source}>
+                {source}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
       {!isLoading && !loadError && visibleFriends.length === 0 && (
-        <p className="member-empty-state">No friends match your search or filters.</p>
+        <p className="text-sm text-[var(--color-muted-text)]">No friends match your search or filters.</p>
       )}
 
       {!isLoading && !loadError && visibleFriends.length > 0 && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>WhatsApp</th>
-              <th>Tags</th>
-              <th>Source</th>
-              {isAdmin && <th aria-label="Actions" />}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleFriends.map((friend) => (
-              <tr key={friend.id} className="data-row">
-                <td>
-                  {friend.first_name} {friend.last_name}
-                </td>
-                <td>{friend.email ?? "—"}</td>
-                <td>{friend.whatsapp ?? "—"}</td>
-                <td>{friend.tags ?? "—"}</td>
-                <td>{friend.source ?? "—"}</td>
-                {isAdmin && (
-                  <td>
-                    <button type="button" className="btn-row-action" onClick={() => startEdit(friend)}>
-                      Edit
-                    </button>
-                    <button type="button" className="btn-row-action" onClick={() => handleDelete(friend)}>
-                      Delete
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-[var(--color-border-light)]">
+                  <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Name</th>
+                  <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Email</th>
+                  <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">WhatsApp</th>
+                  <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Tags</th>
+                  <th className="text-left px-5 py-3 text-xs font-bold text-[var(--color-muted-text)] uppercase tracking-wide">Source</th>
+                  {isAdmin && <th className="px-5 py-3" aria-label="Actions" />}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleFriends.map((friend) => (
+                  <tr key={friend.id} className="border-t border-[var(--color-border-light)]">
+                    <td className="px-5 py-3 text-sm font-semibold text-[#0c2340]">
+                      {friend.first_name} {friend.last_name}
+                    </td>
+                    <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{friend.email ?? "—"}</td>
+                    <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{friend.whatsapp ?? "—"}</td>
+                    <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{friend.tags ?? "—"}</td>
+                    <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{friend.source ?? "—"}</td>
+                    {isAdmin && (
+                      <td className="px-5 py-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(friend)}
+                          className={`${ROW_BUTTON_CLASS} text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)]`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(friend)}
+                          className={`${ROW_BUTTON_CLASS} text-[#b23b3b] bg-[var(--tone-rose-bg)]`}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );

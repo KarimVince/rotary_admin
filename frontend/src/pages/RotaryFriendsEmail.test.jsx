@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -60,40 +60,49 @@ function mockLoadHandlers(logEntries = [LOG_ENTRY]) {
   );
 }
 
+function typeIntoBody(text) {
+  const editor = screen.getByTestId("email-body-editor");
+  editor.textContent = text;
+  fireEvent.input(editor);
+}
+
 describe("RotaryFriendsEmail", () => {
-  it("shows the email log and defaults to all friends with email", async () => {
+  it("shows the email log; the picker excludes whatsapp-only contacts", async () => {
     mockLoadHandlers();
 
     render(<RotaryFriendsEmail />);
     await waitForLoaded();
 
     expect(screen.getByText("Old newsletter")).toBeInTheDocument();
-    // 2 of the 3 friends have an email — the whatsapp-only contact is excluded.
+
+    await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^all$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^select shown$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
+
+    // Only 2 of the 3 friends have an email — the whatsapp-only contact
+    // never appears in the picker at all.
     expect(
       screen.getByRole("button", { name: /review send \(2 recipients\)/i }),
     ).toBeInTheDocument();
   });
 
-  it("filters recipients by tag and skips whatsapp-only contacts", async () => {
+  it("bulk-selects recipients by tag via a quick-filter chip", async () => {
     mockLoadHandlers();
 
     render(<RotaryFriendsEmail />);
     await waitForLoaded();
 
-    await userEvent.selectOptions(screen.getByLabelText(/send to/i), "tag");
-    await userEvent.selectOptions(screen.getByLabelText(/^tag$/i), "donor");
+    await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^donor$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^select shown$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
 
-    // "donor" matches Sara (has email) and Whats App (whatsapp only, skipped).
+    // "donor" matches Sara (has email) and Whats App (whatsapp-only, not
+    // selectable) — only Sara ends up selected.
     expect(
       screen.getByRole("button", { name: /review send \(1 recipient\)/i }),
     ).toBeInTheDocument();
-
-    // Fill required fields before submitting the form
-    await userEvent.type(screen.getByLabelText(/subject/i), "Test");
-    await userEvent.type(screen.getByLabelText(/body/i), "Test");
-
-    await userEvent.click(screen.getByRole("button", { name: /review send/i }));
-    expect(screen.getByText(/this will email/i)).toHaveTextContent(/1 contact skipped/i);
   });
 
   it("sends to a custom selection of friends", async () => {
@@ -116,10 +125,12 @@ describe("RotaryFriendsEmail", () => {
     render(<RotaryFriendsEmail />);
     await waitForLoaded();
 
-    await userEvent.type(screen.getByLabelText(/subject/i), "Hi");
-    await userEvent.type(screen.getByLabelText(/body/i), "There");
-    await userEvent.selectOptions(screen.getByLabelText(/send to/i), "custom");
-    await userEvent.click(screen.getByLabelText(/select sara nguyen/i));
+    await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hi");
+    typeIntoBody("There");
+    await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Sara Nguyen" }));
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
+
     await userEvent.click(screen.getByRole("button", { name: /review send \(1 recipient\)/i }));
     await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
 
@@ -146,8 +157,11 @@ describe("RotaryFriendsEmail", () => {
     render(<RotaryFriendsEmail />);
     await waitForLoaded();
 
-    await userEvent.type(screen.getByLabelText(/subject/i), "Hello");
-    await userEvent.type(screen.getByLabelText(/body/i), "World");
+    await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
+    typeIntoBody("World");
+    await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^select shown$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
     await userEvent.click(screen.getByRole("button", { name: /review send/i }));
 
     expect(screen.getByRole("heading", { name: /confirm send/i })).toBeInTheDocument();
@@ -157,7 +171,7 @@ describe("RotaryFriendsEmail", () => {
     expect(await screen.findByText(/last send: sent/i)).toBeInTheDocument();
   });
 
-  it("uploads an attachment via the shared attachment endpoint and sends it", async () => {
+  it("uploads attachments via the shared attachment endpoint and sends them", async () => {
     mockLoadHandlers();
     let capturedBody;
     server.use(
@@ -183,11 +197,15 @@ describe("RotaryFriendsEmail", () => {
     render(<RotaryFriendsEmail />);
     await waitForLoaded();
 
-    await userEvent.type(screen.getByLabelText(/subject/i), "Hello");
-    await userEvent.type(screen.getByLabelText(/body/i), "World");
+    await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
+    typeIntoBody("World");
+    await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^select shown$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
 
     const flyer = new File(["flyer-bytes"], "flyer.pdf", { type: "application/pdf" });
-    await userEvent.upload(screen.getByLabelText(/attachments/i), flyer);
+    const dropzoneInput = document.querySelector('input[type="file"][multiple]');
+    await userEvent.upload(dropzoneInput, flyer);
     await screen.findByText("flyer.pdf");
 
     await userEvent.click(screen.getByRole("button", { name: /review send/i }));
@@ -214,8 +232,11 @@ describe("RotaryFriendsEmail", () => {
     render(<RotaryFriendsEmail />);
     await waitForLoaded();
 
-    await userEvent.type(screen.getByLabelText(/subject/i), "Hello");
-    await userEvent.type(screen.getByLabelText(/body/i), "World");
+    await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
+    typeIntoBody("World");
+    await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^select shown$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
     await userEvent.click(screen.getByRole("button", { name: /review send/i }));
     await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
 

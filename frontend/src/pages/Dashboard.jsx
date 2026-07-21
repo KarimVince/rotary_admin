@@ -6,24 +6,14 @@ import { fetchDashboardSummary } from "../api/dashboard";
 import { listBoardAssignments } from "../api/boardAssignments";
 import { listBoardPositions } from "../api/boardPositions";
 import Card from "../components/Card";
+import SectionLabel from "../components/SectionLabel";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
+import { AVATAR_TONES, getInitials } from "../utils/avatar";
 import { currentRotaryYear } from "../utils/rotaryYear";
 
-function SectionLabel({ children, action, className = "" }) {
-  return (
-    <div className={`flex items-center gap-2 ${className}`.trim()}>
-      <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-brand-blue)]">
-        {children}
-      </span>
-      <div className="flex-1 h-px bg-[var(--color-card-border)]" />
-      {action}
-    </div>
-  );
-}
-
 function initials(member) {
-  return `${member.first_name?.[0] ?? ""}${member.last_name?.[0] ?? ""}`.toUpperCase();
+  return getInitials(member.first_name, member.last_name);
 }
 
 function resolvePhotoUrl(photoUrl) {
@@ -70,15 +60,6 @@ const STAT_CARDS = [
   },
 ];
 
-// Board member card avatars cycle through the same pastel tones as the
-// stat cards above, matching the 1b mockup's per-avatar tinting.
-const AVATAR_TONES = [
-  { bgClass: "bg-[var(--tone-blue-bg)]", textClass: "text-[var(--color-brand-blue)]" },
-  { bgClass: "bg-[var(--tone-lavender-bg)]", textClass: "text-[#5b3fa0]" },
-  { bgClass: "bg-[var(--tone-teal-bg)]", textClass: "text-[#1a7a68]" },
-  { bgClass: "bg-[var(--tone-amber-bg)]", textClass: "text-[#b8760f]" },
-];
-
 // Story 12.8: each module card's visibility is canRead on its Menu-level
 // function (built by 12.1/12.3-12.7) — no separate "dashboard" permission.
 const MODULE_LINKS = [
@@ -110,7 +91,7 @@ const MODULE_LINKS = [
     requiredPermission: "friends",
   },
   {
-    to: "/fees/settings",
+    to: "/fees",
     label: "Member Fees",
     description: "Billing & collection",
     icon: Wallet,

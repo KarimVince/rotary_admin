@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listEmailLog, sendMemberEmail, uploadEmailAttachment } from "../api/memberEmail";
 import { listMembers } from "../api/members";
+import Card from "../components/Card";
+import EmailAttachmentsCard from "../components/EmailAttachmentsCard";
+import EmailLogTable from "../components/EmailLogTable";
+import RecipientPicker from "../components/RecipientPicker";
+import RichTextEditor from "../components/RichTextEditor";
 import { useAccess } from "../hooks/useAccess";
-
-const GROUP_LABELS = {
-  all: "All members",
-  active: "Active members",
-  past: "Past members",
-};
+import { getInitials } from "../utils/avatar";
 
 export default function MembersEmail() {
   const { canRead, canWrite } = useAccess("members.email");
@@ -17,9 +17,7 @@ export default function MembersEmail() {
   const [loadError, setLoadError] = useState(null);
 
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [recipientMode, setRecipientMode] = useState("group");
-  const [recipientGroup, setRecipientGroup] = useState("active");
+  const [bodyEmpty, setBodyEmpty] = useState(true);
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -30,11 +28,17 @@ export default function MembersEmail() {
   const [sendError, setSendError] = useState(null);
   const [lastResult, setLastResult] = useState(null);
 
+  const editorRef = useRef(null);
+  const bodyRef = useRef("");
+  const attachmentsCardRef = useRef(null);
+
   async function loadData() {
     setIsLoading(true);
     try {
+      // Member email only ever targets active members — past members are
+      // never selectable (see doc/CLAUDE.md "Member email specifics").
       const [membersData, logData] = canWrite
-        ? await Promise.all([listMembers({}), listEmailLog()])
+        ? await Promise.all([listMembers({ status: "active" }), listEmailLog()])
         : [[], await listEmailLog()];
       setMembers(membersData);
       setEmailLog(logData);
@@ -57,44 +61,58 @@ export default function MembersEmail() {
 
   const membersWithEmail = useMemo(() => members.filter((member) => member.email), [members]);
 
-  const previewCount = useMemo(() => {
-    if (recipientMode === "custom") {
-      return selectedMemberIds.length;
-    }
-    if (recipientGroup === "all") {
-      return membersWithEmail.length;
-    }
-    return membersWithEmail.filter((member) => member.status === recipientGroup).length;
-  }, [recipientMode, recipientGroup, selectedMemberIds, membersWithEmail]);
+  const recipientPeople = useMemo(
+    () =>
+      membersWithEmail.map((member) => ({
+        id: member.id,
+        name: `${member.first_name} ${member.last_name}`,
+        initials: getInitials(member.first_name, member.last_name),
+      })),
+    [membersWithEmail],
+  );
 
-  function toggleMember(memberId) {
-    setSelectedMemberIds((current) =>
-      current.includes(memberId)
-        ? current.filter((id) => id !== memberId)
-        : [...current, memberId],
-    );
-  }
+  const recipientCount = selectedMemberIds.length;
 
-  async function handleAttachmentChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  async function handleFilesSelected(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
 
     setIsUploadingAttachment(true);
     setAttachmentError(null);
     try {
-      const attachment = await uploadEmailAttachment(file);
-      setAttachments((current) => [...current, attachment]);
+      const uploaded = await Promise.all(
+        files.map(async (file) => {
+          const attachment = await uploadEmailAttachment(file);
+          return { ...attachment, size: file.size };
+        }),
+      );
+      setAttachments((current) => [...current, ...uploaded]);
     } catch (err) {
       setAttachmentError(err.detail || "Failed to upload attachment");
     } finally {
       setIsUploadingAttachment(false);
-      event.target.value = "";
     }
   }
 
   function removeAttachment(filename) {
     setAttachments((current) => current.filter((attachment) => attachment.filename !== filename));
   }
+
+  async function handleInsertImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setAttachmentError(null);
+    try {
+      const attachment = await uploadEmailAttachment(file);
+      editorRef.current?.insertImage(attachment.url, attachment.filename);
+    } catch (err) {
+      setAttachmentError(err.detail || "Failed to upload image");
+    }
+  }
+
+  const imageInputRef = useRef(null);
 
   function handleReview(event) {
     event.preventDefault();
@@ -112,20 +130,15 @@ export default function MembersEmail() {
     setSendError(null);
 
     try {
-      const payload = { subject, body };
-      if (recipientMode === "custom") {
-        payload.member_ids = selectedMemberIds;
-      } else {
-        payload.recipient_group = recipientGroup;
-      }
+      const payload = { subject, body: bodyRef.current, member_ids: selectedMemberIds };
       if (attachments.length > 0) {
-        payload.attachments = attachments;
+        payload.attachments = attachments.map(({ filename, url }) => ({ filename, url }));
       }
       const result = await sendMemberEmail(payload);
       setLastResult(result);
       setIsConfirming(false);
       setSubject("");
-      setBody("");
+      editorRef.current?.setHTML("");
       setSelectedMemberIds([]);
       setAttachments([]);
       await loadData();
@@ -136,6 +149,8 @@ export default function MembersEmail() {
       setIsSending(false);
     }
   }
+
+  const canSend = subject.trim() !== "" && !bodyEmpty && recipientCount > 0;
 
   if (!canRead) {
     return (
@@ -155,110 +170,54 @@ export default function MembersEmail() {
 
       {!isLoading && !loadError && canWrite && (
         <>
-          <form className="admin-form email-compose-form" onSubmit={handleReview}>
-            <h2>Compose</h2>
+          <form onSubmit={handleReview} className="max-w-[760px] flex flex-col gap-5 pb-24">
+            <Card variant="default" className="!p-5 !rounded-2xl relative">
+              <RecipientPicker
+                label="To · Members"
+                people={recipientPeople}
+                selectedIds={selectedMemberIds}
+                onChange={setSelectedMemberIds}
+              />
+            </Card>
 
-            <label htmlFor="email-subject">Subject</label>
-            <input
-              id="email-subject"
-              type="text"
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              required
-            />
-
-            <label htmlFor="email-body">Body</label>
-            <textarea
-              id="email-body"
-              className="email-body-textarea"
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              required
-            />
-
-            <div className="email-controls-row">
-              <div>
-                <label htmlFor="recipient-mode">Send to</label>
-                <select
-                  id="recipient-mode"
-                  value={recipientMode}
-                  onChange={(event) => setRecipientMode(event.target.value)}
-                >
-                  <option value="group">A group</option>
-                  <option value="custom">Custom selection</option>
-                </select>
-              </div>
-
-              {recipientMode === "group" && (
-                <div>
-                  <label htmlFor="recipient-group">Group</label>
-                  <select
-                    id="recipient-group"
-                    value={recipientGroup}
-                    onChange={(event) => setRecipientGroup(event.target.value)}
-                  >
-                    <option value="all">All members</option>
-                    <option value="active">Active members</option>
-                    <option value="past">Past members</option>
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="email-attachment">Attachments</label>
+            <Card variant="default" className="!p-0 !rounded-2xl">
+              <div className="px-6 pt-1 pb-6">
                 <input
-                  id="email-attachment"
-                  type="file"
-                  onChange={handleAttachmentChange}
-                  disabled={isUploadingAttachment}
+                  type="text"
+                  value={subject}
+                  onChange={(event) => setSubject(event.target.value)}
+                  placeholder="Subject"
+                  className="w-full border-none border-b border-[var(--color-card-border)] py-4 text-[19px] font-semibold text-[var(--color-brand-blue-dark)] outline-none"
                 />
-                {isUploadingAttachment && <span>Uploading…</span>}
+                <RichTextEditor
+                  ref={editorRef}
+                  onChange={(html) => {
+                    bodyRef.current = html;
+                  }}
+                  onEmptyChange={setBodyEmpty}
+                  extraButtons={[
+                    { key: "attach", label: "Attach", onClick: () => attachmentsCardRef.current?.openPicker() },
+                    { key: "image", label: "Image", onClick: () => imageInputRef.current?.click() },
+                  ]}
+                />
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleInsertImage}
+                />
               </div>
-            </div>
+            </Card>
 
-            {attachmentError && <p role="alert">{attachmentError}</p>}
-            {attachments.length > 0 && (
-              <ul className="email-attachment-list">
-                {attachments.map((attachment) => (
-                  <li key={attachment.filename}>
-                    {attachment.filename}{" "}
-                    <button type="button" onClick={() => removeAttachment(attachment.filename)}>
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {recipientMode === "custom" && (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>Name</th>
-                    <th>Email</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {membersWithEmail.map((member) => (
-                    <tr key={member.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${member.first_name} ${member.last_name}`}
-                          checked={selectedMemberIds.includes(member.id)}
-                          onChange={() => toggleMember(member.id)}
-                        />
-                      </td>
-                      <td>
-                        {member.first_name} {member.last_name}
-                      </td>
-                      <td>{member.email}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <EmailAttachmentsCard
+              ref={attachmentsCardRef}
+              attachments={attachments}
+              isUploading={isUploadingAttachment}
+              error={attachmentError}
+              onFilesSelected={handleFilesSelected}
+              onRemove={removeAttachment}
+            />
 
             {sendError && <p role="alert">{sendError}</p>}
             {lastResult && (
@@ -268,63 +227,58 @@ export default function MembersEmail() {
               </p>
             )}
 
-            <button type="submit" disabled={previewCount === 0}>
-              Review send ({previewCount} recipient{previewCount === 1 ? "" : "s"})
-            </button>
+            <div className="sticky bottom-0 bg-white border-t border-[var(--color-card-border)] py-4 flex justify-end">
+              <button
+                type="submit"
+                disabled={!canSend}
+                className="border-none rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Review send ({recipientCount} recipient{recipientCount === 1 ? "" : "s"})
+              </button>
+            </div>
           </form>
 
           {isConfirming && (
-            <div className="admin-form" role="alertdialog">
-              <h2>Confirm send</h2>
-              <p>
-                This will email <strong>{previewCount}</strong> recipient
-                {previewCount === 1 ? "" : "s"}
-                {recipientMode === "group" ? ` (${GROUP_LABELS[recipientGroup]})` : ""}
-                {attachments.length > 0
-                  ? ` with ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
-                  : ""}
-                . This cannot be undone.
-              </p>
-              <button type="button" onClick={handleConfirmSend} disabled={isSending}>
-                {isSending ? "Sending…" : "Confirm send"}
-              </button>
-              <button type="button" onClick={cancelConfirm} disabled={isSending}>
-                Cancel
-              </button>
+            <div className="modal-overlay" onClick={cancelConfirm}>
+              <div
+                className="modal-dialog !rounded-2xl !max-w-[420px] !text-[15px]"
+                role="alertdialog"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <h2 className="text-[19px] font-semibold text-[var(--color-brand-blue-dark)]">Confirm send</h2>
+                <p className="text-[var(--color-muted-text-strong)]">
+                  This will email <strong>{recipientCount}</strong> recipient
+                  {recipientCount === 1 ? "" : "s"}
+                  {attachments.length > 0
+                    ? ` with ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+                    : ""}
+                  . This cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3 mt-5">
+                  <button
+                    type="button"
+                    onClick={cancelConfirm}
+                    disabled={isSending}
+                    className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmSend}
+                    disabled={isSending}
+                    className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isSending ? "Sending…" : "Confirm send"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>
       )}
 
-      {!isLoading && !loadError && canRead && (
-        <>
-          <h2>Email log</h2>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Subject</th>
-                <th>Recipient group</th>
-                <th>Recipients</th>
-                <th>Status</th>
-                <th>Attachments</th>
-                <th>Sent at</th>
-              </tr>
-            </thead>
-            <tbody>
-              {emailLog.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{entry.subject}</td>
-                  <td>{entry.recipient_group}</td>
-                  <td>{entry.recipient_count}</td>
-                  <td>{entry.status}</td>
-                  <td>{entry.has_attachments ? "Yes" : "No"}</td>
-                  <td>{new Date(entry.sent_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+      {!isLoading && !loadError && canRead && <EmailLogTable entries={emailLog} />}
     </div>
   );
 }

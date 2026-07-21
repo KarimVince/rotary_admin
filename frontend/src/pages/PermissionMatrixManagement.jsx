@@ -5,6 +5,7 @@ import {
   listAppFunctions,
   upsertPermissionMatrixCell,
 } from "../api/boardPermissions";
+import Card from "../components/Card";
 
 const ACCESS_LEVELS = [
   { value: "no_access", label: "No Access", code: "NA" },
@@ -123,18 +124,39 @@ export default function PermissionMatrixManagement() {
   const tree = buildTree(appFunctions);
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Permission matrix</h1>
-      <p style={{ fontSize: 12, color: "var(--text-h)" }}>
-        NA = No Access · R = Read · W = Write. A sub-item can never be set above its menu's level.
+      <p className="mt-1 mb-3 text-sm text-[var(--color-muted-text)]">
+        Choose the access level each position has to every menu item. A sub-item can never be
+        set above its menu's level.
       </p>
+      <div className="flex gap-4 mb-4 text-xs text-[var(--color-muted-text)]">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block rounded-full px-2.5 py-1 text-xs font-bold bg-[var(--tone-blue-bg)] text-[var(--color-brand-blue)]">
+            NA
+          </span>
+          No access
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block rounded-full px-2.5 py-1 text-xs font-bold bg-[var(--tone-amber-bg)] text-[var(--color-tone-amber-text)]">
+            R
+          </span>
+          Read only
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block rounded-full px-2.5 py-1 text-xs font-bold bg-[var(--tone-rose-bg)] text-[var(--color-tone-rose-text)]">
+            W
+          </span>
+          Read &amp; write
+        </span>
+      </div>
 
       {saveError && <p role="alert">{saveError}</p>}
       {cascadeNote && <p className="matrix-cascade-note">{cascadeNote}</p>}
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
       {!isLoading && !loadError && (
-        <div className="permission-matrix-wrap">
+        <Card variant="default" className="!p-0 !rounded-2xl permission-matrix-wrap">
           <table className="admin-table permission-matrix">
             <thead>
               <tr>
@@ -160,7 +182,7 @@ export default function PermissionMatrixManagement() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
   );

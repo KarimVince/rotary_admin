@@ -170,7 +170,7 @@ describe("App auth flow", () => {
 
     renderApp("/admin/users");
 
-    expect(await screen.findByRole("heading", { name: /user management/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /manage users/i })).toBeInTheDocument();
   });
 
   it("redirects a non-admin away from the user management page", async () => {
@@ -192,7 +192,7 @@ describe("App auth flow", () => {
     renderApp("/admin/users");
 
     expect(await screen.findByText(/welcome, admin/i)).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /user management/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /manage users/i })).not.toBeInTheDocument();
   });
 
   it("shows locked placeholders for unbuilt modules and an admin-only nav link", async () => {

@@ -201,6 +201,78 @@ def test_fee_run_with_explicit_member_ids(admin_client, make_fee_settings, make_
     assert body["member_fees"][0]["member_id"] == str(target_member.id)
 
 
+def test_fee_run_with_member_tiers_applies_each_members_own_tier(
+    admin_client, make_fee_settings, make_member
+):
+    make_fee_settings(
+        rotary_year=2025,
+        early_bird_single_price=500,
+        early_bird_couple_price=900,
+        full_single_price=600,
+        full_couple_price=1000,
+    )
+    early_bird_member = make_member(first_name="Early", is_couple=False)
+    full_member = make_member(first_name="Full", is_couple=True)
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={
+            "rotary_year": 2025,
+            "member_tiers": [
+                {"member_id": str(early_bird_member.id), "price_type": "early_bird"},
+                {"member_id": str(full_member.id), "price_type": "full"},
+            ],
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["price_type"] is None
+    assert body["created_count"] == 2
+
+    fees_by_member = {fee["member_id"]: fee for fee in body["member_fees"]}
+    early_fee = fees_by_member[str(early_bird_member.id)]
+    assert early_fee["price_type"] == "early_bird"
+    assert early_fee["amount_due"] == 500
+
+    full_fee = fees_by_member[str(full_member.id)]
+    assert full_fee["price_type"] == "full"
+    assert full_fee["amount_due"] == 1000
+
+
+def test_fee_run_member_tiers_excludes_members_not_listed(
+    admin_client, make_fee_settings, make_member
+):
+    make_fee_settings(rotary_year=2025)
+    included = make_member(first_name="Included")
+    make_member(first_name="Excluded")
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={
+            "rotary_year": 2025,
+            "member_tiers": [{"member_id": str(included.id), "price_type": "early_bird"}],
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["created_count"] == 1
+    assert body["member_fees"][0]["member_id"] == str(included.id)
+
+
+def test_fee_run_rejects_both_member_tiers_and_price_type(admin_client, make_fee_settings):
+    make_fee_settings(rotary_year=2025)
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={
+            "rotary_year": 2025,
+            "price_type": "early_bird",
+            "target": "all_members",
+            "member_tiers": [{"member_id": "00000000-0000-0000-0000-000000000000", "price_type": "full"}],
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_fee_run_member_ids_target_requires_member_ids(admin_client, make_fee_settings):
     make_fee_settings(rotary_year=2025)
     response = admin_client.post(

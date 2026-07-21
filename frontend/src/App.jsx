@@ -10,25 +10,19 @@ import BoardPositionManagement from "./pages/BoardPositionManagement";
 import CurrencyManagement from "./pages/CurrencyManagement";
 import Dashboard from "./pages/Dashboard";
 import DinnerEvents from "./pages/DinnerEvents";
-import DinnerEventTypeManagement from "./pages/DinnerEventTypeManagement";
 import DonationsStatistics from "./pages/DonationsStatistics";
 import EventList from "./pages/EventList";
 import EventManageProject from "./pages/EventManageProject";
-import FeeRunManagement from "./pages/FeeRunManagement";
-import FeeSettingsManagement from "./pages/FeeSettingsManagement";
-import FeeStatistics from "./pages/FeeStatistics";
-import FeeTracking from "./pages/FeeTracking";
-import HonorificManagement from "./pages/HonorificManagement";
 import Login from "./pages/Login";
-import MemberTitleManagement from "./pages/MemberTitleManagement";
+import MemberFees from "./pages/MemberFees";
 import MembersEmail from "./pages/MembersEmail";
 import MembersList from "./pages/MembersList";
 import MembersStatistics from "./pages/MembersStatistics";
-import NgoClassificationManagement from "./pages/NgoClassificationManagement";
 import OrganisationDetail from "./pages/OrganisationDetail";
 import OrganisationsList from "./pages/OrganisationsList";
 import PermissionMatrixManagement from "./pages/PermissionMatrixManagement";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import ReferenceLists from "./pages/ReferenceLists";
 import ResetPasswordConfirm from "./pages/ResetPasswordConfirm";
 import RotaryFriendsEmail from "./pages/RotaryFriendsEmail";
 import RotaryFriendsList from "./pages/RotaryFriendsList";
@@ -55,24 +49,16 @@ function App() {
               <Route path="/admin/currencies" element={<CurrencyManagement />} />
               {/* Not inside the requiredRole="admin" block below — Story
                   11.2 needs Secretary/President/President Elect to reach
-                  this via the permission matrix, same as Currencies. */}
-              <Route
-                path="/admin/ngo-classifications"
-                element={<NgoClassificationManagement />}
-              />
-              {/* Story 8.23 — same reasoning as NGO Classifications above:
-                  matrix-driven (admin.ppt_template), not admin-role-only. */}
+                  NGO Classifications/Dinner Event Types (now merged into
+                  this page) via the permission matrix, same as Currencies.
+                  Member Titles/Honorifics lose the extra admin-role hard
+                  gate they had as standalone routes; each card still
+                  self-gates on its own matrix key via useAccess. */}
+              <Route path="/admin/reference-lists" element={<ReferenceLists />} />
+              {/* Story 8.23 — same reasoning: matrix-driven
+                  (admin.ppt_template), not admin-role-only. */}
               <Route path="/admin/ppt-template" element={<AdminPptTemplate />} />
-              {/* Story 16.10 — same reasoning: matrix-driven
-                  (admin.dinner_event_types), not admin-role-only. */}
-              <Route
-                path="/admin/dinner-event-types"
-                element={<DinnerEventTypeManagement />}
-              />
-              <Route path="/fees/settings" element={<FeeSettingsManagement />} />
-              <Route path="/fees/run" element={<FeeRunManagement />} />
-              <Route path="/fees/tracking" element={<FeeTracking />} />
-              <Route path="/fees/statistics" element={<FeeStatistics />} />
+              <Route path="/fees" element={<MemberFees />} />
               <Route path="/friends" element={<RotaryFriendsList />} />
               <Route path="/friends/statistics" element={<RotaryFriendsStatistics />} />
               <Route path="/friends/email" element={<RotaryFriendsEmail />} />
@@ -87,12 +73,6 @@ function App() {
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route element={<ProtectedRoute requiredRole="admin" />}>
                 <Route path="/admin/users" element={<UserManagement />} />
-                <Route path="/admin/member-titles" element={<MemberTitleManagement />} />
-                {/* Story 8.3 — admin.honorifics is admin-role-only in the
-                    matrix (same tier as Member Titles above), so it belongs
-                    in this block too, not out with NGO Classifications/PPT
-                    Template which grant wider board access. */}
-                <Route path="/admin/honorifics" element={<HonorificManagement />} />
                 <Route path="/board/positions" element={<BoardPositionManagement />} />
                 <Route path="/admin/permissions" element={<PermissionMatrixManagement />} />
                 <Route path="/members/email" element={<MembersEmail />} />

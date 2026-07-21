@@ -97,10 +97,7 @@ describe("Dashboard", () => {
       "href",
       "/ngos",
     );
-    expect(screen.getByRole("link", { name: /member fees/i })).toHaveAttribute(
-      "href",
-      "/fees/settings",
-    );
+    expect(screen.getByRole("link", { name: /member fees/i })).toHaveAttribute("href", "/fees");
     expect(screen.getByRole("link", { name: /board/i })).toHaveAttribute(
       "href",
       "/board/positions",

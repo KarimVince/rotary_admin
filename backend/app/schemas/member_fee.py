@@ -5,14 +5,32 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class MemberTierAssignment(BaseModel):
+    member_id: uuid.UUID
+    price_type: Literal["early_bird", "full"]
+
+
 class FeeRunCreate(BaseModel):
     rotary_year: int
-    price_type: Literal["early_bird", "full"]
-    target: Literal["all_unpaid", "all_members", "member_ids"]
+    price_type: Literal["early_bird", "full"] | None = None
+    target: Literal["all_unpaid", "all_members", "member_ids"] | None = None
     member_ids: list[uuid.UUID] | None = None
+    # Per-member tier assignment (Fee Run tab's "assign tiers" step) — each
+    # member in the run gets their own tier instead of one shared price_type
+    # for the whole batch. Mutually exclusive with price_type/target.
+    member_tiers: list[MemberTierAssignment] | None = None
 
     @model_validator(mode="after")
-    def validate_member_ids(self) -> "FeeRunCreate":
+    def validate_target_shape(self) -> "FeeRunCreate":
+        if self.member_tiers is not None:
+            if self.price_type is not None or self.target is not None or self.member_ids is not None:
+                raise ValueError("Provide either member_tiers or price_type+target, not both")
+            if not self.member_tiers:
+                raise ValueError("member_tiers must not be empty")
+            return self
+
+        if self.price_type is None or self.target is None:
+            raise ValueError("Provide either member_tiers or both price_type and target")
         if self.target == "member_ids" and not self.member_ids:
             raise ValueError("member_ids is required when target is 'member_ids'")
         if self.target != "member_ids" and self.member_ids:
@@ -44,7 +62,9 @@ class MemberFeeRead(BaseModel):
 
 class FeeRunResult(BaseModel):
     rotary_year: int
-    price_type: str
+    # None when the run used per-member member_tiers (spans multiple tiers,
+    # no single value to report).
+    price_type: str | None
     created_count: int
     updated_count: int
     skipped_paid_count: int

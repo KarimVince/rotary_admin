@@ -111,13 +111,13 @@ describe("AppLayout — accordion nav (Story 8.7)", () => {
 });
 
 describe("AppLayout — Admin nav section", () => {
-  it("shows Admin section with Manage Users and Member Titles for admin role", async () => {
+  it("shows Admin section with Manage Users and Reference Lists for admin role", async () => {
     renderNav("admin");
 
     expect(screen.getByRole("button", { name: /^admin$/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /^admin$/i }));
     expect(screen.getByRole("link", { name: "Manage Users" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Member Titles" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reference Lists" })).toBeInTheDocument();
   });
 
   it("hides Manage Users for treasurer role (permanent adminOnly exception)", async () => {
@@ -133,22 +133,20 @@ describe("AppLayout — Admin nav section", () => {
 
     expect(screen.queryByRole("button", { name: /^admin$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Manage Users" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Member Titles" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Reference Lists" })).not.toBeInTheDocument();
   });
 
-  it("admin still sees Member Fees section", async () => {
+  it("admin still sees the Member Fees link", () => {
     renderNav("admin");
 
-    expect(screen.getByRole("button", { name: /member fees/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /member fees/i }));
-    expect(screen.getByRole("link", { name: "Fee settings" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /member fees/i })).toHaveAttribute("href", "/fees");
   });
 
-  it("hides Member Fees section for a user without fees matrix access", () => {
+  it("hides the Member Fees link for a user without fees matrix access", () => {
     mockDeniedKeys = new Set(["fees"]);
     renderNav("user");
 
-    expect(screen.queryByRole("button", { name: /member fees/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /member fees/i })).not.toBeInTheDocument();
   });
 
   it("treasurer with admin.currencies access sees Currencies but not Manage Users", async () => {

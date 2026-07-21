@@ -511,6 +511,18 @@ only when asked.
 - The member's `is_couple` flag selects single-vs-couple within the chosen tier.
 - Resend/regenerate only targets **unpaid** members — never re-bill paid members.
 
+## Member email specifics — easy to get wrong
+- `/members/email` (`MembersEmail.jsx`) only ever targets **active** members —
+  past members are excluded entirely, not just filtered by default. The
+  member list is fetched with `listMembers({ status: "active" })`, and the
+  recipient picker has no All/Active/Past quick filter (removed — there's
+  nothing left to filter by, since past members are never in the list).
+- "Select all" on that page therefore always means "select all active
+  members with an email on file" — there's no separate "select all
+  regardless of status" concept.
+- Friends of Rotary email (`RotaryFriendsEmail.jsx`) is unaffected by this —
+  it has no member status concept; its quick filters are still tag-based.
+
 ## Workflow when implementing a story (important)
 Implement the story, write its tests, then **STOP and wait**. Specifically:
 - **Only run the tests for the story/change you just made** — the specific
