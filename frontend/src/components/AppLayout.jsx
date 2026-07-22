@@ -39,7 +39,7 @@ const NAV_ITEMS = [
   },
   {
     // Story 12.4: visibility driven by the ngos/ngos.* permissions.
-    section: "NGOs & Donations",
+    section: "NGO & Services Project",
     icon: Building2,
     requiredPermission: "ngos",
     children: [

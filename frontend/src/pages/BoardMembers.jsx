@@ -4,6 +4,7 @@ import { createBoardAssignment, listBoardAssignments } from "../api/boardAssignm
 import { listMembers } from "../api/members";
 import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
+import { SELECT_CLASS } from "../styles/formControls";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 
 const CURRENT_YEAR = currentRotaryYear();
@@ -164,7 +165,7 @@ export default function BoardMembers() {
           id="board-members-year"
           value={year}
           onChange={(event) => setYear(Number(event.target.value))}
-          className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[140px]"
+          className={`${SELECT_CLASS} min-w-[140px]`}
         >
           {YEAR_OPTIONS.map((y) => (
             <option key={y} value={y}>

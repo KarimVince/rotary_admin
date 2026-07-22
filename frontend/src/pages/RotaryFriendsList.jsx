@@ -12,9 +12,9 @@ import {
 } from "../api/rotaryFriends";
 import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
+import { INPUT_CLASS, SELECT_CLASS } from "../styles/formControls";
 import { splitTags } from "../utils/tags";
 
-const INPUT_CLASS = "w-full border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm";
 const PRIMARY_BUTTON_CLASS =
   "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
 const SECONDARY_BUTTON_CLASS =
@@ -537,7 +537,7 @@ export default function RotaryFriendsList() {
             aria-label="Tag"
             value={tagFilter}
             onChange={(event) => setTagFilter(event.target.value)}
-            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[150px]"
+            className={`${SELECT_CLASS} min-w-[150px]`}
           >
             <option value="">All tags</option>
             {tagOptions.map((tag) => (
@@ -556,7 +556,7 @@ export default function RotaryFriendsList() {
             aria-label="Source"
             value={sourceFilter}
             onChange={(event) => setSourceFilter(event.target.value)}
-            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[150px]"
+            className={`${SELECT_CLASS} min-w-[150px]`}
           >
             <option value="">All sources</option>
             {sourceOptions.map((source) => (

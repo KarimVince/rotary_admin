@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,12 @@ class AttendanceEvent(Base):
         UUID(as_uuid=True), ForeignKey("members.id", ondelete="SET NULL")
     )
     topics_description: Mapped[str | None] = mapped_column(Text)
+    # Story 16.27 — optional start/end time for the .ics export (16.25) to
+    # use a real datetime range instead of an all-day event. End time is
+    # stored but only ever surfaced in the .ics export, never displayed in
+    # the UI (see schemas/frontend — start_time alone is shown everywhere).
+    start_time: Mapped["Time | None"] = mapped_column(Time)
+    end_time: Mapped["Time | None"] = mapped_column(Time)
     # Story 15.6/15.7 (redone on the Dinner Forecast event, not Member — see
     # the ClickUp comment on both stories): restricts this dinner event to
     # members only, vs. open to guests/friends.

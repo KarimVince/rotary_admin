@@ -54,6 +54,12 @@ const STATS = {
   selected_year: SELECTED_YEAR_FIXTURE,
   all_time_organisations_count: 3,
   all_time: ALL_TIME_FIXTURE,
+  total_service_hours_all_time: 42,
+  total_service_hours_selected_year: 18,
+  service_hours_by_rotary_year: [
+    { label: String(THIS_YEAR - 1), value: 24 },
+    { label: String(THIS_YEAR), value: 18 },
+  ],
 };
 
 // recharts' ResponsiveContainer needs real layout dimensions jsdom doesn't
@@ -188,6 +194,9 @@ describe("DonationsStatistics", () => {
         unconverted_count: 0,
         unconverted_currencies: [],
       },
+      total_service_hours_all_time: 0,
+      total_service_hours_selected_year: 0,
+      service_hours_by_rotary_year: [],
     };
 
     server.use(
@@ -308,6 +317,25 @@ describe("DonationsStatistics", () => {
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
 
       expect(await screen.findByText("No data to report")).toBeInTheDocument();
+    });
+  });
+
+  describe("Volunteer service hours (Story 16.14)", () => {
+    it("shows the all-time and selected-year hours cards, and the hours chart heading", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
+      );
+
+      render(<DonationsStatistics />);
+      await screen.findByText("1,300 HKD");
+
+      expect(screen.getByText("42 h")).toBeInTheDocument();
+      expect(screen.getByText("18 h")).toBeInTheDocument();
+      expect(screen.getByText(/volunteer service hours \(all-time\)/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`Volunteer service hours.*${THIS_YEAR}`, "i")),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Volunteer service hours per rotary year")).toBeInTheDocument();
     });
   });
 });

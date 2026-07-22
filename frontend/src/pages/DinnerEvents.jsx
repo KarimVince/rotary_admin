@@ -10,20 +10,10 @@ import { listDinnerEventTypes } from "../api/dinnerEventTypes";
 import { listMembers } from "../api/members";
 import { useAccess } from "../hooks/useAccess";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
-import { ATTENDANCE_GREEN_MIN } from "../utils/attendanceThresholds";
-import { isFutureEventDate } from "../utils/eventDate";
+import { todayInHongKong } from "../utils/eventDate";
+import { downloadIcs, slugify } from "../utils/ics";
 import DinnerForecastEventFormModal from "../components/DinnerForecastEventFormModal";
-import Card from "../components/Card";
-
-// Story 16.10: event types are admin-configurable now (Admin > Dinner Event
-// Types) — a type without configured colors falls back to this neutral
-// grey chip rather than a broken/blank one.
-const DEFAULT_TYPE_CHIP_CLASS = "bg-[#f0f2f6] text-[#6b7686]";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+import MonthCard, { groupEventsByMonth, monthLabel } from "../components/DinnerMonthCard";
 
 // Rotary year runs Jul -> Jun; returns the 12 "YYYY-MM" keys in that order
 // so month cards render Jul first, Jun last, regardless of calendar order.
@@ -32,22 +22,6 @@ function rotaryYearMonthKeys(year) {
   for (let m = 7; m <= 12; m++) keys.push(`${year}-${String(m).padStart(2, "0")}`);
   for (let m = 1; m <= 6; m++) keys.push(`${year + 1}-${String(m).padStart(2, "0")}`);
   return keys;
-}
-
-function monthLabel(monthKey) {
-  const [y, m] = monthKey.split("-").map(Number);
-  return `${MONTH_NAMES[m - 1]} ${y}`;
-}
-
-function groupEventsByMonth(events) {
-  const groups = new Map();
-  events.forEach((event) => {
-    const key = event.event_date.slice(0, 7);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(event);
-  });
-  groups.forEach((monthEvents) => monthEvents.sort((a, b) => a.event_date.localeCompare(b.event_date)));
-  return groups;
 }
 
 function YearPillSwitcher({ years, selected, onSelect }) {
@@ -94,155 +68,6 @@ function StatCard({ bg, color, value, label }) {
   );
 }
 
-function TypeChip({ eventType, eventTypes }) {
-  const type = eventTypes.find((t) => t.name === eventType);
-  const style =
-    type?.color_bg && type?.color_text
-      ? { background: type.color_bg, color: type.color_text }
-      : undefined;
-  return (
-    <span
-      className={`w-fit rounded-full px-[10px] py-[3px] text-[11px] font-bold ${style ? "" : DEFAULT_TYPE_CHIP_CLASS}`}
-      style={style}
-    >
-      {eventType}
-    </span>
-  );
-}
-
-function MemberOnlyChip() {
-  return (
-    <span className="w-fit whitespace-nowrap rounded-full bg-[var(--tone-amber-bg)] px-[8px] py-[2px] text-[10px] font-bold text-[var(--color-tone-amber-text)]">
-      Members Only
-    </span>
-  );
-}
-
-function AttendanceChip({ event }) {
-  // Story 16.9: a future-dated event always reads as "Not started" even if
-  // someone already opened its sheet and saved marks — the event hasn't
-  // happened yet, so a live count would be misleading. The data itself is
-  // untouched, just not surfaced here until the event's date has passed.
-  if (!event.attendance_started || isFutureEventDate(event.event_date)) {
-    return (
-      <span className="w-fit rounded-full bg-[#f0f2f6] px-[10px] py-1 text-[12px] font-bold text-[#6b7686]">
-        Not started
-      </span>
-    );
-  }
-  const healthy = event.attendance_percentage >= ATTENDANCE_GREEN_MIN;
-  return (
-    <span
-      className={
-        healthy
-          ? "w-fit rounded-full bg-[var(--tone-teal-bg)] px-[10px] py-1 text-[12px] font-bold text-[var(--color-tone-teal-text)]"
-          : "w-fit rounded-full bg-[var(--tone-rose-bg)] px-[10px] py-1 text-[12px] font-bold text-[var(--color-tone-rose-text)]"
-      }
-    >
-      {event.present_count}/{event.eligible_total} · {event.attendance_percentage}%
-    </span>
-  );
-}
-
-const MONTH_ROW_GRID_COLS = "90px 100px 1.5fr 1fr 100px 150px 250px";
-
-function MonthCard({
-  monthKey,
-  events,
-  eventTypes,
-  canWrite,
-  startingEventId,
-  onRowAction,
-  onEdit,
-  onDelete,
-  speakerLabel,
-}) {
-  return (
-    <Card variant="default" className="flex flex-col gap-1 p-[18px_20px]">
-      <div className="mb-1 flex items-baseline justify-between border-b border-[#eef1f5] pb-3">
-        <span className="text-[17px] font-bold text-[var(--color-brand-blue)]">
-          {monthLabel(monthKey)}
-        </span>
-        <span className="text-[12px] font-semibold text-[var(--color-muted-text)]">
-          {events.length} {events.length === 1 ? "event" : "events"}
-        </span>
-      </div>
-      {events.length === 0 ? (
-        <p className="py-2 text-[13px] text-[var(--color-muted-text)]">No events this month</p>
-      ) : (
-        events.map((event) => (
-          <div
-            key={event.id}
-            className="grid items-center gap-4 border-b border-[var(--color-border-faint)] py-3 last:border-b-0"
-            style={{ gridTemplateColumns: MONTH_ROW_GRID_COLS }}
-          >
-            <span className="text-[14px] font-bold text-[#0c2340]">
-              {Number(event.event_date.slice(8, 10))} {MONTH_NAMES[monthKey.split("-")[1] - 1].slice(0, 3)}
-            </span>
-            <TypeChip eventType={event.event_type} eventTypes={eventTypes} />
-            <div className="flex flex-col gap-[2px]">
-              <span className="text-[14px] font-semibold text-[#0c2340]">{event.name}</span>
-              {event.location && (
-                <span className="text-[12px] text-[var(--color-muted-text)]">{event.location}</span>
-              )}
-            </div>
-            <span className="flex flex-col gap-[2px] text-[13px] text-[var(--color-muted-text)]">
-              {speakerLabel(event) ? (
-                <span>
-                  <span className="text-[#9aa7ba]">Speaker:</span> {speakerLabel(event)}
-                </span>
-              ) : (
-                "—"
-              )}
-              {event.ngo_organisation_name && (
-                <span className="text-[12px]">
-                  <span className="text-[#9aa7ba]">NGO:</span> {event.ngo_organisation_name}
-                </span>
-              )}
-            </span>
-            {event.member_only ? <MemberOnlyChip /> : <span />}
-            <div className="flex justify-end">
-              <AttendanceChip event={event} />
-            </div>
-            <div className="flex items-center justify-end gap-3 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => onRowAction(event)}
-                disabled={startingEventId === event.id}
-                className="bg-transparent p-0 text-[13px] font-semibold text-[var(--color-brand-blue)]"
-              >
-                {startingEventId === event.id
-                  ? "Starting…"
-                  : event.attendance_started && !isFutureEventDate(event.event_date)
-                    ? "View sheet →"
-                    : "Take attendance →"}
-              </button>
-              {canWrite && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onEdit(event)}
-                    className="bg-transparent p-0 text-[13px] font-semibold text-[var(--color-brand-blue)]"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(event)}
-                    className="bg-transparent p-0 text-[13px] font-semibold text-[var(--color-tone-rose-text)]"
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </Card>
-  );
-}
-
 export default function DinnerEvents() {
   const { canRead, canWrite } = useAccess("attendance.forecast");
   const navigate = useNavigate();
@@ -265,7 +90,12 @@ export default function DinnerEvents() {
   const [rowError, setRowError] = useState(null);
 
   const [reportFormat, setReportFormat] = useState("pdf");
-  const [reportEventType, setReportEventType] = useState("all");
+  // Story 16.17: multi-select — empty array means "all types".
+  const [reportEventTypes, setReportEventTypes] = useState([]);
+  // Story 16.17: defaults unchecked (all events — past ones show their
+  // participation rate); checked narrows to forecast (future events only,
+  // no attendance data yet).
+  const [reportForecast, setReportForecast] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
 
@@ -351,6 +181,28 @@ export default function DinnerEvents() {
     }
   }
 
+  // Story 16.25 — "Add to Calendar" at the individual event, month, and
+  // global (all upcoming, across every month currently loaded) levels.
+  function handleExportEvent(event) {
+    downloadIcs(`rotary-${slugify(event.name)}-${event.event_date}.ics`, [event]);
+  }
+
+  function handleExportMonth(monthKey, monthEvents) {
+    downloadIcs(`rotary-${slugify(monthLabel(monthKey))}-events.ics`, monthEvents);
+  }
+
+  function handleExportAllUpcoming() {
+    const today = todayInHongKong();
+    const upcoming = events.filter((event) => event.event_date >= today);
+    downloadIcs("rotary-all-events.ics", upcoming);
+  }
+
+  function toggleReportEventType(name) {
+    setReportEventTypes((current) =>
+      current.includes(name) ? current.filter((t) => t !== name) : [...current, name],
+    );
+  }
+
   async function handleGenerateReport() {
     setIsGeneratingReport(true);
     setReportError(null);
@@ -358,7 +210,8 @@ export default function DinnerEvents() {
       const { blob, filename } = await downloadDinnerForecastReport({
         rotary_year: year,
         format: reportFormat,
-        event_type: reportEventType,
+        event_type: reportEventTypes,
+        forecast: reportForecast,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -388,38 +241,69 @@ export default function DinnerEvents() {
     <div className="admin-page admin-page-wide">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="m-0 text-2xl font-semibold text-[#0c2340]">Dinner / Events</h1>
-        {canWrite && (
+        <div className="flex items-center gap-3">
+          {/* Story 16.25 — global-level export: every upcoming event across
+              all months currently loaded (this rotary year), in one .ics. */}
           <button
             type="button"
-            onClick={openCreate}
-            className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
+            onClick={handleExportAllUpcoming}
+            className="rounded-[10px] border border-[var(--color-brand-blue)] bg-white px-[14px] py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]"
           >
-            New Dinner Event
+            📅 Add all upcoming to calendar
           </button>
-        )}
+          {canWrite && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
+            >
+              New Dinner Event
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <YearPillSwitcher years={yearOptions} selected={year} onSelect={setYear} />
 
         <div className="flex items-center gap-3">
-          <label htmlFor="dinner-report-type" className="sr-only">
-            Event filter
-          </label>
-          <select
-            id="dinner-report-type"
-            value={reportEventType}
-            onChange={(event) => setReportEventType(event.target.value)}
-            disabled={isGeneratingReport}
-            className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[13px]"
-          >
-            <option value="all">All events</option>
-            {eventTypes.map((type) => (
-              <option key={type.id} value={type.name}>
-                {type.name} only
-              </option>
-            ))}
-          </select>
+          {/* Story 16.17: multi-select pill toggles (was a single-select
+              dropdown) — "All" clears the filter, each type toggles
+              independently, several can be active at once. */}
+          <div className="flex items-center gap-1.5" role="group" aria-label="Event filter">
+            <button
+              type="button"
+              onClick={() => setReportEventTypes([])}
+              disabled={isGeneratingReport}
+              aria-pressed={reportEventTypes.length === 0}
+              className={`rounded-full border px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                reportEventTypes.length === 0
+                  ? "border-[var(--color-brand-blue)] bg-[var(--color-brand-blue)] text-white"
+                  : "border-[var(--color-border-medium)] bg-white text-[var(--color-muted-text)]"
+              }`}
+            >
+              All
+            </button>
+            {eventTypes.map((type) => {
+              const active = reportEventTypes.includes(type.name);
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => toggleReportEventType(type.name)}
+                  disabled={isGeneratingReport}
+                  aria-pressed={active}
+                  className={`rounded-full border px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    active
+                      ? "border-[var(--color-brand-blue)] bg-[var(--color-brand-blue)] text-white"
+                      : "border-[var(--color-border-medium)] bg-white text-[var(--color-muted-text)]"
+                  }`}
+                >
+                  {type.name}
+                </button>
+              );
+            })}
+          </div>
 
           <label htmlFor="dinner-report-format" className="sr-only">
             Format
@@ -434,6 +318,21 @@ export default function DinnerEvents() {
             <option value="pdf">PDF</option>
             <option value="csv">CSV</option>
           </select>
+
+          <label
+            htmlFor="dinner-report-forecast"
+            className="flex items-center gap-1.5 text-[13px] text-[var(--color-muted-text)] whitespace-nowrap"
+            title="Checked: upcoming events only. Unchecked: all events, with a participation rate for past ones."
+          >
+            <input
+              id="dinner-report-forecast"
+              type="checkbox"
+              checked={reportForecast}
+              onChange={(event) => setReportForecast(event.target.checked)}
+              disabled={isGeneratingReport}
+            />
+            Forecast
+          </label>
 
           <button
             type="button"
@@ -499,6 +398,8 @@ export default function DinnerEvents() {
               onRowAction={handleRowAction}
               onEdit={openEdit}
               onDelete={handleDelete}
+              onExportMonth={handleExportMonth}
+              onExportEvent={handleExportEvent}
               speakerLabel={(event) => event.speaker_name || ""}
             />
           ))}

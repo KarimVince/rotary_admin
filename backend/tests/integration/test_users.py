@@ -65,10 +65,10 @@ def test_non_admin_cannot_list_users(user_client):
 def test_admin_can_change_user_role(admin_client):
     created = admin_client.post("/api/v1/users", json=_create_payload()).json()
 
-    response = admin_client.patch(f"/api/v1/users/{created['id']}", json={"role": "treasurer"})
+    response = admin_client.patch(f"/api/v1/users/{created['id']}", json={"role": "admin"})
 
     assert response.status_code == 200
-    assert response.json()["role"] == "treasurer"
+    assert response.json()["role"] == "admin"
 
 
 def test_admin_can_deactivate_user(admin_client):

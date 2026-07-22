@@ -128,11 +128,11 @@ describe("UserManagement", () => {
 
     await userEvent.selectOptions(
       screen.getByLabelText(/role for user1@example.com/i),
-      "treasurer",
+      "admin",
     );
 
     await waitFor(() =>
-      expect(screen.getByLabelText(/role for user1@example.com/i)).toHaveValue("treasurer"),
+      expect(screen.getByLabelText(/role for user1@example.com/i)).toHaveValue("admin"),
     );
   });
 

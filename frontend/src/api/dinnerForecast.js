@@ -3,7 +3,13 @@ import { apiDownload, apiFetch } from "./client";
 function buildQuery(params) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
+    if (value === undefined || value === null || value === "") return;
+    // Story 16.17: the event-type filter is multi-select — an array value
+    // becomes one repeated query param per entry (`event_type=Dinner&
+    // event_type=Fellowship`), matching FastAPI's `list[str]` query parsing.
+    if (Array.isArray(value)) {
+      value.forEach((entry) => query.append(key, entry));
+    } else {
       query.set(key, value);
     }
   });
@@ -33,6 +39,8 @@ export function deleteDinnerForecastEvent(eventId) {
   return apiFetch(`/dinner-forecast/events/${eventId}`, { method: "DELETE" });
 }
 
-export function downloadDinnerForecastReport(filters = {}) {
-  return apiDownload(`/dinner-forecast/report${buildQuery(filters)}`);
+export function downloadDinnerForecastReport({ forecast, ...filters } = {}) {
+  return apiDownload(
+    `/dinner-forecast/report${buildQuery({ ...filters, forecast: forecast ? "true" : undefined })}`,
+  );
 }

@@ -53,10 +53,11 @@ async function waitForLoaded() {
   await waitFor(() => expect(screen.queryByText(/^loading…$/i)).not.toBeInTheDocument());
 }
 
-function mockLoadHandlers(logEntries = [LOG_ENTRY]) {
+function mockLoadHandlers(logEntries = [LOG_ENTRY], drafts = []) {
   server.use(
     http.get(`${API_BASE_URL}/rotary-friends`, () => HttpResponse.json(FRIENDS)),
     http.get(`${API_BASE_URL}/rotary-friends/email-log`, () => HttpResponse.json(logEntries)),
+    http.get(`${API_BASE_URL}/email-drafts`, () => HttpResponse.json(drafts)),
   );
 }
 
@@ -266,5 +267,95 @@ describe("RotaryFriendsEmail", () => {
     const sendButton = screen.getByRole("button", { name: /review send/i });
     expect(sendButton).toBeDisabled();
     expect(sendButton).toHaveAttribute("title", expect.stringMatching(/do not have permission/i));
+  });
+
+  describe("Drafts (Story 16.19)", () => {
+    const DRAFT = {
+      id: "draft-1",
+      source_module: "rotary_friends",
+      subject: "Saved subject",
+      body: "Saved body",
+      recipient_group: null,
+      tag: null,
+      member_ids: null,
+      friend_ids: ["friend-1"],
+      attachments: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    it("saves a new draft", async () => {
+      mockCanRead = true;
+      mockCanWrite = true;
+      mockLoadHandlers();
+      let capturedBody;
+      server.use(
+        http.post(`${API_BASE_URL}/email-drafts`, async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({ ...DRAFT, id: "draft-new" }, { status: 201 });
+        }),
+      );
+
+      render(<RotaryFriendsEmail />);
+      await waitForLoaded();
+
+      await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hi");
+      typeIntoBody("There");
+      await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "Sara Nguyen" }));
+      await userEvent.click(screen.getByRole("button", { name: /^done$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+      await waitFor(() =>
+        expect(capturedBody).toEqual({
+          source_module: "rotary_friends",
+          subject: "Hi",
+          body: "There",
+          friend_ids: ["friend-1"],
+          attachments: [],
+        }),
+      );
+    });
+
+    it("shows saved drafts and loads one into the compose form on Edit", async () => {
+      mockCanRead = true;
+      mockCanWrite = true;
+      mockLoadHandlers([LOG_ENTRY], [DRAFT]);
+
+      render(<RotaryFriendsEmail />);
+      await waitForLoaded();
+
+      expect(screen.getByText("Saved subject")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+      expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("Saved subject");
+      expect(screen.getByTestId("email-body-editor")).toHaveTextContent("Saved body");
+      expect(
+        screen.getByRole("button", { name: /review send \(1 recipient\)/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("deletes a draft after confirmation", async () => {
+      mockCanRead = true;
+      mockCanWrite = true;
+      mockLoadHandlers([LOG_ENTRY], [DRAFT]);
+      let deleteCalled = false;
+      server.use(
+        http.delete(`${API_BASE_URL}/email-drafts/draft-1`, () => {
+          deleteCalled = true;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+
+      render(<RotaryFriendsEmail />);
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+      await waitFor(() => expect(deleteCalled).toBe(true));
+      window.confirm.mockRestore();
+    });
   });
 });

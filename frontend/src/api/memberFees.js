@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiDownload, apiFetch } from "./client";
 
 function buildQuery(params) {
   const query = new URLSearchParams();
@@ -28,4 +28,12 @@ export function fetchMemberFeeStatistics(filters = {}) {
 
 export function fetchMemberFeeStatisticsHistory() {
   return apiFetch("/member-fees/statistics/history");
+}
+
+export function generateMemberFeeStatisticsReport(format, { rotaryYear } = {}) {
+  const params = new URLSearchParams({ format });
+  if (rotaryYear !== undefined && rotaryYear !== null) {
+    params.set("rotary_year", rotaryYear);
+  }
+  return apiDownload(`/member-fees/statistics/report?${params.toString()}`, { method: "POST" });
 }

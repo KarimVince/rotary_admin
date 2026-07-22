@@ -13,6 +13,11 @@ export default function DinnerForecastEventFormModal({ event, members, eventType
     speaker_rotary_contact_member_id: event?.speaker_rotary_contact_member_id || "",
     topics_description: event?.topics_description || "",
     member_only: event?.member_only || false,
+    // Story 16.27 — both optional; end_time is only ever used to build the
+    // .ics export's DTEND, never displayed anywhere in the UI. Backend
+    // returns "HH:MM:SS" — <input type="time"> wants "HH:MM".
+    start_time: event?.start_time ? event.start_time.slice(0, 5) : "",
+    end_time: event?.end_time ? event.end_time.slice(0, 5) : "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -28,6 +33,8 @@ export default function DinnerForecastEventFormModal({ event, members, eventType
         ngo_organisation_name: form.ngo_organisation_name || null,
         speaker_rotary_contact_member_id: form.speaker_rotary_contact_member_id || null,
         topics_description: form.topics_description || null,
+        start_time: form.start_time || null,
+        end_time: form.end_time || null,
       };
       const saved = isEditing
         ? await updateDinnerForecastEvent(event.id, payload)
@@ -66,6 +73,24 @@ export default function DinnerForecastEventFormModal({ event, members, eventType
                 value={form.event_date}
                 onChange={(e2) => setForm({ ...form, event_date: e2.target.value })}
                 required
+              />
+            </div>
+            <div>
+              <label htmlFor="forecast-event-start-time">Start Time</label>
+              <input
+                id="forecast-event-start-time"
+                type="time"
+                value={form.start_time}
+                onChange={(e2) => setForm({ ...form, start_time: e2.target.value })}
+              />
+            </div>
+            <div>
+              <label htmlFor="forecast-event-end-time">End Time</label>
+              <input
+                id="forecast-event-end-time"
+                type="time"
+                value={form.end_time}
+                onChange={(e2) => setForm({ ...form, end_time: e2.target.value })}
               />
             </div>
             <div>

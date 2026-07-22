@@ -11,6 +11,7 @@ import {
 } from "../api/organisations";
 import Card from "../components/Card";
 import { COUNTRIES } from "../data/countries";
+import { SELECT_CLASS } from "../styles/formControls";
 import { useAccess } from "../hooks/useAccess";
 import { classificationColorClass } from "../utils/classificationColors";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
@@ -249,7 +250,7 @@ export default function OrganisationsList() {
   if (!canRead) {
     return (
       <div className="admin-page">
-        <h1>NGOs &amp; Organisations</h1>
+        <h1>NGO &amp; Services Project</h1>
         <p role="alert">You do not have permission to view NGOs &amp; Organisations.</p>
       </div>
     );
@@ -258,7 +259,7 @@ export default function OrganisationsList() {
   return (
     <div className="admin-page admin-page-wide">
       <div className="page-header-row">
-        <h1>NGOs &amp; Organisations</h1>
+        <h1>NGO &amp; Services Project</h1>
         {canWrite && (
           <button type="button" className="btn-add-member" onClick={openAddModal}>
             + Add Organisation
@@ -308,6 +309,7 @@ export default function OrganisationsList() {
                     onChange={(event) =>
                       setForm({ ...form, classification_id: event.target.value })
                     }
+                    className={SELECT_CLASS}
                   >
                     <option value="">— No classification —</option>
                     {classifications.map((classification) => (
@@ -418,6 +420,7 @@ export default function OrganisationsList() {
           aria-label="Country"
           value={countryFilter}
           onChange={(event) => setCountryFilter(event.target.value)}
+          className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
         >
           <option value="">All countries</option>
           {countryOptions.map((country) => (
@@ -433,6 +436,7 @@ export default function OrganisationsList() {
           onChange={(event) =>
             setYearFilter(event.target.value === "all" ? null : Number(event.target.value))
           }
+          className={`${SELECT_CLASS} !w-auto min-w-[130px]`}
         >
           <option value="all">All years</option>
           {YEAR_FILTER_OPTIONS.map((year) => (
@@ -448,6 +452,7 @@ export default function OrganisationsList() {
             aria-label="Classification"
             value={classificationFilter}
             onChange={(event) => setClassificationFilter(event.target.value)}
+            className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
           >
             <option value="">All classifications</option>
             {classifications.map((classification) => (

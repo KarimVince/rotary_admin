@@ -19,7 +19,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
 
-fee_price_type_enum = Enum("early_bird", "full", name="fee_price_type")
+# Story 16.13: "sponsored" is a custom, admin-entered price outside the
+# Early Bird / Full schedule — see migration e7c4a1f9b6d3.
+fee_price_type_enum = Enum("early_bird", "full", "sponsored", name="fee_price_type")
 # Story 8.29: "manual" added for payments recorded through the fee tracking
 # sub-screen without going through the app's own send flow (e.g. cash/bank
 # transfer handed to the treasurer directly) — see migration b4d7e1f9a3c6.

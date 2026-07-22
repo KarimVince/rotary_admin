@@ -5,15 +5,25 @@ top-right. Only the club logo (`LOGO_PATH`) exists in this repo so far —
 `INTL_LOGO_PATH` renders automatically the moment that file is added at
 `backend/app/assets/rotary-international-logo.png`, no code change needed.
 
-Story 16.9: the PDF is a two-page month-by-month calendar (matching the
-"Dinner Calendar Report" design handoff) — 6 month cards per page, July-
-December then January-June of the rotary year, each card listing its
-events' date/type/name/location — deliberately no attendance data, per
-that handoff's explicit instruction.
+Story 16.9: the PDF is a month-by-month calendar (matching the "Dinner
+Calendar Report" design handoff) — 6 month cards per page, each card listing
+its events' date/type/name/location.
+
+Story 16.17: the report generation screen gained a Forecast toggle. Default
+(unchecked) is "everything" — the full 12-month Jul-Jun grid with past *and*
+upcoming events together, past ones carrying an optional `participation` map
+(event_id -> (eligible_total, present_count)) rendered as one extra
+line/column per event. Checking Forecast narrows the grid down to
+`_relevant_months`' current-and-remaining months only (future events, no
+participation data — nothing to show yet), with pages chunked dynamically
+from that shorter list instead of a fixed 2-page split, so a forecast report
+late in the rotary year doesn't render a string of empty "No events" cards
+for months already behind it.
 """
 import calendar
 import csv
-from datetime import date as date_type, datetime, timezone
+import uuid
+from datetime import date as date_type, datetime, time as time_type, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -95,27 +105,51 @@ def _member_names(db: Session, events: list[AttendanceEvent]) -> dict[str, str]:
     return {str(row[0]): f"{row[1]} {row[2]}" for row in rows}
 
 
-def build_csv_report(db: Session, events: list[AttendanceEvent]) -> str:
+def _format_time_12h(value: time_type) -> str:
+    """Story 16.27 — "7:00 PM" style, no leading zero on the hour, matching
+    the date_label's own no-leading-zero convention."""
+    hour_12 = value.hour % 12 or 12
+    period = "AM" if value.hour < 12 else "PM"
+    return f"{hour_12}:{value.minute:02d} {period}"
+
+
+def _participation_label(eligible_total: int, present_count: int) -> str:
+    if eligible_total == 0:
+        return "No attendance recorded"
+    rate = round(present_count / eligible_total * 100, 1)
+    return f"{rate}% ({present_count}/{eligible_total})"
+
+
+def build_csv_report(
+    db: Session,
+    events: list[AttendanceEvent],
+    participation: dict[uuid.UUID, tuple[int, int]] | None = None,
+) -> str:
     member_names = _member_names(db, events)
+    columns = list(CSV_COLUMNS)
+    if participation is not None:
+        columns.append("Participation Rate")
     buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=CSV_COLUMNS)
+    writer = csv.DictWriter(buffer, fieldnames=columns)
     writer.writeheader()
     for event in events:
-        writer.writerow(
-            {
-                "Date": event.event_date.isoformat(),
-                "Type": event.event_type,
-                "Event Name": event.name,
-                "Location": event.location or "",
-                "Speaker Name": event.speaker_name or "",
-                "Speaker Rotary Contact": member_names.get(
-                    str(event.speaker_rotary_contact_member_id), ""
-                ),
-                "NGO-Organisation": event.ngo_organisation_name or "",
-                "Topics/Description": event.topics_description or "",
-                "Member Only": "MEMBER ONLY" if event.member_only else "",
-            }
-        )
+        row = {
+            "Date": event.event_date.isoformat(),
+            "Type": event.event_type,
+            "Event Name": event.name,
+            "Location": event.location or "",
+            "Speaker Name": event.speaker_name or "",
+            "Speaker Rotary Contact": member_names.get(
+                str(event.speaker_rotary_contact_member_id), ""
+            ),
+            "NGO-Organisation": event.ngo_organisation_name or "",
+            "Topics/Description": event.topics_description or "",
+            "Member Only": "MEMBER ONLY" if event.member_only else "",
+        }
+        if participation is not None:
+            eligible_total, present_count = participation.get(event.id, (0, 0))
+            row["Participation Rate"] = _participation_label(eligible_total, present_count)
+        writer.writerow(row)
     return buffer.getvalue()
 
 
@@ -159,8 +193,10 @@ class _NumberedCanvas(Canvas):
 PAGE_MARGIN = 0.4 * inch
 CARD_GAP = 0.12 * inch
 
-# 3 columns x 2 rows = 6 month cards per page; 12 months of a rotary year
-# (Jul-Jun) split into exactly 2 pages of 6.
+# 3 columns x 2 rows = 6 month cards per page. Story 16.17: pages are now
+# chunked dynamically from however many months `_relevant_months` selects
+# (no longer always the full 12-month/2-page grid), so this is a per-page
+# cap, not a fixed total.
 MONTHS_PER_ROW = 3
 ROWS_PER_PAGE = 2
 
@@ -172,6 +208,28 @@ def _rotary_year_months(rotary_year_value: int) -> list[date_type]:
     months = [date_type(rotary_year_value, m, 1) for m in range(7, 13)]
     months += [date_type(rotary_year_value + 1, m, 1) for m in range(1, 7)]
     return months
+
+
+def _month_start(d: date_type) -> date_type:
+    return date_type(d.year, d.month, 1)
+
+
+def _relevant_months(rotary_year_value: int, forecast: bool) -> list[date_type]:
+    """Story 16.17 (follow-up): the default (unchecked) view shows the whole
+    rotary year — past events with their participation rate *and* upcoming
+    ones — so it always renders the full Jul-Jun grid. Only Forecast (future
+    events only) narrows the grid down to the current month plus the
+    remaining ones, so a forecast report late in the year doesn't render a
+    string of mostly-empty "No events" cards for months already behind it."""
+    all_months = _rotary_year_months(rotary_year_value)
+    if not forecast:
+        return all_months
+    today_month = _month_start(date_type.today())
+    months = [m for m in all_months if m >= today_month]
+    # A rotary year entirely in the past has no remaining months for the
+    # forecast view either — fall back to the full year rather than a
+    # report with nothing in it.
+    return months or all_months
 
 
 def _group_by_month(
@@ -191,6 +249,7 @@ def _month_card(
     styles,
     width: float,
     type_colors: dict[str, tuple[str, str]],
+    participation: dict[uuid.UUID, tuple[int, int]] | None = None,
 ) -> Table:
     title_style = styles["BodyText"].clone("month-title")
     title_style.fontSize = 15
@@ -239,7 +298,10 @@ def _month_card(
         chip_style_colored = chip_style.clone(f"chip-{month}-{index}")
         chip_style_colored.textColor = colors.HexColor(fg)
         # "3 Jul" — no leading zero, matching the design handoff exactly.
+        # Story 16.27: start time (only) appended when set, e.g. "3 Jul, 7:00 PM".
         date_label = f"{event.event_date.day} {event.event_date.strftime('%b')}"
+        if event.start_time:
+            date_label += f", {_format_time_12h(event.start_time)}"
 
         row_cells = [Paragraph(date_label, date_style), Paragraph(escape(event.event_type), chip_style_colored)]
         row_style_commands = [
@@ -285,6 +347,15 @@ def _month_card(
                     location_style,
                 )
             )
+        if participation is not None:
+            eligible_total, present_count = participation.get(event.id, (0, 0))
+            content.append(
+                Paragraph(
+                    f'<font color="#9aa7ba">Participation:</font> '
+                    f"{escape(_participation_label(eligible_total, present_count))}",
+                    location_style,
+                )
+            )
         if index < len(month_events) - 1:
             content.append(Spacer(1, 7))
 
@@ -317,22 +388,41 @@ def _calendar_page(
     styles,
     usable_width: float,
     type_colors: dict[str, tuple[str, str]],
+    participation: dict[uuid.UUID, tuple[int, int]] | None = None,
 ) -> Table:
     card_width = (usable_width - (MONTHS_PER_ROW - 1) * CARD_GAP) / MONTHS_PER_ROW
+    # Story 16.17: `months` is no longer always a full 6-per-page batch (a
+    # historical/forecast page may only have 1-5 relevant months), so every
+    # row is padded out to MONTHS_PER_ROW blank cells rather than assuming a
+    # full page — an under-filled, unpadded row breaks the Table() below
+    # (mismatched column count against col_widths).
+    row_count = max(1, -(-len(months) // MONTHS_PER_ROW))  # ceil division
     rows: list[list] = []
-    for row_index in range(ROWS_PER_PAGE):
+    for row_index in range(row_count):
         row_months = months[row_index * MONTHS_PER_ROW : (row_index + 1) * MONTHS_PER_ROW]
         row: list = []
-        for i, month in enumerate(row_months):
-            row.append(_month_card(month, buckets[month], styles, card_width, type_colors))
-            if i < len(row_months) - 1:
+        for i in range(MONTHS_PER_ROW):
+            if i < len(row_months):
+                month = row_months[i]
+                row.append(
+                    _month_card(
+                        month, buckets.get(month, []), styles, card_width, type_colors, participation
+                    )
+                )
+            else:
+                row.append("")
+            if i < MONTHS_PER_ROW - 1:
                 row.append("")
         rows.append(row)
-        if row_index < ROWS_PER_PAGE - 1:
+        if row_index < row_count - 1:
             rows.append(["" for _ in row])
 
     col_widths = [card_width, CARD_GAP, card_width, CARD_GAP, card_width]
-    row_heights = [None, CARD_GAP, None]
+    row_heights: list[float | None] = []
+    for row_index in range(row_count):
+        row_heights.append(None)
+        if row_index < row_count - 1:
+            row_heights.append(CARD_GAP)
     grid = Table(rows, colWidths=col_widths, rowHeights=row_heights)
     grid.setStyle(
         TableStyle(
@@ -364,6 +454,8 @@ def build_pdf_report(
     events: list[AttendanceEvent],
     rotary_year_value: int,
     type_colors: dict[str, tuple[str, str]] | None = None,
+    participation: dict[uuid.UUID, tuple[int, int]] | None = None,
+    forecast: bool = False,
 ) -> bytes:
     type_colors = type_colors or {}
     buffer = BytesIO()
@@ -393,9 +485,13 @@ def build_pdf_report(
     subtitle_style.textColor = colors.HexColor("#6b7686")
     subtitle_style.alignment = 1
 
+    view_label = "Forecast — Upcoming Events" if forecast else "All Events & Attendance History"
     title_block = [
         Paragraph("Dinner &amp; Fellowship Calendar", title_style),
-        Paragraph(f"Rotary Year {rotary_year_value}–{rotary_year_value + 1}", subtitle_style),
+        Paragraph(
+            f"Rotary Year {rotary_year_value}–{rotary_year_value + 1} · {view_label}",
+            subtitle_style,
+        ),
     ]
     header_row = Table(
         [[left_logo, title_block, right_logo]],
@@ -418,12 +514,17 @@ def build_pdf_report(
     story.append(header_row)
     story.append(Spacer(1, 0.2 * inch))
 
-    months = _rotary_year_months(rotary_year_value)
+    months = _relevant_months(rotary_year_value, forecast)
     buckets = _group_by_month(events, months)
 
-    story.append(_calendar_page(months[:6], buckets, styles, usable_width, type_colors))
-    story.append(PageBreak())
-    story.append(_calendar_page(months[6:], buckets, styles, usable_width, type_colors))
+    months_per_page = MONTHS_PER_ROW * ROWS_PER_PAGE
+    pages = [months[i : i + months_per_page] for i in range(0, len(months), months_per_page)]
+    for index, page_months in enumerate(pages):
+        story.append(
+            _calendar_page(page_months, buckets, styles, usable_width, type_colors, participation)
+        )
+        if index < len(pages) - 1:
+            story.append(PageBreak())
 
     doc.build(story, canvasmaker=_NumberedCanvas)
     return buffer.getvalue()

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, time
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,9 @@ class DinnerForecastEventCreate(BaseModel):
     speaker_rotary_contact_member_id: uuid.UUID | None = None
     topics_description: str | None = None
     member_only: bool = False
+    # Story 16.27
+    start_time: time | None = None
+    end_time: time | None = None
 
 
 class DinnerForecastEventUpdate(BaseModel):
@@ -28,6 +31,8 @@ class DinnerForecastEventUpdate(BaseModel):
     speaker_rotary_contact_member_id: uuid.UUID | None = None
     topics_description: str | None = None
     member_only: bool | None = None
+    start_time: time | None = None
+    end_time: time | None = None
 
 
 class DinnerForecastEventRead(AttendanceEventRead):

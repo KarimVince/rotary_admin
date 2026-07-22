@@ -1,18 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listEmailLog, sendMemberEmail, uploadEmailAttachment } from "../api/memberEmail";
+import {
+  createEmailDraft,
+  deleteEmailDraft,
+  listEmailDrafts,
+  updateEmailDraft,
+} from "../api/emailDrafts";
 import { listMembers } from "../api/members";
 import Card from "../components/Card";
 import EmailAttachmentsCard from "../components/EmailAttachmentsCard";
+import EmailDraftsPanel from "../components/EmailDraftsPanel";
 import EmailLogTable from "../components/EmailLogTable";
 import RecipientPicker from "../components/RecipientPicker";
 import RichTextEditor from "../components/RichTextEditor";
 import { useAccess } from "../hooks/useAccess";
 import { getInitials } from "../utils/avatar";
 
+const SOURCE_MODULE = "members";
+
 export default function MembersEmail() {
   const { canRead, canWrite } = useAccess("members.email");
   const [members, setMembers] = useState([]);
   const [emailLog, setEmailLog] = useState([]);
+  const [drafts, setDrafts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -28,9 +38,26 @@ export default function MembersEmail() {
   const [sendError, setSendError] = useState(null);
   const [lastResult, setLastResult] = useState(null);
 
+  // Story 16.19: null while composing a brand-new message; set to the
+  // draft's id after loading one for editing, or right after "Save Draft"
+  // creates one — so a second save updates it in place instead of creating
+  // a duplicate, and sending it deletes the right row.
+  const [editingDraftId, setEditingDraftId] = useState(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState(null);
+
   const editorRef = useRef(null);
   const bodyRef = useRef("");
   const attachmentsCardRef = useRef(null);
+
+  async function loadDrafts() {
+    try {
+      setDrafts(await listEmailDrafts(SOURCE_MODULE));
+    } catch {
+      // Non-fatal — the compose form still works without the drafts list.
+      setDrafts([]);
+    }
+  }
 
   async function loadData() {
     setIsLoading(true);
@@ -43,6 +70,7 @@ export default function MembersEmail() {
       setMembers(membersData);
       setEmailLog(logData);
       setLoadError(null);
+      if (canWrite) await loadDrafts();
     } catch (err) {
       setLoadError(err.detail || "Failed to load data");
     } finally {
@@ -135,6 +163,11 @@ export default function MembersEmail() {
         payload.attachments = attachments.map(({ filename, url }) => ({ filename, url }));
       }
       const result = await sendMemberEmail(payload);
+      // Story 16.19: sending a draft removes it from the drafts list.
+      if (editingDraftId) {
+        await deleteEmailDraft(editingDraftId).catch(() => {});
+        setEditingDraftId(null);
+      }
       setLastResult(result);
       setIsConfirming(false);
       setSubject("");
@@ -150,11 +183,55 @@ export default function MembersEmail() {
     }
   }
 
+  async function handleSaveDraft() {
+    setIsSavingDraft(true);
+    setDraftError(null);
+    try {
+      const payload = {
+        source_module: SOURCE_MODULE,
+        subject,
+        body: bodyRef.current,
+        member_ids: selectedMemberIds,
+        attachments: attachments.map(({ filename, url }) => ({ filename, url })),
+      };
+      if (editingDraftId) {
+        await updateEmailDraft(editingDraftId, payload);
+      } else {
+        const created = await createEmailDraft(payload);
+        setEditingDraftId(created.id);
+      }
+      await loadDrafts();
+    } catch (err) {
+      setDraftError(err.detail || "Failed to save draft");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  function handleEditDraft(draft) {
+    setDraftError(null);
+    setEditingDraftId(draft.id);
+    setSubject(draft.subject);
+    bodyRef.current = draft.body;
+    editorRef.current?.setHTML(draft.body);
+    setBodyEmpty(!draft.body || draft.body === "<p></p>");
+    setSelectedMemberIds(draft.member_ids ?? []);
+    setAttachments(draft.attachments ?? []);
+  }
+
+  async function handleDeleteDraft(draft) {
+    if (!window.confirm("Delete this draft?")) return;
+    await deleteEmailDraft(draft.id);
+    if (editingDraftId === draft.id) setEditingDraftId(null);
+    await loadDrafts();
+  }
+
   const canSend = subject.trim() !== "" && !bodyEmpty && recipientCount > 0;
+  const canSaveDraft = subject.trim() !== "" || !bodyEmpty || recipientCount > 0;
 
   if (!canRead) {
     return (
-      <div className="admin-page">
+      <div className="admin-page admin-page-wide">
         <h1>Email members</h1>
         <p role="alert">You do not have permission to view member email.</p>
       </div>
@@ -162,7 +239,7 @@ export default function MembersEmail() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide" style={{ maxWidth: 1600 }}>
       <h1>Email members</h1>
 
       {isLoading && <p>Loading…</p>}
@@ -220,6 +297,7 @@ export default function MembersEmail() {
             />
 
             {sendError && <p role="alert">{sendError}</p>}
+            {draftError && <p role="alert">{draftError}</p>}
             {lastResult && (
               <p>
                 Last send: {lastResult.status} — {lastResult.success_count} succeeded,{" "}
@@ -227,7 +305,15 @@ export default function MembersEmail() {
               </p>
             )}
 
-            <div className="sticky bottom-0 bg-white border-t border-[var(--color-card-border)] py-4 flex justify-end">
+            <div className="sticky bottom-0 bg-white border-t border-[var(--color-card-border)] py-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={!canSaveDraft || isSavingDraft}
+                className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isSavingDraft ? "Saving…" : "Save Draft"}
+              </button>
               <button
                 type="submit"
                 disabled={!canSend}
@@ -237,6 +323,8 @@ export default function MembersEmail() {
               </button>
             </div>
           </form>
+
+          <EmailDraftsPanel drafts={drafts} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />
 
           {isConfirming && (
             <div className="modal-overlay" onClick={cancelConfirm}>

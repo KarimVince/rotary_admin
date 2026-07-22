@@ -14,6 +14,7 @@ import { fetchDonationStatistics, generateDonationStatisticsReport } from "../ap
 import { fetchCurrentPptTemplate } from "../api/pptTemplates";
 import { listNgoClassifications } from "../api/ngoClassifications";
 import { useAccess } from "../hooks/useAccess";
+import { SELECT_CLASS } from "../styles/formControls";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 import { currencyLabel } from "../data/currencies";
 
@@ -192,10 +193,21 @@ export default function DonationsStatistics() {
     ? "No NGOs found for this classification."
     : "No donations recorded yet.";
 
+  // Story 16.14: hours have no currency, so they're the same single number
+  // regardless of which currency block is selected above.
+  const hoursChartData = (stats.service_hours_by_rotary_year ?? []).map((row) => ({
+    year: rotaryYearLabel(Number(row.label)),
+    total: row.value,
+  }));
+
   const allTimeCards = [
     { value: formatCurrency(stats.all_time.total_hkd, "HKD"), label: "Total donated (all-time)" },
     { value: formatCurrency(stats.all_time.total_usd, "USD"), label: "Total donated (all-time)" },
     { value: stats.all_time_organisations_count, label: "Organisations supported (all-time)" },
+    {
+      value: `${stats.total_service_hours_all_time.toLocaleString()} h`,
+      label: "Volunteer service hours (all-time)",
+    },
   ];
 
   const selectedYearCards = [
@@ -210,6 +222,10 @@ export default function DonationsStatistics() {
     {
       value: stats.selected_year_organisations_count,
       label: `Organisations supported — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+    },
+    {
+      value: `${stats.total_service_hours_selected_year.toLocaleString()} h`,
+      label: `Volunteer service hours — ${rotaryYearLabel(stats.selected_rotary_year)}`,
     },
   ];
 
@@ -253,6 +269,27 @@ export default function DonationsStatistics() {
           )}
         </div>
       </>
+    );
+  }
+
+  function renderHoursChart() {
+    return (
+      <div className="chart-card">
+        <h2>Volunteer service hours per rotary year</h2>
+        {hoursChartData.length === 0 ? (
+          <p className="member-empty-state">No service hours recorded yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={hoursChartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis />
+              <Tooltip formatter={(value) => `${value} h`} />
+              <Bar dataKey="total" fill="#5f55ee" name="Service hours" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     );
   }
 
@@ -311,6 +348,7 @@ export default function DonationsStatistics() {
           value={reportFormat}
           onChange={(event) => setReportFormat(event.target.value)}
           disabled={isGeneratingReport}
+          className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
         >
           <option value="pdf">PDF</option>
           <option value="pptx">PowerPoint (PPTX)</option>
@@ -321,6 +359,7 @@ export default function DonationsStatistics() {
           value={reportType}
           onChange={(event) => handleReportTypeChange(event.target.value)}
           disabled={isGeneratingReport}
+          className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
         >
           <option value="simplified">Simplified</option>
           <option value="integral">Integral</option>
@@ -357,6 +396,7 @@ export default function DonationsStatistics() {
             id="stats-classification"
             value={classificationFilter}
             onChange={(event) => setClassificationFilter(event.target.value)}
+            className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
           >
             <option value="">All classifications</option>
             {classifications.map((classification) => (
@@ -375,6 +415,7 @@ export default function DonationsStatistics() {
             id="stats-currency"
             value={selectedCurrency}
             onChange={(event) => setSelectedCurrency(event.target.value)}
+            className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
           >
             {stats.by_currency.map((block) => (
               <option key={block.currency} value={block.currency}>
@@ -389,7 +430,7 @@ export default function DonationsStatistics() {
         </section>
       )}
 
-      <div className="stat-cards-row-3 stat-cards-row-3-compact">
+      <div className="stat-cards-row stat-cards-row-3-compact">
         {allTimeCards.map((card, index) => (
           <div key={card.label + index} className={`stat-card stat-card-${STAT_TONES[index % STAT_TONES.length]}`}>
             <span className="stat-value">{card.value}</span>
@@ -407,7 +448,7 @@ export default function DonationsStatistics() {
         </p>
       )}
 
-      <div className="stat-cards-row-3 stat-cards-row-3-compact">
+      <div className="stat-cards-row stat-cards-row-3-compact">
         {selectedYearCards.map((card, index) => (
           <div
             key={card.label + index}
@@ -434,6 +475,7 @@ export default function DonationsStatistics() {
           id="stats-year"
           value={selectedYear ?? ""}
           onChange={(event) => setSelectedYear(Number(event.target.value))}
+          className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
         >
           {yearOptions.map((year) => (
             <option key={year} value={year}>
@@ -461,6 +503,7 @@ export default function DonationsStatistics() {
           title: "By classification — All years",
           emptyFallback: "No donations recorded yet.",
         })}
+        {renderHoursChart()}
       </div>
     </div>
   );

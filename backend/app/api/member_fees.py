@@ -1,13 +1,16 @@
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timezone
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.core.member_fee_statistics_report import build_pdf_report, build_pptx_report
 from app.core.member_fee_totals import total_collected
+from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year as compute_rotary_year
 from app.core.rotary_year import rotary_year_bounds
 from app.db.session import get_db
@@ -58,12 +61,7 @@ def list_member_fees(
     return query.order_by(MemberFee.rotary_year.desc(), MemberFee.created_at).all()
 
 
-@router.get("/member-fees/statistics", response_model=MemberFeeStatistics)
-def member_fee_statistics(
-    rotary_year: int | None = Query(None),
-    db: Session = Depends(get_db),
-    _current_user=Depends(require_access(FEES_STATISTICS, "read")),
-):
+def _compute_member_fee_statistics(db: Session, rotary_year: int | None) -> MemberFeeStatistics:
     year = rotary_year if rotary_year is not None else compute_rotary_year(date.today())
 
     fees = db.query(MemberFee).filter(MemberFee.rotary_year == year).all()
@@ -111,11 +109,16 @@ def member_fee_statistics(
     )
 
 
-@router.get("/member-fees/statistics/history", response_model=list[FeeYearHistory])
-def member_fee_statistics_history(
+@router.get("/member-fees/statistics", response_model=MemberFeeStatistics)
+def member_fee_statistics(
+    rotary_year: int | None = Query(None),
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(FEES_STATISTICS, "read")),
 ):
+    return _compute_member_fee_statistics(db, rotary_year)
+
+
+def _compute_member_fee_statistics_history(db: Session) -> list[FeeYearHistory]:
     """Story 8.31: full-history data for the Amount Collected and Paying
     Members graphs — always all available years, independent of whichever
     year the page's selector is on (that only drives the Average Fee card)."""
@@ -150,6 +153,40 @@ def member_fee_statistics_history(
         )
 
     return history
+
+
+@router.get("/member-fees/statistics/history", response_model=list[FeeYearHistory])
+def member_fee_statistics_history(
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(FEES_STATISTICS, "read")),
+):
+    return _compute_member_fee_statistics_history(db)
+
+
+@router.post("/member-fees/statistics/report")
+def generate_member_fee_statistics_report(
+    report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    rotary_year: int | None = Query(None, description="Defaults to the current rotary year"),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(FEES_STATISTICS, "read")),
+):
+    stats = _compute_member_fee_statistics(db, rotary_year)
+    history = _compute_member_fee_statistics_history(db)
+
+    if report_format == "pdf":
+        content = build_pdf_report(stats, history)
+        media_type = "application/pdf"
+        filename = generate_report_filename("fee-statistics", "pdf", rotary_year=stats.rotary_year)
+    else:
+        content = build_pptx_report(stats, history)
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        filename = generate_report_filename("fee-statistics", "pptx", rotary_year=stats.rotary_year)
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.patch("/member-fees/{member_fee_id}", response_model=MemberFeeRead)

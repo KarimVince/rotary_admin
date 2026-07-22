@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from app.core.member_fee_totals import total_collected
 from app.core.rotary_year import rotary_year
 from app.db.session import get_db
-from app.models import Donation, Member, MemberFee, Organisation, RotaryFriend
+from app.models import Donation, Member, MemberFee, Organisation, RotaryFriend, ServiceHour
 from app.schemas.dashboard import DashboardSummary
 
 router = APIRouter()
@@ -32,6 +32,11 @@ def dashboard_summary(
     # total_collected (app/core/member_fee_totals.py) so the two can't drift.
     fees_this_year = db.query(MemberFee).filter(MemberFee.rotary_year == this_rotary_year).all()
     fees_collected_this_year = total_collected(fees_this_year)
+    service_hours_this_year = (
+        db.query(func.coalesce(func.sum(ServiceHour.hours), 0))
+        .filter(ServiceHour.rotary_year == this_rotary_year)
+        .scalar()
+    )
     return DashboardSummary(
         active_members=db.query(Member).filter(Member.status == "active").count(),
         honorary_members=db.query(Member)
@@ -41,4 +46,5 @@ def dashboard_summary(
         rotary_friends=db.query(RotaryFriend).count(),
         donations_this_year=float(donations_this_year),
         fees_collected_this_year=float(fees_collected_this_year),
+        service_hours_this_year=float(service_hours_this_year),
     )

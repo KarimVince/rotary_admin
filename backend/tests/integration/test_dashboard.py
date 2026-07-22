@@ -20,6 +20,7 @@ def test_dashboard_summary_returns_zero_counts_when_empty(user_client):
         "rotary_friends": 0,
         "donations_this_year": 0,
         "fees_collected_this_year": 0,
+        "service_hours_this_year": 0,
     }
 
 
@@ -156,3 +157,30 @@ def test_dashboard_fees_collected_matches_fees_module_when_amount_paid_differs(
         dashboard_response.json()["fees_collected_this_year"]
         == fees_response.json()["total_collected"]
     )
+
+
+def test_dashboard_summary_sums_current_rotary_year_service_hours(
+    user_client, admin_client, make_organisation, make_member
+):
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year
+
+    org = make_organisation(name="Volunteer Org")
+    member = make_member()
+    # A service hours entry dated today falls in the current rotary year.
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"member_id": str(member.id), "hours": 3.5, "service_date": date.today().isoformat()},
+    )
+    # An entry from a prior rotary year must NOT be counted.
+    prior_year = rotary_year(date.today()) - 2
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"member_id": str(member.id), "hours": 100, "service_date": f"{prior_year}-09-01"},
+    )
+
+    response = user_client.get("/api/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    assert response.json()["service_hours_this_year"] == 3.5

@@ -31,7 +31,9 @@ FORECAST_KEY = "attendance.forecast"
 # Story 16.10: was Literal["all", "dinner", "fellowship"] — now any
 # admin-configured type name, checked against the live list at request time
 # rather than fixed at the type level.
-EventFilter = str
+# Story 16.17: the report screen's type filter is multi-select — an empty
+# list means "all types" (the old "all" sentinel is no longer sent/needed).
+EventFilter = list[str]
 ReportFormat = Literal["pdf", "csv"]
 
 
@@ -83,15 +85,15 @@ def _list_query(
         AttendanceEvent.rotary_year == rotary_year_filter,
         AttendanceEvent.deleted_at.is_(None),
     )
-    if event_type != "all":
-        query = query.filter(AttendanceEvent.event_type == event_type)
+    if event_type:
+        query = query.filter(AttendanceEvent.event_type.in_(event_type))
     return query.order_by(AttendanceEvent.event_date.asc())
 
 
 @router.get("/dinner-forecast/events", response_model=list[DinnerForecastEventRead])
 def list_dinner_forecast_events(
     rotary_year: int | None = Query(None, description="Defaults to the current rotary year"),
-    event_type: EventFilter = Query("all"),
+    event_type: EventFilter = Query([], description="One or more type names; omit for all"),
     unstarted_only: bool = Query(
         False, description="Only events with no attendance records seeded yet"
     ),
@@ -129,6 +131,8 @@ def create_dinner_forecast_event(
         speaker_rotary_contact_member_id=payload.speaker_rotary_contact_member_id,
         topics_description=payload.topics_description,
         member_only=payload.member_only,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
         created_by=current_user.id,
     )
     db.add(event)
@@ -177,18 +181,41 @@ def delete_dinner_forecast_event(
 def generate_dinner_forecast_report(
     rotary_year: int | None = Query(None, description="Defaults to the current rotary year"),
     format: ReportFormat = Query("pdf"),
-    event_type: EventFilter = Query("all"),
+    event_type: EventFilter = Query([], description="One or more type names; omit for all"),
+    # Story 16.17 (follow-up): unchecked is the default "everything" view —
+    # past events (each with its participation rate) *and* upcoming ones in
+    # the same report. Checking Forecast narrows it down to upcoming events
+    # only, with no participation data yet since they haven't happened.
+    forecast: bool = Query(False),
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(FORECAST_KEY, "read")),
 ):
     selected_year = (
         rotary_year if rotary_year is not None else compute_current_rotary_year(date.today())
     )
-    events = _list_query(db, selected_year, event_type).all()
+    today = date.today()
+    all_events = _list_query(db, selected_year, event_type).all()
+    events = (
+        [event for event in all_events if event.event_date >= today] if forecast else all_events
+    )
+
+    # Participation is computed (and rendered) whenever the report isn't
+    # forecast-only — a future event in the "everything" view naturally gets
+    # a zero-eligible/zero-present bucket (compute_event_counts always
+    # returns an entry per requested id) and reads as "No attendance
+    # recorded", which is correct — it hasn't happened yet.
+    participation: dict[uuid.UUID, tuple[int, int]] | None = None
+    if not forecast:
+        counts = compute_event_counts(db, [event.id for event in events])
+        participation = {
+            event_id: eligible_and_present(bucket) for event_id, bucket in counts.items()
+        }
+
+    topic = "dinner-forecast" if forecast else "dinner-events"
 
     if format == "csv":
-        content = build_csv_report(db, events)
-        filename = generate_report_filename("dinner-forecast", "csv", rotary_year=selected_year)
+        content = build_csv_report(db, events, participation)
+        filename = generate_report_filename(topic, "csv", rotary_year=selected_year)
         return Response(
             content=content,
             media_type="text/csv",
@@ -200,8 +227,8 @@ def generate_dinner_forecast_report(
         for t in db.query(DinnerEventType).all()
         if t.color_bg and t.color_text
     }
-    content = build_pdf_report(events, selected_year, type_colors)
-    filename = generate_report_filename("dinner-forecast", "pdf", rotary_year=selected_year)
+    content = build_pdf_report(events, selected_year, type_colors, participation, forecast)
+    filename = generate_report_filename(topic, "pdf", rotary_year=selected_year)
     return Response(
         content=content,
         media_type="application/pdf",

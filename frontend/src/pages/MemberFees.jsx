@@ -13,6 +13,7 @@ import {
 import {
   fetchMemberFeeStatistics,
   fetchMemberFeeStatisticsHistory,
+  generateMemberFeeStatisticsReport,
   listMemberFees,
   updateMemberFee,
 } from "../api/memberFees";
@@ -32,6 +33,7 @@ import Card from "../components/Card";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 import { useAccess } from "../hooks/useAccess";
 import { useFeeYearOptions } from "../hooks/useFeeYearOptions";
+import { SELECT_CLASS } from "../styles/formControls";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 
 const TABS = [
@@ -41,9 +43,13 @@ const TABS = [
   { key: "settings", label: "Settings", permission: "fees.settings" },
 ];
 
-function StatCard({ value, valueClass, label }) {
+function StatCard({ value, valueClass, label, bg }) {
   return (
-    <Card variant="default" className="!p-4 !rounded-2xl">
+    <Card
+      variant="default"
+      className="!rounded-2xl flex min-h-[104px] flex-col justify-center !p-4"
+      style={bg ? { background: bg } : undefined}
+    >
       <div className="text-xs font-semibold text-[var(--color-muted-text)]">{label}</div>
       <div className={`mt-1 text-[22px] font-bold ${valueClass}`}>{value}</div>
     </Card>
@@ -80,6 +86,12 @@ const PAID_FILTERS = [
 const CHANNEL_OPTIONS = [
   { value: "email", label: "Mail" },
   { value: "manual", label: "Manual" },
+];
+
+const TIER_OPTIONS = [
+  { value: "early_bird", label: "Early Bird" },
+  { value: "full", label: "Full" },
+  { value: "sponsored", label: "Sponsored" },
 ];
 
 function TrackingTab() {
@@ -241,6 +253,16 @@ function TrackingTab() {
     patchFee(fee.id, { notes: value });
   }
 
+  function handleTierChange(fee, value) {
+    patchFee(fee.id, { price_type: value });
+  }
+
+  function handleAmountDueBlur(fee, value) {
+    const amount = Number(value);
+    if (value === "" || Number.isNaN(amount) || amount === fee.amount_due) return;
+    patchFee(fee.id, { amount_due: amount });
+  }
+
   function handleChannelChange(fee, value) {
     const payload = { last_channel: value };
     if (value === "manual") {
@@ -268,7 +290,7 @@ function TrackingTab() {
             id="fee-tracking-year"
             value={year}
             onChange={(event) => setYear(Number(event.target.value))}
-            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[130px]"
+            className={`${SELECT_CLASS} min-w-[130px]`}
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -285,7 +307,7 @@ function TrackingTab() {
             id="fee-tracking-paid-filter"
             value={paidFilter}
             onChange={(event) => setPaidFilter(event.target.value)}
-            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[130px]"
+            className={`${SELECT_CLASS} min-w-[130px]`}
           >
             {PAID_FILTERS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -294,7 +316,7 @@ function TrackingTab() {
             ))}
           </select>
         </div>
-        <div className="flex-1 min-w-[180px]">
+        <div className="w-[220px]">
           <label htmlFor="fee-tracking-search" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
             Search member
           </label>
@@ -359,8 +381,33 @@ function TrackingTab() {
                   {visibleFees.map((fee) => (
                     <tr key={fee.id} className="border-b border-[var(--color-border-light)]">
                       <td className="px-3.5 py-2.5 whitespace-nowrap text-sm">{memberName(fee.member_id)}</td>
-                      <td className="px-3.5 py-2.5 text-sm text-[var(--color-muted-text)]">{fee.price_type}</td>
-                      <td className="px-3.5 py-2.5 text-sm text-[var(--color-muted-text)]">{fee.amount_due}</td>
+                      <td className="px-3.5 py-2.5">
+                        <select
+                          aria-label={`Tier for ${memberName(fee.member_id)}`}
+                          value={fee.price_type}
+                          disabled={!canManage}
+                          onChange={(event) => handleTierChange(fee, event.target.value)}
+                          className="border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                        >
+                          {TIER_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          aria-label={`Due amount for ${memberName(fee.member_id)}`}
+                          defaultValue={fee.amount_due}
+                          disabled={!canManage}
+                          onBlur={(event) => handleAmountDueBlur(fee, event.target.value)}
+                          className="w-20 border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                        />
+                      </td>
                       <td className="px-3.5 py-2.5">
                         <input
                           type="number"
@@ -484,6 +531,11 @@ function FeeRunTab() {
 
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [memberTierById, setMemberTierById] = useState({});
+  // Story 16.13: per-member due-amount override, keyed by member id, raw
+  // input string. Undefined means "use the schedule price for this tier" —
+  // required (not just optional) once the tier is Sponsored, since there is
+  // no schedule price to fall back to.
+  const [memberDueOverrideById, setMemberDueOverrideById] = useState({});
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
@@ -511,6 +563,7 @@ function FeeRunTab() {
       setMemberFees(feesData);
       setSelectedMemberIds([]);
       setMemberTierById({});
+      setMemberDueOverrideById({});
 
       try {
         setFeeSettings(await getFeeSettings(year));
@@ -554,8 +607,24 @@ function FeeRunTab() {
 
   function previewAmount(member) {
     if (!feeSettings) return null;
-    const field = PRICE_FIELD_BY_TIER[tierFor(member.id)][String(member.is_couple)];
+    const tier = tierFor(member.id);
+    if (tier === "sponsored") return null;
+    const field = PRICE_FIELD_BY_TIER[tier][String(member.is_couple)];
     return feeSettings[field];
+  }
+
+  // Story 16.13: the due amount actually used for this member — the admin's
+  // typed override if present, otherwise the schedule price for their tier
+  // (blank for Sponsored, which has no schedule price).
+  function dueValueFor(member) {
+    const override = memberDueOverrideById[member.id];
+    if (override !== undefined) return override;
+    const preview = previewAmount(member);
+    return preview !== null ? String(preview) : "";
+  }
+
+  function setMemberDueOverride(memberId, value) {
+    setMemberDueOverrideById((current) => ({ ...current, [memberId]: value }));
   }
 
   function toggleMemberSelected(memberId) {
@@ -566,22 +635,65 @@ function FeeRunTab() {
 
   const allSelected = unpaidMembers.length > 0 && unpaidMembers.every((m) => selectedMemberIds.includes(m.id));
 
+  // Story 16.13: Total Due for the currently selected/edited members —
+  // recomputed from each row's live tier/override, not the original
+  // schedule defaults.
+  const selectedTotalDue = useMemo(
+    () =>
+      unpaidMembers
+        .filter((member) => selectedMemberIds.includes(member.id))
+        .reduce((sum, member) => sum + (Number(dueValueFor(member)) || 0), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unpaidMembers, selectedMemberIds, memberTierById, memberDueOverrideById, feeSettings],
+  );
+
+  const selectedSponsoredMissingAmount = unpaidMembers
+    .filter((member) => selectedMemberIds.includes(member.id))
+    .filter((member) => tierFor(member.id) === "sponsored" && dueValueFor(member) === "")
+    .map((member) => `${member.first_name} ${member.last_name}`);
+
   function toggleSelectAll() {
     setSelectedMemberIds(allSelected ? [] : unpaidMembers.map((m) => m.id));
   }
 
   function setMemberTier(memberId, tier) {
     setMemberTierById((current) => ({ ...current, [memberId]: tier }));
+    // Switching tiers invalidates any previously typed override — clear it
+    // so the amount recomputes from the new tier's own schedule price (or
+    // blank, for Sponsored).
+    setMemberDueOverrideById((current) => {
+      if (!(memberId in current)) return current;
+      const next = { ...current };
+      delete next[memberId];
+      return next;
+    });
   }
 
   async function handleGenerate() {
+    if (selectedSponsoredMissingAmount.length > 0) {
+      setGenerateError(
+        `Enter a Sponsored amount for: ${selectedSponsoredMissingAmount.join(", ")}`,
+      );
+      return;
+    }
+
     setIsGenerating(true);
     setGenerateError(null);
     setGenerateResult(null);
     try {
       const result = await createFeeRun({
         rotary_year: year,
-        member_tiers: selectedMemberIds.map((id) => ({ member_id: id, price_type: tierFor(id) })),
+        member_tiers: unpaidMembers
+          .filter((member) => selectedMemberIds.includes(member.id))
+          .map((member) => {
+            const tier = tierFor(member.id);
+            const override = memberDueOverrideById[member.id];
+            const assignment = { member_id: member.id, price_type: tier };
+            if (override !== undefined || tier === "sponsored") {
+              assignment.amount_due = Number(dueValueFor(member));
+            }
+            return assignment;
+          }),
       });
       setGenerateResult(result);
       setMemberFees(result.member_fees);
@@ -659,7 +771,7 @@ function FeeRunTab() {
           <select
             value={year}
             onChange={(event) => setYear(Number(event.target.value))}
-            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[130px]"
+            className={`${SELECT_CLASS} min-w-[130px]`}
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -712,6 +824,15 @@ function FeeRunTab() {
               >
                 {allSelected ? "Clear all" : "Select all"}
               </button>
+              {selectedMemberIds.length > 0 && (
+                <>
+                  {" "}
+                  · Total due:{" "}
+                  <span className="font-semibold text-[var(--color-brand-blue-dark)]">
+                    {selectedTotalDue.toLocaleString()} {feeSettings.currency}
+                  </span>
+                </>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left" style={{ minWidth: 480 }}>
@@ -755,12 +876,27 @@ function FeeRunTab() {
                           onChange={(event) => setMemberTier(member.id, event.target.value)}
                           className="border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
                         >
-                          <option value="early_bird">Early Bird</option>
-                          <option value="full">Full</option>
+                          {TIER_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       </td>
-                      <td className="px-3.5 py-2 text-sm text-[var(--color-muted-text)]">
-                        {previewAmount(member)} {feeSettings.currency}
+                      <td className="px-3.5 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            aria-label={`Amount for ${member.first_name} ${member.last_name}`}
+                            placeholder={tierFor(member.id) === "sponsored" ? "Custom price" : undefined}
+                            value={dueValueFor(member)}
+                            onChange={(event) => setMemberDueOverride(member.id, event.target.value)}
+                            className="w-24 border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                          />
+                          <span className="text-sm text-[var(--color-muted-text)]">{feeSettings.currency}</span>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -935,9 +1071,28 @@ function StatisticsTab() {
   const [historyError, setHistoryError] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
   const [reportError, setReportError] = useState(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  function handleGenerateReport() {
-    setReportError("Report generation is coming soon.");
+  async function handleGenerateReport() {
+    setIsGeneratingReport(true);
+    setReportError(null);
+    try {
+      const { blob, filename } = await generateMemberFeeStatisticsReport(reportFormat, {
+        rotaryYear: year,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(err.detail || "Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
   }
 
   async function loadStats() {
@@ -994,7 +1149,7 @@ function StatisticsTab() {
             id="fee-stats-year"
             value={year}
             onChange={(event) => setYear(Number(event.target.value))}
-            className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white min-w-[130px]"
+            className={`${SELECT_CLASS} min-w-[130px]`}
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -1012,7 +1167,7 @@ function StatisticsTab() {
               id="report-format"
               value={reportFormat}
               onChange={(event) => setReportFormat(event.target.value)}
-              className="border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm bg-white"
+              className={SELECT_CLASS}
             >
               <option value="pdf">PDF</option>
               <option value="pptx">PowerPoint (PPTX)</option>
@@ -1021,9 +1176,10 @@ function StatisticsTab() {
           <button
             type="button"
             onClick={handleGenerateReport}
-            className="border border-[var(--color-brand-blue)] bg-white text-[var(--color-brand-blue)] rounded-lg px-4 py-2 text-[13.5px] font-semibold cursor-pointer"
+            disabled={isGeneratingReport}
+            className="border border-[var(--color-brand-blue)] bg-white text-[var(--color-brand-blue)] rounded-lg px-4 py-2 text-[13.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Generate Report
+            {isGeneratingReport ? "Generating…" : "Generate Report"}
           </button>
         </div>
       </div>
@@ -1039,16 +1195,19 @@ function StatisticsTab() {
               label={`Average fee per active member — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.average_fee_per_active_member, stats.currency)}
               valueClass="text-[var(--color-brand-blue-dark)]"
+              bg="var(--tone-blue-bg)"
             />
             <StatCard
               label={`Total collected — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.total_collected, stats.currency)}
               valueClass="text-[var(--color-tone-teal-text)]"
+              bg="var(--tone-teal-bg)"
             />
             <StatCard
               label={`Total outstanding — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.total_outstanding, stats.currency)}
               valueClass="text-[var(--color-tone-rose-text)]"
+              bg="var(--tone-rose-bg)"
             />
           </div>
 
@@ -1246,7 +1405,7 @@ function SettingsTab() {
           id="fee-settings-year"
           value={selectedYear}
           onChange={(event) => setSelectedYear(Number(event.target.value))}
-          className="border border-[var(--color-card-border)] rounded-lg px-3 py-1.5 text-[13.5px] bg-white"
+          className="border border-[var(--color-card-border)] rounded-lg px-3 py-1.5 text-[13.5px] bg-white form-select"
         >
           {yearOptions.map((year) => (
             <option key={year} value={year}>
@@ -1325,7 +1484,7 @@ function SettingsTab() {
               value={form.currency}
               onChange={(event) => setForm({ ...form, currency: event.target.value })}
               disabled={!canManage}
-              className="border border-[var(--color-card-border)] rounded-md px-2.5 py-1.5 text-sm"
+              className="border border-[var(--color-card-border)] rounded-md px-2.5 py-1.5 text-sm form-select"
             >
               {CURRENCIES.map((code) => (
                 <option key={code} value={code}>

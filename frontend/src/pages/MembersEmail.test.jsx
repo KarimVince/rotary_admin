@@ -44,10 +44,11 @@ async function waitForLoaded() {
   await waitFor(() => expect(screen.queryByText(/^loading…$/i)).not.toBeInTheDocument());
 }
 
-function mockLoadHandlers(logEntries = [LOG_ENTRY]) {
+function mockLoadHandlers(logEntries = [LOG_ENTRY], drafts = []) {
   server.use(
     http.get(`${API_BASE_URL}/members`, () => HttpResponse.json(MEMBERS)),
     http.get(`${API_BASE_URL}/members/email-log`, () => HttpResponse.json(logEntries)),
+    http.get(`${API_BASE_URL}/email-drafts`, () => HttpResponse.json(drafts)),
   );
 }
 
@@ -297,5 +298,113 @@ describe("MembersEmail", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /resend api key is not configured/i,
     );
+  });
+
+  describe("Drafts (Story 16.19)", () => {
+    const DRAFT = {
+      id: "draft-1",
+      source_module: "members",
+      subject: "Saved subject",
+      body: "Saved body",
+      recipient_group: null,
+      member_ids: ["member-1"],
+      friend_ids: null,
+      attachments: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    it("saves a new draft and lists it", async () => {
+      mockLoadHandlers();
+      let capturedBody;
+      server.use(
+        http.post(`${API_BASE_URL}/email-drafts`, async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({ ...DRAFT, id: "draft-new" }, { status: 201 });
+        }),
+      );
+
+      render(<MembersEmail />);
+      await waitForLoaded();
+
+      await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
+      typeIntoBody("World");
+      await selectRecipient("Alice Active");
+      await userEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+      await waitFor(() =>
+        expect(capturedBody).toEqual({
+          source_module: "members",
+          subject: "Hello",
+          body: "World",
+          member_ids: ["member-1"],
+          attachments: [],
+        }),
+      );
+    });
+
+    it("shows saved drafts, and loads one into the compose form on Edit", async () => {
+      mockLoadHandlers([LOG_ENTRY], [DRAFT]);
+
+      render(<MembersEmail />);
+      await waitForLoaded();
+
+      expect(screen.getByText("Saved subject")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+      expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("Saved subject");
+      expect(screen.getByTestId("email-body-editor")).toHaveTextContent("Saved body");
+      expect(screen.getByRole("button", { name: /review send \(1 recipient\)/i })).toBeInTheDocument();
+    });
+
+    it("deletes a draft after confirmation", async () => {
+      mockLoadHandlers([LOG_ENTRY], [DRAFT]);
+      let deleteCalled = false;
+      server.use(
+        http.delete(`${API_BASE_URL}/email-drafts/draft-1`, () => {
+          deleteCalled = true;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+
+      render(<MembersEmail />);
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+      await waitFor(() => expect(deleteCalled).toBe(true));
+      window.confirm.mockRestore();
+    });
+
+    it("deletes the draft once it has been sent", async () => {
+      mockLoadHandlers([LOG_ENTRY], [DRAFT]);
+      let deleteCalled = false;
+      server.use(
+        http.post(`${API_BASE_URL}/members/email`, () =>
+          HttpResponse.json({
+            email_log_id: "log-5",
+            status: "sent",
+            recipient_count: 1,
+            success_count: 1,
+            failure_count: 0,
+          }),
+        ),
+        http.delete(`${API_BASE_URL}/email-drafts/draft-1`, () => {
+          deleteCalled = true;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      render(<MembersEmail />);
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+      await userEvent.click(screen.getByRole("button", { name: /review send/i }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm send/i }));
+
+      await waitFor(() => expect(deleteCalled).toBe(true));
+    });
   });
 });

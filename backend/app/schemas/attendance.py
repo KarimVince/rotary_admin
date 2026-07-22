@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -55,6 +55,10 @@ class AttendanceEventRead(BaseModel):
     topics_description: str | None = None
     # Story 15.6/15.7: whether this dinner event is restricted to members only.
     member_only: bool = False
+    # Story 16.27 — optional; end_time is stored/returned for the .ics
+    # export but the frontend never displays it (start_time only).
+    start_time: time | None = None
+    end_time: time | None = None
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime

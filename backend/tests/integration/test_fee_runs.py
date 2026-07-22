@@ -239,6 +239,63 @@ def test_fee_run_with_member_tiers_applies_each_members_own_tier(
     assert full_fee["amount_due"] == 1000
 
 
+def test_fee_run_with_sponsored_tier_uses_the_provided_amount_due(
+    admin_client, make_fee_settings, make_member
+):
+    make_fee_settings(rotary_year=2025)
+    sponsored_member = make_member(first_name="Sponsored")
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={
+            "rotary_year": 2025,
+            "member_tiers": [
+                {"member_id": str(sponsored_member.id), "price_type": "sponsored", "amount_due": 275},
+            ],
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    fee = body["member_fees"][0]
+    assert fee["price_type"] == "sponsored"
+    assert fee["amount_due"] == 275
+
+
+def test_fee_run_sponsored_tier_without_amount_due_is_rejected(admin_client, make_fee_settings, make_member):
+    make_fee_settings(rotary_year=2025)
+    member = make_member()
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={
+            "rotary_year": 2025,
+            "member_tiers": [{"member_id": str(member.id), "price_type": "sponsored"}],
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_fee_run_with_member_tiers_amount_due_override_amends_the_standard_tier(
+    admin_client, make_fee_settings, make_member
+):
+    make_fee_settings(rotary_year=2025, early_bird_single_price=500)
+    member = make_member(is_couple=False)
+
+    response = admin_client.post(
+        "/api/v1/fee-runs",
+        json={
+            "rotary_year": 2025,
+            "member_tiers": [
+                {"member_id": str(member.id), "price_type": "early_bird", "amount_due": 350},
+            ],
+        },
+    )
+    assert response.status_code == 201
+    fee = response.json()["member_fees"][0]
+    assert fee["price_type"] == "early_bird"
+    assert fee["amount_due"] == 350
+
+
 def test_fee_run_member_tiers_excludes_members_not_listed(
     admin_client, make_fee_settings, make_member
 ):

@@ -18,7 +18,7 @@ from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
-from app.models import Donation, ExchangeRate, NgoClassification, Organisation, User
+from app.models import Donation, ExchangeRate, NgoClassification, Organisation, ServiceHour, User
 from app.schemas.donation import DonationCreate, DonationRead, DonationUpdate
 from app.schemas.donation_statistics import (
     ConvertedTotals,
@@ -297,12 +297,42 @@ def _compute_donation_statistics(
         or 0
     )
 
+    # Story 16.14 — volunteer service hours, scoped by the same
+    # classification filter as everything else above but never currency-split
+    # (hours have no currency).
+    service_hours_query = db.query(ServiceHour)
+    if classification_org_ids is not None:
+        service_hours_query = service_hours_query.filter(
+            ServiceHour.organisation_id.in_(classification_org_ids)
+        )
+    total_service_hours_all_time = float(
+        service_hours_query.with_entities(func.coalesce(func.sum(ServiceHour.hours), 0)).scalar()
+    )
+    total_service_hours_selected_year = float(
+        service_hours_query.filter(ServiceHour.rotary_year == selected_year)
+        .with_entities(func.coalesce(func.sum(ServiceHour.hours), 0))
+        .scalar()
+    )
+    service_hours_by_year_rows = (
+        service_hours_query.with_entities(ServiceHour.rotary_year, func.sum(ServiceHour.hours))
+        .group_by(ServiceHour.rotary_year)
+        .order_by(ServiceHour.rotary_year)
+        .all()
+    )
+    service_hours_by_rotary_year = [
+        LabelValueFloat(label=str(year), value=float(total))
+        for year, total in service_hours_by_year_rows
+    ]
+
     return DonationStatistics(
         by_currency=by_currency,
         selected_rotary_year=selected_year,
         selected_year_organisations_count=selected_year_organisations_count,
         selected_year=selected_year_totals,
         all_time_organisations_count=all_time_organisations_count,
+        total_service_hours_all_time=total_service_hours_all_time,
+        total_service_hours_selected_year=total_service_hours_selected_year,
+        service_hours_by_rotary_year=service_hours_by_rotary_year,
         all_time=all_time,
     )
 

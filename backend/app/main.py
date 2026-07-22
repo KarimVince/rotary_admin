@@ -12,6 +12,7 @@ from app.api import (
     dinner_event_types,
     dinner_forecast,
     donations,
+    email_drafts,
     event,
     event_cost,
     event_guest,
@@ -36,6 +37,7 @@ from app.api import (
     rotary_friend_email,
     rotary_friend_import,
     rotary_friends,
+    service_hours,
     users,
 )
 from app.core.config import settings
@@ -63,12 +65,14 @@ app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(member_titles.router, prefix="/api/v1", tags=["member-titles"])
 app.include_router(honorifics.router, prefix="/api/v1", tags=["honorifics"])
 app.include_router(member_email.router, prefix="/api/v1", tags=["members"])
+app.include_router(email_drafts.router, prefix="/api/v1", tags=["email-drafts"])
 app.include_router(members.router, prefix="/api/v1", tags=["members"])
 app.include_router(member_applications.router, prefix="/api/v1", tags=["member-applications"])
 app.include_router(organisations.router, prefix="/api/v1", tags=["organisations"])
 app.include_router(ppt_templates.router, prefix="/api/v1", tags=["ppt-templates"])
 app.include_router(ngo_classifications.router, prefix="/api/v1", tags=["ngo-classifications"])
 app.include_router(donations.router, prefix="/api/v1", tags=["donations"])
+app.include_router(service_hours.router, prefix="/api/v1", tags=["service-hours"])
 app.include_router(exchange_rates.router, prefix="/api/v1", tags=["exchange-rates"])
 app.include_router(fee_settings.router, prefix="/api/v1", tags=["fee-settings"])
 app.include_router(fee_runs.router, prefix="/api/v1", tags=["fee-runs"])

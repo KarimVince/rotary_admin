@@ -3,8 +3,8 @@ import { listMembers } from "../api/members";
 import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from "../api/users";
 import Card from "../components/Card";
 import { useAuth } from "../hooks/useAuth";
+import { INPUT_CLASS, SELECT_CLASS } from "../styles/formControls";
 
-const INPUT_CLASS = "w-full border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm";
 const PRIMARY_BUTTON_CLASS =
   "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
 const SECONDARY_BUTTON_CLASS =
@@ -12,7 +12,7 @@ const SECONDARY_BUTTON_CLASS =
 const ROW_BUTTON_CLASS =
   "rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mr-2 border-none";
 
-const ROLES = ["user", "treasurer", "admin"];
+const ROLES = ["user", "admin"];
 const EMPTY_CREATE_FORM = { email: "", full_name: "", password: "", role: "user" };
 const EMPTY_EDIT_FORM = { full_name: "", email: "", role: "user", member_id: "", is_active: true };
 
@@ -177,13 +177,13 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide">
       <h1>Manage Users</h1>
       <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
         Grant or revoke database access for club administrators.
       </p>
 
-      <Card variant="default" className="!p-6 !rounded-2xl mb-6">
+      <Card variant="default" className="!p-6 !rounded-2xl mb-6 max-w-[640px]">
         <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <h2 className="text-base font-bold text-[var(--color-brand-blue-dark)] sm:col-span-2 mb-1">
             Create user
@@ -236,7 +236,7 @@ export default function UserManagement() {
               id="new-user-role"
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value })}
-              className={INPUT_CLASS}
+              className={SELECT_CLASS}
             >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
@@ -306,7 +306,7 @@ export default function UserManagement() {
                     value={editForm.role}
                     disabled={editingId === currentUser?.id}
                     onChange={(event) => setEditForm({ ...editForm, role: event.target.value })}
-                    className={INPUT_CLASS}
+                    className={SELECT_CLASS}
                   >
                     {ROLES.map((role) => (
                       <option key={role} value={role}>
@@ -325,7 +325,7 @@ export default function UserManagement() {
                     onChange={(event) =>
                       setEditForm({ ...editForm, member_id: event.target.value })
                     }
-                    className={INPUT_CLASS}
+                    className={SELECT_CLASS}
                   >
                     <option value="">— None —</option>
                     {members.map((member) => (

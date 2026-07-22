@@ -7,7 +7,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class MemberTierAssignment(BaseModel):
     member_id: uuid.UUID
-    price_type: Literal["early_bird", "full"]
+    price_type: Literal["early_bird", "full", "sponsored"]
+    # Story 16.13: overrides the fee-settings-computed price for this member.
+    # Required for "sponsored" (no scheduled price exists for that tier);
+    # optional for early_bird/full, where it lets the admin amend the
+    # standard due amount for one member without changing the schedule.
+    amount_due: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_sponsored_has_amount(self) -> "MemberTierAssignment":
+        if self.price_type == "sponsored" and self.amount_due is None:
+            raise ValueError("amount_due is required for a Sponsored fee type")
+        return self
 
 
 class FeeRunCreate(BaseModel):
@@ -88,6 +99,11 @@ class FeeInvoiceSendResult(BaseModel):
 class MemberFeeUpdate(BaseModel):
     is_paid: bool | None = None
     paid_date: date | None = None
+    # Story 16.13: lets the treasurer amend a member's tier/due amount
+    # directly on the tracking screen, independent of a fee run — e.g. to
+    # apply a one-off "Sponsored" price.
+    price_type: Literal["early_bird", "full", "sponsored"] | None = None
+    amount_due: float | None = Field(default=None, ge=0)
     # Amends the amount actually collected (e.g. a prorated fee for a
     # mid-year joiner) without overwriting amount_due, the standard/invoiced
     # reference amount used for reporting.

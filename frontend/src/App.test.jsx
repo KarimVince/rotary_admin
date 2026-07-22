@@ -222,7 +222,7 @@ describe("App auth flow", () => {
     expect(nav.getAllByRole("link", { name: "Statistics" })).toHaveLength(3);
     expect(nav.getByRole("link", { name: "Email Members" })).toBeInTheDocument();
     expect(nav.getByRole("link", { name: "Send Message" })).toBeInTheDocument();
-    expect(nav.getByText("NGOs & Donations").closest("a")).toBeNull();
+    expect(nav.getByText("NGO & Services Project").closest("a")).toBeNull();
     expect(nav.getByText("Friends of Rotary").closest("a")).toBeNull();
     expect(nav.getByRole("link", { name: /manage users/i })).toBeInTheDocument();
   });

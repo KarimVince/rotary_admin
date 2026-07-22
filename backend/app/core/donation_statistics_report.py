@@ -52,7 +52,7 @@ from app.core.statistics_report import (
 )
 from app.schemas.donation_statistics import CurrencyStatistics, DonationStatistics
 
-REPORT_TITLE = "NGO Statistics"
+REPORT_TITLE = "NGO & Services Project — Statistics"
 TOP_ORGS_LIMIT = 10
 CARD_TONES = [TONE_BLUE_BG, TONE_BLUE_BG, TONE_LAVENDER_BG, TONE_TEAL_BG, TONE_TEAL_BG, TONE_AMBER_BG]
 

@@ -47,8 +47,7 @@ def require_role(*allowed_roles: str):
 
 
 require_admin = require_role("admin")
-require_treasurer_or_admin = require_role("treasurer", "admin")
-require_user = require_role("user", "treasurer", "admin")
+require_user = require_role("user", "admin")
 
 
 def require_access(function_key: str, level: AccessLevel = "read"):

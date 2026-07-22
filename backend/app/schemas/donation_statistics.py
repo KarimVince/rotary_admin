@@ -52,3 +52,10 @@ class DonationStatistics(BaseModel):
     selected_year: ConvertedTotals
     all_time_organisations_count: int
     all_time: ConvertedTotals
+
+    # Story 16.14 — volunteer service hours, tracked alongside cash
+    # donations. Not currency-scoped (hours have no currency), so these sit
+    # at the top level rather than inside CurrencyStatistics.
+    total_service_hours_all_time: float
+    total_service_hours_selected_year: float
+    service_hours_by_rotary_year: list[LabelValueFloat]

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import MemberFees from "./MemberFees";
@@ -128,7 +128,7 @@ describe("MemberFees", () => {
       await waitForLoaded();
 
       expect(screen.getByText("Jane Doe")).toBeInTheDocument();
-      expect(screen.getAllByText("500").length).toBeGreaterThan(0);
+      expect(screen.getByLabelText(/due amount for jane doe/i)).toHaveValue(500);
       expect(screen.getByText("Total due")).toBeInTheDocument();
       expect(screen.getByText("Outstanding")).toBeInTheDocument();
     });
@@ -184,7 +184,37 @@ describe("MemberFees", () => {
 
       await waitFor(() => expect(screen.getByLabelText(/amount paid by jane doe/i)).toHaveValue(250));
       // "Amount due" (the standard invoiced amount) must stay untouched.
-      expect(screen.getAllByText("500").length).toBeGreaterThan(0);
+      expect(screen.getByLabelText(/due amount for jane doe/i)).toHaveValue(500);
+    });
+
+    it("amends the tier and due amount, and Total Due reflects the change", async () => {
+      allTabsAllowed();
+      let fee = { ...FEE };
+      server.use(
+        http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([MEMBER])),
+        http.get(`${API_BASE_URL}/member-fees`, () => HttpResponse.json([fee])),
+        http.get(`${API_BASE_URL}/fee-settings/${YEAR}`, NO_FEE_SETTINGS),
+        http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+        http.patch(`${API_BASE_URL}/member-fees/${FEE.id}`, async ({ request }) => {
+          const body = await request.json();
+          fee = { ...fee, ...body };
+          return HttpResponse.json(fee);
+        }),
+      );
+
+      renderFees("/fees?tab=tracking");
+      await waitForLoaded();
+
+      await userEvent.selectOptions(screen.getByLabelText(/tier for jane doe/i), "sponsored");
+      await waitFor(() => expect(screen.getByLabelText(/tier for jane doe/i)).toHaveValue("sponsored"));
+
+      const dueInput = screen.getByLabelText(/due amount for jane doe/i);
+      await userEvent.clear(dueInput);
+      await userEvent.type(dueInput, "350");
+      await userEvent.tab();
+
+      await waitFor(() => expect(screen.getByLabelText(/due amount for jane doe/i)).toHaveValue(350));
+      expect(screen.getByText("Total due").nextSibling).toHaveTextContent("350");
     });
 
     it("shows an error when marking paid fails", async () => {
@@ -353,11 +383,8 @@ describe("MemberFees", () => {
       renderFees("/fees?tab=run");
       await waitForLoaded();
 
-      const rows = screen.getAllByRole("row");
-      const singleRow = rows.find((row) => row.textContent.includes("Single Smith"));
-      const coupleRow = rows.find((row) => row.textContent.includes("Couple Jones"));
-      expect(singleRow.textContent).toContain("500 HKD");
-      expect(coupleRow.textContent).toContain("900 HKD");
+      expect(screen.getByLabelText(/amount for single smith/i)).toHaveValue(500);
+      expect(screen.getByLabelText(/amount for couple jones/i)).toHaveValue(900);
     });
 
     it("updates the preview amount when a row's tier is changed to Full", async () => {
@@ -374,9 +401,34 @@ describe("MemberFees", () => {
 
       await userEvent.selectOptions(screen.getByLabelText(/tier for single smith/i), "full");
 
-      const rows = screen.getAllByRole("row");
-      const singleRow = rows.find((row) => row.textContent.includes("Single Smith"));
-      expect(singleRow.textContent).toContain("600 HKD");
+      await waitFor(() =>
+        expect(screen.getByLabelText(/amount for single smith/i)).toHaveValue(600),
+      );
+    });
+
+    it("shows a blank custom price field for the Sponsored tier and requires it before generating", async () => {
+      allTabsAllowed();
+      server.use(
+        http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([SINGLE_MEMBER])),
+        http.get(`${API_BASE_URL}/fee-runs/${YEAR}`, () => HttpResponse.json([])),
+        http.get(`${API_BASE_URL}/fee-settings/${YEAR}`, () => HttpResponse.json(SETTINGS)),
+        http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([SETTINGS])),
+      );
+
+      renderFees("/fees?tab=run");
+      await waitForLoaded();
+
+      await userEvent.selectOptions(screen.getByLabelText(/tier for single smith/i), "sponsored");
+      await waitFor(() =>
+        expect(screen.getByLabelText(/amount for single smith/i)).toHaveValue(null),
+      );
+
+      await userEvent.click(screen.getByLabelText(/select single smith/i));
+      await userEvent.click(screen.getByRole("button", { name: /generate fee run \(1\)/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /enter a sponsored amount for: single smith/i,
+      );
     });
 
     it("warns when no fee settings exist for the year", async () => {
@@ -434,6 +486,47 @@ describe("MemberFees", () => {
             { member_id: SINGLE_MEMBER.id, price_type: "early_bird" },
             { member_id: COUPLE_MEMBER.id, price_type: "full" },
           ],
+        }),
+      );
+    });
+
+    it("generates a Sponsored fee run with the typed custom price", async () => {
+      allTabsAllowed();
+      let capturedBody;
+      server.use(
+        http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([SINGLE_MEMBER])),
+        http.get(`${API_BASE_URL}/fee-runs/${YEAR}`, () => HttpResponse.json([])),
+        http.get(`${API_BASE_URL}/fee-settings/${YEAR}`, () => HttpResponse.json(SETTINGS)),
+        http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([SETTINGS])),
+        http.post(`${API_BASE_URL}/fee-runs`, async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json(
+            {
+              rotary_year: YEAR,
+              price_type: null,
+              created_count: 1,
+              updated_count: 0,
+              skipped_paid_count: 0,
+              member_fees: [],
+            },
+            { status: 201 },
+          );
+        }),
+      );
+
+      renderFees("/fees?tab=run");
+      await waitForLoaded();
+
+      await userEvent.selectOptions(screen.getByLabelText(/tier for single smith/i), "sponsored");
+      await userEvent.type(screen.getByLabelText(/amount for single smith/i), "275");
+      await userEvent.click(screen.getByLabelText(/select single smith/i));
+      await userEvent.click(screen.getByRole("button", { name: /generate fee run \(1\)/i }));
+
+      expect(await screen.findByText(/1 created/i)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(capturedBody).toEqual({
+          rotary_year: YEAR,
+          member_tiers: [{ member_id: SINGLE_MEMBER.id, price_type: "sponsored", amount_due: 275 }],
         }),
       );
     });
@@ -604,6 +697,29 @@ describe("MemberFees", () => {
       expect(screen.getByText("500 HKD")).toBeInTheDocument();
     });
 
+    it("gives each summary card a distinct background color and a minimum height (Story 16.15)", async () => {
+      allTabsAllowed();
+      server.use(
+        http.get(`${API_BASE_URL}/member-fees/statistics`, () => HttpResponse.json(STATS)),
+        http.get(`${API_BASE_URL}/member-fees/statistics/history`, () => HttpResponse.json(HISTORY)),
+        http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+      );
+
+      renderFees("/fees?tab=statistics");
+      await waitForLoaded();
+
+      const averageCard = screen.getByText("275 HKD").closest("div.flex");
+      const collectedCard = screen.getByText("1,100 HKD").closest("div.flex");
+      const outstandingCard = screen.getByText("500 HKD").closest("div.flex");
+
+      expect(averageCard).toHaveStyle({ background: "var(--tone-blue-bg)" });
+      expect(collectedCard).toHaveStyle({ background: "var(--tone-teal-bg)" });
+      expect(outstandingCard).toHaveStyle({ background: "var(--tone-rose-bg)" });
+      [averageCard, collectedCard, outstandingCard].forEach((card) => {
+        expect(card.className).toMatch(/min-h-\[104px\]/);
+      });
+    });
+
     it("renders the chart section headings from history", async () => {
       allTabsAllowed();
       server.use(
@@ -619,19 +735,93 @@ describe("MemberFees", () => {
       expect(screen.getByText(/paying members over years/i)).toBeInTheDocument();
     });
 
-    it("keeps the report placeholder control", async () => {
-      allTabsAllowed();
-      server.use(
-        http.get(`${API_BASE_URL}/member-fees/statistics`, () => HttpResponse.json(STATS)),
-        http.get(`${API_BASE_URL}/member-fees/statistics/history`, () => HttpResponse.json(HISTORY)),
-        http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
-      );
+    describe("Generate Report (Story 16.16)", () => {
+      let originalCreateObjectURL;
+      let originalRevokeObjectURL;
 
-      renderFees("/fees?tab=statistics");
-      await waitForLoaded();
+      beforeEach(() => {
+        originalCreateObjectURL = URL.createObjectURL;
+        originalRevokeObjectURL = URL.revokeObjectURL;
+        URL.createObjectURL = vi.fn(() => "blob:mock-url");
+        URL.revokeObjectURL = vi.fn();
+      });
 
-      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
-      expect(await screen.findByRole("alert")).toHaveTextContent(/coming soon/i);
+      afterEach(() => {
+        URL.createObjectURL = originalCreateObjectURL;
+        URL.revokeObjectURL = originalRevokeObjectURL;
+      });
+
+      it("downloads a PDF report for the selected year", async () => {
+        allTabsAllowed();
+        let requestUrl;
+        server.use(
+          http.get(`${API_BASE_URL}/member-fees/statistics`, () => HttpResponse.json(STATS)),
+          http.get(`${API_BASE_URL}/member-fees/statistics/history`, () => HttpResponse.json(HISTORY)),
+          http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+          http.post(`${API_BASE_URL}/member-fees/statistics/report`, ({ request }) => {
+            requestUrl = new URL(request.url);
+            return new HttpResponse("fake-pdf-bytes", {
+              headers: {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": 'attachment; filename="fee-statistics.pdf"',
+              },
+            });
+          }),
+        );
+
+        renderFees("/fees?tab=statistics");
+        await waitForLoaded();
+
+        await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+        await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+        expect(requestUrl.searchParams.get("format")).toBe("pdf");
+        expect(requestUrl.searchParams.get("rotary_year")).toBe(String(YEAR));
+      });
+
+      it("requests the pptx format when selected", async () => {
+        allTabsAllowed();
+        let requestedFormat;
+        server.use(
+          http.get(`${API_BASE_URL}/member-fees/statistics`, () => HttpResponse.json(STATS)),
+          http.get(`${API_BASE_URL}/member-fees/statistics/history`, () => HttpResponse.json(HISTORY)),
+          http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+          http.post(`${API_BASE_URL}/member-fees/statistics/report`, ({ request }) => {
+            requestedFormat = new URL(request.url).searchParams.get("format");
+            return new HttpResponse("fake-pptx-bytes", {
+              headers: { "Content-Disposition": 'attachment; filename="report.pptx"' },
+            });
+          }),
+        );
+
+        renderFees("/fees?tab=statistics");
+        await waitForLoaded();
+
+        await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+        await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+        await waitFor(() => expect(requestedFormat).toBe("pptx"));
+      });
+
+      it("shows an error if report generation fails", async () => {
+        allTabsAllowed();
+        server.use(
+          http.get(`${API_BASE_URL}/member-fees/statistics`, () => HttpResponse.json(STATS)),
+          http.get(`${API_BASE_URL}/member-fees/statistics/history`, () => HttpResponse.json(HISTORY)),
+          http.get(`${API_BASE_URL}/fee-settings`, () => HttpResponse.json([])),
+          http.post(`${API_BASE_URL}/member-fees/statistics/report`, () =>
+            HttpResponse.json({ detail: "Report generation failed" }, { status: 500 }),
+          ),
+        );
+
+        renderFees("/fees?tab=statistics");
+        await waitForLoaded();
+
+        await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(/report generation failed/i);
+      });
     });
   });
 

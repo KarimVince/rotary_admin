@@ -2,8 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadEmailAttachment } from "../api/memberEmail";
 import { listRotaryFriendEmailLog, sendRotaryFriendEmail } from "../api/rotaryFriendEmail";
 import { listRotaryFriends } from "../api/rotaryFriends";
+import {
+  createEmailDraft,
+  deleteEmailDraft,
+  listEmailDrafts,
+  updateEmailDraft,
+} from "../api/emailDrafts";
 import Card from "../components/Card";
 import EmailAttachmentsCard from "../components/EmailAttachmentsCard";
+import EmailDraftsPanel from "../components/EmailDraftsPanel";
 import EmailLogTable from "../components/EmailLogTable";
 import RecipientPicker from "../components/RecipientPicker";
 import RichTextEditor from "../components/RichTextEditor";
@@ -11,10 +18,13 @@ import { useAccess } from "../hooks/useAccess";
 import { getInitials } from "../utils/avatar";
 import { splitTags } from "../utils/tags";
 
+const SOURCE_MODULE = "rotary_friends";
+
 export default function RotaryFriendsEmail() {
   const { canRead, canWrite: canSendEmail } = useAccess("friends.send_message");
   const [friends, setFriends] = useState([]);
   const [emailLog, setEmailLog] = useState([]);
+  const [drafts, setDrafts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -30,10 +40,24 @@ export default function RotaryFriendsEmail() {
   const [sendError, setSendError] = useState(null);
   const [lastResult, setLastResult] = useState(null);
 
+  // Story 16.19 — see MembersEmail.jsx for the same pattern.
+  const [editingDraftId, setEditingDraftId] = useState(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState(null);
+
   const editorRef = useRef(null);
   const bodyRef = useRef("");
   const attachmentsCardRef = useRef(null);
   const imageInputRef = useRef(null);
+
+  async function loadDrafts() {
+    try {
+      setDrafts(await listEmailDrafts(SOURCE_MODULE));
+    } catch {
+      // Non-fatal — the compose form still works without the drafts list.
+      setDrafts([]);
+    }
+  }
 
   async function loadData() {
     setIsLoading(true);
@@ -45,6 +69,7 @@ export default function RotaryFriendsEmail() {
       setFriends(friendsData);
       setEmailLog(logData);
       setLoadError(null);
+      if (canSendEmail) await loadDrafts();
     } catch (err) {
       setLoadError(err.detail || "Failed to load data");
     } finally {
@@ -155,6 +180,11 @@ export default function RotaryFriendsEmail() {
         payload.attachments = attachments.map(({ filename, url }) => ({ filename, url }));
       }
       const result = await sendRotaryFriendEmail(payload);
+      // Story 16.19: sending a draft removes it from the drafts list.
+      if (editingDraftId) {
+        await deleteEmailDraft(editingDraftId).catch(() => {});
+        setEditingDraftId(null);
+      }
       setLastResult(result);
       setIsConfirming(false);
       setSubject("");
@@ -170,12 +200,57 @@ export default function RotaryFriendsEmail() {
     }
   }
 
+  async function handleSaveDraft() {
+    setIsSavingDraft(true);
+    setDraftError(null);
+    try {
+      const payload = {
+        source_module: SOURCE_MODULE,
+        subject,
+        body: bodyRef.current,
+        friend_ids: selectedFriendIds,
+        attachments: attachments.map(({ filename, url }) => ({ filename, url })),
+      };
+      if (editingDraftId) {
+        await updateEmailDraft(editingDraftId, payload);
+      } else {
+        const created = await createEmailDraft(payload);
+        setEditingDraftId(created.id);
+      }
+      await loadDrafts();
+    } catch (err) {
+      setDraftError(err.detail || "Failed to save draft");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  function handleEditDraft(draft) {
+    setDraftError(null);
+    setEditingDraftId(draft.id);
+    setSubject(draft.subject);
+    bodyRef.current = draft.body;
+    editorRef.current?.setHTML(draft.body);
+    setBodyEmpty(!draft.body || draft.body === "<p></p>");
+    setSelectedFriendIds(draft.friend_ids ?? []);
+    setAttachments(draft.attachments ?? []);
+  }
+
+  async function handleDeleteDraft(draft) {
+    if (!window.confirm("Delete this draft?")) return;
+    await deleteEmailDraft(draft.id);
+    if (editingDraftId === draft.id) setEditingDraftId(null);
+    await loadDrafts();
+  }
+
   const canSend =
     canSendEmail && subject.trim() !== "" && !bodyEmpty && recipientCount > 0 && !isLoading && !loadError;
+  const canSaveDraft =
+    canSendEmail && (subject.trim() !== "" || !bodyEmpty || recipientCount > 0) && !isSavingDraft;
 
   if (!canRead) {
     return (
-      <div className="admin-page">
+      <div className="admin-page admin-page-wide">
         <h1>Email Rotary Friends</h1>
         <p role="alert">You do not have permission to view this page.</p>
       </div>
@@ -183,7 +258,7 @@ export default function RotaryFriendsEmail() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page-wide" style={{ maxWidth: 1600 }}>
       <h1>Email Rotary Friends</h1>
 
       {isLoading && <p>Loading…</p>}
@@ -242,6 +317,7 @@ export default function RotaryFriendsEmail() {
             />
 
             {sendError && <p role="alert">{sendError}</p>}
+            {draftError && <p role="alert">{draftError}</p>}
             {lastResult && (
               <p>
                 Last send: {lastResult.status} — {lastResult.success_count} succeeded,{" "}
@@ -253,7 +329,16 @@ export default function RotaryFriendsEmail() {
               </p>
             )}
 
-            <div className="sticky bottom-0 bg-white border-t border-[var(--color-card-border)] py-4 flex justify-end">
+            <div className="sticky bottom-0 bg-white border-t border-[var(--color-card-border)] py-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={!canSaveDraft}
+                title={!canSendEmail ? "You do not have permission to send emails" : undefined}
+                className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isSavingDraft ? "Saving…" : "Save Draft"}
+              </button>
               <button
                 type="submit"
                 disabled={!canSend}
@@ -264,6 +349,8 @@ export default function RotaryFriendsEmail() {
               </button>
             </div>
           </form>
+
+          <EmailDraftsPanel drafts={drafts} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />
 
           {isConfirming && (
             <div className="modal-overlay" onClick={cancelConfirm}>

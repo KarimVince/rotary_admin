@@ -79,15 +79,16 @@ def create_fee_run(
     )
 
     # Per-member tier assignment (Fee Run tab's "assign tiers" step) — each
-    # member in member_tiers gets their own price_type, instead of one
-    # shared payload.price_type applied to everyone.
+    # member in member_tiers gets their own price_type (and optionally a
+    # custom amount_due override — Story 16.13), instead of one shared
+    # payload.price_type applied to everyone.
     if payload.member_tiers is not None:
-        tier_by_member_id = {
-            assignment.member_id: assignment.price_type for assignment in payload.member_tiers
+        assignment_by_member_id = {
+            assignment.member_id: assignment for assignment in payload.member_tiers
         }
-        members_query = members_query.filter(Member.id.in_(tier_by_member_id.keys()))
+        members_query = members_query.filter(Member.id.in_(assignment_by_member_id.keys()))
     else:
-        tier_by_member_id = None
+        assignment_by_member_id = None
         if payload.target == "member_ids":
             members_query = members_query.filter(Member.id.in_(payload.member_ids))
     members = members_query.all()
@@ -112,8 +113,17 @@ def create_fee_run(
             result_fees.append(existing)
             continue
 
-        price_type = tier_by_member_id[member.id] if tier_by_member_id is not None else payload.price_type
-        amount_due = _resolve_amount_due(fee_settings, price_type, member.is_couple)
+        if assignment_by_member_id is not None:
+            assignment = assignment_by_member_id[member.id]
+            price_type = assignment.price_type
+            amount_due = (
+                assignment.amount_due
+                if assignment.amount_due is not None
+                else _resolve_amount_due(fee_settings, price_type, member.is_couple)
+            )
+        else:
+            price_type = payload.price_type
+            amount_due = _resolve_amount_due(fee_settings, price_type, member.is_couple)
 
         if existing is None:
             fee = MemberFee(
@@ -140,7 +150,7 @@ def create_fee_run(
 
     return FeeRunResult(
         rotary_year=payload.rotary_year,
-        price_type=None if tier_by_member_id is not None else payload.price_type,
+        price_type=None if assignment_by_member_id is not None else payload.price_type,
         created_count=created_count,
         updated_count=updated_count,
         skipped_paid_count=skipped_paid_count,
@@ -148,8 +158,11 @@ def create_fee_run(
     )
 
 
+_TIER_LABELS = {"early_bird": "Early Bird", "full": "Full", "sponsored": "Sponsored"}
+
+
 def _invoice_html(member: Member, fee: MemberFee, fee_settings: FeeSettings) -> str:
-    tier_label = "Early Bird" if fee.price_type == "early_bird" else "Full"
+    tier_label = _TIER_LABELS.get(fee.price_type, "Full")
     return f"""
     <p>Dear {member.first_name} {member.last_name},</p>
     <p>Your Rotary Club of Discovery Bay membership fee for the {fee.rotary_year}-{fee.rotary_year + 1}

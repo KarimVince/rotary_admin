@@ -6,6 +6,7 @@ from app.models.board_position import BoardPosition
 from app.models.board_position_assignment import BoardPositionAssignment
 from app.models.dinner_event_type import DinnerEventType
 from app.models.donation import Donation
+from app.models.email_draft import EmailDraft
 from app.models.email_log import EmailLog
 from app.models.event import Event
 from app.models.event_cost import EventCost
@@ -30,6 +31,7 @@ from app.models.organisation import Organisation
 from app.models.permission_matrix import PermissionMatrix
 from app.models.ppt_template import PptTemplate
 from app.models.rotary_friend import RotaryFriend
+from app.models.service_hour import ServiceHour
 from app.models.user import User
 
 __all__ = [
@@ -41,6 +43,7 @@ __all__ = [
     "BoardPositionAssignment",
     "DinnerEventType",
     "Donation",
+    "EmailDraft",
     "EmailLog",
     "Event",
     "EventCost",
@@ -65,5 +68,6 @@ __all__ = [
     "PermissionMatrix",
     "PptTemplate",
     "RotaryFriend",
+    "ServiceHour",
     "User",
 ]

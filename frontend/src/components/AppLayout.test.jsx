@@ -48,7 +48,7 @@ describe("AppLayout — accordion nav (Story 8.7)", () => {
       "aria-expanded",
       "false",
     );
-    expect(screen.getByRole("button", { name: /ngos & donations/i })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /ngo & services project/i })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
@@ -77,7 +77,7 @@ describe("AppLayout — accordion nav (Story 8.7)", () => {
   it("only keeps one section open at a time", async () => {
     renderNav("admin", "/dashboard");
     const membersToggle = screen.getByRole("button", { name: /^members$/i });
-    const ngosToggle = screen.getByRole("button", { name: /ngos & donations/i });
+    const ngosToggle = screen.getByRole("button", { name: /ngo & services project/i });
 
     await userEvent.click(membersToggle);
     expect(membersToggle).toHaveAttribute("aria-expanded", "true");
@@ -90,7 +90,7 @@ describe("AppLayout — accordion nav (Story 8.7)", () => {
   it("navigating to a page auto-expands its section and closes the previously open one", async () => {
     renderNav("admin", "/dashboard");
     const membersToggle = screen.getByRole("button", { name: /^members$/i });
-    const ngosToggle = screen.getByRole("button", { name: /ngos & donations/i });
+    const ngosToggle = screen.getByRole("button", { name: /ngo & services project/i });
 
     // Open a section unrelated to where we're about to navigate.
     await userEvent.click(ngosToggle);

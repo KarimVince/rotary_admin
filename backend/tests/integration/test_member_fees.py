@@ -161,6 +161,32 @@ def test_last_channel_rejects_unknown_value(admin_client, make_member, make_memb
     assert response.status_code == 422
 
 
+def test_amend_tier_and_amount_due_on_tracking(admin_client, make_member, make_member_fee):
+    # Story 16.13: the treasurer can override a member's tier and due
+    # amount directly on the tracking screen, independent of a fee run.
+    member = make_member()
+    fee = make_member_fee(
+        member_id=member.id, rotary_year=2025, price_type="early_bird", amount_due=500
+    )
+
+    response = admin_client.patch(
+        f"/api/v1/member-fees/{fee.id}",
+        json={"price_type": "sponsored", "amount_due": 275},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["price_type"] == "sponsored"
+    assert body["amount_due"] == 275
+
+
+def test_amend_amount_due_rejects_negative_value(admin_client, make_member, make_member_fee):
+    member = make_member()
+    fee = make_member_fee(member_id=member.id, rotary_year=2025)
+
+    response = admin_client.patch(f"/api/v1/member-fees/{fee.id}", json={"amount_due": -10})
+    assert response.status_code == 422
+
+
 def test_update_fee_not_found_returns_404(admin_client):
     response = admin_client.patch(
         "/api/v1/member-fees/00000000-0000-0000-0000-000000000000", json={"is_paid": True}
@@ -362,4 +388,55 @@ def test_statistics_history_excludes_honorary_members(
 
 def test_statistics_history_requires_treasurer_or_admin(user_client):
     response = user_client.get("/api/v1/member-fees/statistics/history")
+    assert response.status_code == 403
+
+
+def test_generate_pdf_report_returns_pdf_bytes(
+    admin_client, make_fee_settings, make_member, make_member_fee
+):
+    make_fee_settings(rotary_year=2025, currency="HKD")
+    m1 = make_member(first_name="Paid1")
+    make_member_fee(member_id=m1.id, rotary_year=2025, price_type="early_bird", amount_due=500, is_paid=True)
+
+    response = admin_client.post(
+        "/api/v1/member-fees/statistics/report", params={"format": "pdf", "rotary_year": 2025}
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "fee-statistics_2025-2026" in response.headers["content-disposition"]
+    assert response.content[:4] == b"%PDF"
+
+
+def test_generate_pptx_report_returns_pptx_bytes(
+    admin_client, make_fee_settings, make_member, make_member_fee
+):
+    make_fee_settings(rotary_year=2025, currency="HKD")
+    m1 = make_member(first_name="Paid1")
+    make_member_fee(member_id=m1.id, rotary_year=2025, price_type="early_bird", amount_due=500, is_paid=True)
+
+    response = admin_client.post(
+        "/api/v1/member-fees/statistics/report", params={"format": "pptx", "rotary_year": 2025}
+    )
+    assert response.status_code == 200
+    assert (
+        response.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+    assert "fee-statistics_2025-2026" in response.headers["content-disposition"]
+    # PPTX is a zip container — magic bytes "PK".
+    assert response.content[:2] == b"PK"
+
+
+def test_generate_report_with_no_fee_history_still_succeeds(admin_client):
+    response = admin_client.post(
+        "/api/v1/member-fees/statistics/report", params={"format": "pdf", "rotary_year": 2099}
+    )
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+
+
+def test_generate_report_requires_treasurer_or_admin(user_client):
+    response = user_client.post(
+        "/api/v1/member-fees/statistics/report", params={"format": "pdf"}
+    )
     assert response.status_code == 403

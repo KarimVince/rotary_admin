@@ -8,6 +8,7 @@ import {
 import Card from "../components/Card";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 import { useAccess } from "../hooks/useAccess";
+import { SELECT_CLASS } from "../styles/formControls";
 
 const EMPTY_FORM = { currency_code: "", rate_to_hkd: "", rate_to_usd: "" };
 
@@ -134,7 +135,7 @@ export default function CurrencyManagement() {
               onChange={(event) => setForm({ ...form, currency_code: event.target.value })}
               disabled={Boolean(editingId)}
               required
-              className="w-full border border-[var(--color-card-border)] rounded-lg px-3 py-2 text-sm mb-3"
+              className={`${SELECT_CLASS} mb-3`}
             >
               <option value="">Select a currency…</option>
               {availableCurrencyOptions.map((code) => (

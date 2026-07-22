@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -108,7 +108,8 @@ describe("DinnerEvents", () => {
     renderPage();
     await waitForLoaded();
 
-    const chip = await screen.findByText("Dinner");
+    const chips = await screen.findAllByText("Dinner");
+    const chip = chips.find((el) => el.tagName === "SPAN");
     expect(chip).toHaveStyle({ backgroundColor: "#e3edfb", color: "#17458f" });
   });
 
@@ -151,13 +152,48 @@ describe("DinnerEvents", () => {
     expect(screen.queryByText(/^NGO:$/)).not.toBeInTheDocument();
   });
 
-  it("populates the event-type filter dropdown from the admin-configured list", async () => {
+  it("populates the event-type filter pills from the admin-configured list", async () => {
     renderPage();
     await waitForLoaded();
 
-    const select = screen.getByLabelText(/event filter/i);
-    const optionLabels = Array.from(select.options).map((o) => o.textContent);
-    expect(optionLabels).toEqual(["All events", "Dinner only", "Fellowship only"]);
+    const group = screen.getByRole("group", { name: /event filter/i });
+    const pillLabels = within(group)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(pillLabels).toEqual(["All", "Dinner", "Fellowship"]);
+  });
+
+  it("allows selecting multiple event types for the report filter", async () => {
+    let requestUrl;
+    server.use(
+      http.get(`${API_BASE_URL}/dinner-forecast/report`, ({ request }) => {
+        requestUrl = new URL(request.url);
+        return new HttpResponse("fake-pdf-bytes", {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": 'attachment; filename="dinner-forecast.pdf"',
+          },
+        });
+      }),
+    );
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    URL.revokeObjectURL = vi.fn();
+
+    renderPage();
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /event filter/i });
+    await userEvent.click(within(group).getByRole("button", { name: "Dinner" }));
+    await userEvent.click(within(group).getByRole("button", { name: "Fellowship" }));
+    await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    expect(requestUrl.searchParams.getAll("event_type")).toEqual(["Dinner", "Fellowship"]);
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
   });
 
   it("denies access without attendance.forecast read", async () => {
@@ -248,6 +284,88 @@ describe("DinnerEvents", () => {
     expect(screen.queryByText("Edit")).not.toBeInTheDocument();
   });
 
+  describe("monthly attendance averages (Story 16.18)", () => {
+    it("shows the average attendance count and % for the month, from completed events only", async () => {
+      renderPage();
+      await waitForLoaded();
+
+      // NOT_STARTED_EVENT has no attendance data; only STARTED_EVENT (8/10 · 80%)
+      // counts toward July 2026's average.
+      expect(await screen.findByText("Monthly Average Participation: 8 Members · 80%")).toBeInTheDocument();
+    });
+
+    it("averages across multiple completed events in the same month", async () => {
+      const SECOND_STARTED_EVENT = {
+        ...STARTED_EVENT,
+        id: "event-4",
+        name: "Second Fellowship",
+        event_date: "2026-07-20",
+        present_count: 4,
+        eligible_total: 10,
+        attendance_percentage: 40,
+      };
+      server.use(
+        http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+          HttpResponse.json([NOT_STARTED_EVENT, STARTED_EVENT, SECOND_STARTED_EVENT]),
+        ),
+      );
+      renderPage();
+      await waitForLoaded();
+
+      // avg_count = (8 + 4) / 2 = 6; avg_pct = (8 + 4) / (10 + 10) * 100 = 60%
+      expect(await screen.findByText("Monthly Average Participation: 6 Members · 60%")).toBeInTheDocument();
+    });
+
+    it("hides the badge when no event in the month has completed attendance", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+          HttpResponse.json([NOT_STARTED_EVENT]),
+        ),
+      );
+      renderPage();
+      await waitForLoaded();
+
+      const julyHeading = await screen.findByText("July 2026");
+      const julyCard = julyHeading.closest("div.flex.flex-col");
+      expect(within(julyCard).queryByText(/Monthly Average Participation/)).not.toBeInTheDocument();
+    });
+
+    it("excludes a future-dated event whose attendance was already started from the average", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+          HttpResponse.json([FUTURE_STARTED_EVENT]),
+        ),
+      );
+      renderPage();
+      await waitForLoaded();
+
+      const marchHeading = await screen.findByText("March 2027");
+      const marchCard = marchHeading.closest("div.flex.flex-col");
+      expect(within(marchCard).queryByText(/Monthly Average Participation/)).not.toBeInTheDocument();
+    });
+
+    it("hides the badge for a month with no dinner events at all", async () => {
+      renderPage();
+      await waitForLoaded();
+
+      // NOT_STARTED_EVENT/STARTED_EVENT are both July 2026 — August 2026 has
+      // zero events and must show no participation badge.
+      const augustHeading = await screen.findByText("August 2026");
+      const augustCard = augustHeading.closest("div.flex.flex-col");
+      expect(within(augustCard).queryByText(/Monthly Average Participation/)).not.toBeInTheDocument();
+    });
+
+    it("renders the participation summary as a rose-colored pill badge", async () => {
+      renderPage();
+      await waitForLoaded();
+
+      const badge = await screen.findByText("Monthly Average Participation: 8 Members · 80%");
+      expect(badge.className).toMatch(/rounded-full/);
+      expect(badge.className).toMatch(/tone-rose-bg/);
+      expect(badge.className).toMatch(/color-tone-rose-text/);
+    });
+  });
+
   describe("future-dated events (Story 16.9)", () => {
     beforeEach(() => {
       server.use(
@@ -326,6 +444,123 @@ describe("DinnerEvents", () => {
 
       await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
       expect(requestUrl.searchParams.get("format")).toBe("pdf");
+      // Defaults to the historical view — no forecast param sent.
+      expect(requestUrl.searchParams.get("forecast")).toBeNull();
+    });
+
+    it("sends forecast=true when the Forecast toggle is checked", async () => {
+      let requestUrl;
+      server.use(
+        http.get(`${API_BASE_URL}/dinner-forecast/report`, ({ request }) => {
+          requestUrl = new URL(request.url);
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="dinner-forecast.pdf"',
+            },
+          });
+        }),
+      );
+
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByLabelText(/forecast/i));
+      await userEvent.click(await screen.findByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+      expect(requestUrl.searchParams.get("forecast")).toBe("true");
+    });
+  });
+
+  describe("start time display (Story 16.27)", () => {
+    it("shows the formatted start time next to the date when set", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+          HttpResponse.json([{ ...NOT_STARTED_EVENT, start_time: "19:00:00" }]),
+        ),
+      );
+      renderPage();
+      await waitForLoaded();
+
+      expect(await screen.findByText("7:00 PM")).toBeInTheDocument();
+    });
+
+    it("shows no time line when start_time is not set", async () => {
+      renderPage();
+      await waitForLoaded();
+
+      await screen.findByText("Welcome Dinner");
+      expect(screen.queryByText(/^\d{1,2}:\d{2} (AM|PM)$/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Add to Calendar (Story 16.25)", () => {
+    let originalCreateObjectURL;
+    let originalRevokeObjectURL;
+    let capturedBlob;
+
+    beforeEach(() => {
+      originalCreateObjectURL = URL.createObjectURL;
+      originalRevokeObjectURL = URL.revokeObjectURL;
+      capturedBlob = null;
+      URL.createObjectURL = vi.fn((blob) => {
+        capturedBlob = blob;
+        return "blob:mock-url";
+      });
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    afterEach(() => {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it("exports a single event to an .ics file", async () => {
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /add welcome dinner to calendar/i }));
+
+      expect(URL.createObjectURL).toHaveBeenCalled();
+      const text = await capturedBlob.text();
+      expect(text).toContain("BEGIN:VEVENT");
+      expect(text).toContain("SUMMARY:Welcome Dinner");
+      expect(text.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    });
+
+    it("exports every event in a month to one .ics file", async () => {
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /add month to calendar/i }));
+
+      expect(URL.createObjectURL).toHaveBeenCalled();
+      const text = await capturedBlob.text();
+      expect(text.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+      expect(text).toContain("SUMMARY:Welcome Dinner");
+      expect(text).toContain("SUMMARY:Fellowship Night");
+    });
+
+    it("exports only upcoming (not past) events at the global level", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+          HttpResponse.json([NOT_STARTED_EVENT, STARTED_EVENT, FUTURE_STARTED_EVENT]),
+        ),
+      );
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /add all upcoming to calendar/i }));
+
+      expect(URL.createObjectURL).toHaveBeenCalled();
+      const text = await capturedBlob.text();
+      // NOT_STARTED_EVENT/STARTED_EVENT are dated 2026-07-05 (in the past
+      // relative to "today"); only the 2027-03-15 FUTURE_STARTED_EVENT
+      // counts as upcoming.
+      expect(text.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+      expect(text).toContain("SUMMARY:Future Fellowship");
+      expect(text).not.toContain("SUMMARY:Welcome Dinner");
     });
   });
 });

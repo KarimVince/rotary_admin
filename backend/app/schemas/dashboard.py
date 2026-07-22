@@ -8,3 +8,5 @@ class DashboardSummary(BaseModel):
     rotary_friends: int
     donations_this_year: float
     fees_collected_this_year: float
+    # Story 16.14
+    service_hours_this_year: float

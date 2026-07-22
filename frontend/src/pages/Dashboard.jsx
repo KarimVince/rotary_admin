@@ -1,16 +1,36 @@
 import { Building2, HeartHandshake, Landmark, UtensilsCrossed, Users, Wallet } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { API_ORIGIN } from "../api/client";
 import { fetchDashboardSummary } from "../api/dashboard";
 import { listBoardAssignments } from "../api/boardAssignments";
 import { listBoardPositions } from "../api/boardPositions";
+import { listDinnerEventTypes } from "../api/dinnerEventTypes";
+import { listDinnerForecastEvents } from "../api/dinnerForecast";
 import Card from "../components/Card";
+import { CompactMonthCard, groupEventsByMonth } from "../components/DinnerMonthCard";
 import SectionLabel from "../components/SectionLabel";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
 import { AVATAR_TONES, getInitials } from "../utils/avatar";
-import { currentRotaryYear } from "../utils/rotaryYear";
+import { currentRotaryYear, rotaryYear as rotaryYearOf } from "../utils/rotaryYear";
+
+// Story 16.21: the current calendar month + the following 2, as "YYYY-MM"
+// keys — deliberately calendar-month based (not rotary-year based), unlike
+// the Dinner/Events page's full-rotary-year month grid, since this is a
+// short "what's coming up" glance rather than a full-year planner. Using
+// Date's own month-overflow normalisation (new Date(y, m, 1) with m >= 12)
+// keeps a Nov/Dec/Jan or May/Jun/Jul window correct across a year or
+// rotary-year boundary without any special-casing here.
+function upcomingMonthKeys(count) {
+  const now = new Date();
+  const keys = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return keys;
+}
 
 function initials(member) {
   return getInitials(member.first_name, member.last_name);
@@ -26,6 +46,12 @@ const formatEuros = (value) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })} €`;
+
+const formatHours = (value) =>
+  `${Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })} h`;
 
 // Redesign: each stat gets its own card + a distinct pastel tone (cycling
 // through the tones already defined for the Statistics pages) instead of
@@ -43,7 +69,6 @@ const STAT_CARDS = [
     requiredPermission: "members",
   },
   { key: "organisations_supported", label: "NGOs supported", tone: "stat-lavender", valueClass: "text-[#5b3fa0]" },
-  { key: "rotary_friends", label: "Friends of Rotary", tone: "stat-teal", valueClass: "text-[#1a7a68]" },
   {
     key: "donations_this_year",
     label: "Donations this rotary year",
@@ -57,6 +82,18 @@ const STAT_CARDS = [
     format: formatEuros,
     tone: "stat-rose",
     valueClass: "text-[#b8384a]",
+  },
+  // Story 16.14 — same NGOs & Donations module data as organisations_supported
+  // above; gated on "ngos" read like the module link below, since this is
+  // specifically an NGOs & Donations figure (unlike the older cards above,
+  // which predate per-card permission gating).
+  {
+    key: "service_hours_this_year",
+    label: "Volunteer hours this rotary year",
+    format: formatHours,
+    tone: "stat-blue",
+    valueClass: "text-[var(--color-brand-blue)]",
+    requiredPermission: "ngos",
   },
 ];
 
@@ -74,7 +111,7 @@ const MODULE_LINKS = [
   },
   {
     to: "/ngos",
-    label: "NGOs & Donations",
+    label: "NGO & Services Project",
     description: "Partners & giving",
     icon: Building2,
     tone: "stat-lavender",
@@ -129,9 +166,41 @@ export default function Dashboard() {
   const { canRead: canViewFees } = useAccess("fees");
   const { canRead: canViewBoard } = useAccess("board");
   const { canRead: canViewAttendance } = useAccess("attendance");
+  // Story 16.21: Club Planning reuses the same Dinner/Events data + gate as
+  // the Dinner Attendance module card above, not a new permission.
+  const { canRead: canViewPlanning } = useAccess("attendance.forecast");
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
   const [boardCards, setBoardCards] = useState([]);
+
+  const planningMonthKeys = useMemo(() => upcomingMonthKeys(3), []);
+  const [planningEvents, setPlanningEvents] = useState([]);
+  const [planningEventTypes, setPlanningEventTypes] = useState([]);
+
+  async function loadPlanningEvents() {
+    const years = [...new Set(planningMonthKeys.map((key) => rotaryYearOf(`${key}-01`)))];
+    const eventsByYear = await Promise.all(
+      years.map((year) => listDinnerForecastEvents({ rotary_year: year })),
+    );
+    const monthKeySet = new Set(planningMonthKeys);
+    setPlanningEvents(
+      eventsByYear.flat().filter((event) => monthKeySet.has(event.event_date.slice(0, 7))),
+    );
+  }
+
+  useEffect(() => {
+    if (!canViewPlanning) return;
+    loadPlanningEvents().catch(() => setPlanningEvents([]));
+    listDinnerEventTypes()
+      .then(setPlanningEventTypes)
+      .catch(() => setPlanningEventTypes([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewPlanning]);
+
+  const planningEventsByMonth = useMemo(
+    () => groupEventsByMonth(planningEvents),
+    [planningEvents],
+  );
 
   useEffect(() => {
     fetchDashboardSummary()
@@ -225,6 +294,22 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {canViewPlanning && (
+        <>
+          <SectionLabel className="mt-6">Club Planning</SectionLabel>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {planningMonthKeys.map((monthKey) => (
+              <CompactMonthCard
+                key={monthKey}
+                monthKey={monthKey}
+                events={planningEventsByMonth.get(monthKey) || []}
+                eventTypes={planningEventTypes}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       {boardCards.length > 0 && (
         <>

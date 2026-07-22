@@ -1,3 +1,38 @@
+/* Preflight (tailwindcss/preflight.css) is deliberately not imported here
+   (see tailwind.css) so it doesn't clobber the plain-CSS pages' own
+   element-level styling. But without it, `<input>`/`<select>`/`<textarea>`
+   default to content-box sizing, so a Tailwind `w-full` + `px-*` pairing (the
+   standard pattern across every redesigned page) renders wider than its
+   container by the padding+border — invisible until that element sits flush
+   against a sibling with no room to overflow into, e.g. Member Fees
+   Tracking's Search field crowding the "Send reminder" button next to it.
+   Border-box has no visual side effects (colors/fonts/margins untouched), so
+   applying it to just these three form-control elements is safe. */
+input,
+select,
+textarea {
+  box-sizing: border-box;
+}
+
+/* Shared chevron for the Tailwind Card-redesigned pages' standalone "form"
+   selects (see frontend/src/styles/formControls.js's SELECT_CLASS) — makes a
+   <select> render with the same custom look everywhere instead of each
+   browser/OS's native dropdown arrow, so it visually matches the text input
+   beside it. Arrow color matches --color-muted-text; hardcoded because SVG
+   data-URIs can't reference CSS custom properties. Not applied to the
+   Permission Matrix's compact per-cell pill selects or the Admin table's
+   dense inline row selects — those keep their own tighter style and don't
+   opt into this class. */
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b7686' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 7l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 14px;
+  padding-right: 2.25rem;
+}
+
 /* Story 8.20: app-wide <select> standard, sourced from the Fees/Dinner
    Attendance year-picker style (formerly only .fee-year-select). Every
    <select> in the app inherits this by default; container rules should only
@@ -925,6 +960,10 @@ select:focus {
   background: var(--tone-amber-bg);
 }
 
+.service-hour-row-current {
+  background: var(--tone-teal-bg);
+}
+
 .org-detail-header {
   display: flex;
   align-items: center;
@@ -992,27 +1031,12 @@ select:focus {
   margin-bottom: 2px;
 }
 
-.donation-form input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 4px 8px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-family: inherit;
-}
-
+/* Story 16.20/16.23: inputs/selects in this form now use the shared
+   INPUT_CLASS/SELECT_CLASS Tailwind tokens (frontend/src/styles/formControls.js)
+   for consistent sizing with every other Card-based form in the app —
+   no per-page input/select CSS override needed here anymore. */
 .donation-form input[readonly] {
-  background: var(--bg);
-  color: var(--text);
-}
-
-/* Story 8.20: the donation-currency select was previously unstyled (bare
-   browser default) — width/layout now matches the amount input beside it,
-   box model comes from the app-wide select standard above. */
-.donation-form select {
-  width: 100%;
-  box-sizing: border-box;
+  background: var(--color-border-light);
 }
 
 .donation-form .modal-actions {
