@@ -1,3 +1,4 @@
+from app.models.adhoc_donation import AdhocDonation
 from app.models.app_function import AppFunction
 from app.models.attendance_event import AttendanceEvent
 from app.models.attendance_record import AttendanceRecord
@@ -21,20 +22,24 @@ from app.models.event_sponsor_category import EventSponsorCategory
 from app.models.event_table_mapping import EventTableMapping
 from app.models.exchange_rate import ExchangeRate
 from app.models.fee_settings import FeeSettings
+from app.models.finance_category import FinanceCategory
 from app.models.honorific import Honorific
 from app.models.member import Member
 from app.models.member_application import MemberApplication
 from app.models.member_fee import MemberFee
 from app.models.member_title import MemberTitle
 from app.models.ngo_classification import NgoClassification
+from app.models.operational_entry import OperationalEntry
 from app.models.organisation import Organisation
 from app.models.permission_matrix import PermissionMatrix
 from app.models.ppt_template import PptTemplate
 from app.models.rotary_friend import RotaryFriend
+from app.models.rotary_year import RotaryYear
 from app.models.service_hour import ServiceHour
 from app.models.user import User
 
 __all__ = [
+    "AdhocDonation",
     "AppFunction",
     "AttendanceEvent",
     "AttendanceRecord",
@@ -58,16 +63,19 @@ __all__ = [
     "EventTableMapping",
     "ExchangeRate",
     "FeeSettings",
+    "FinanceCategory",
     "Honorific",
     "Member",
     "MemberApplication",
     "MemberFee",
     "MemberTitle",
     "NgoClassification",
+    "OperationalEntry",
     "Organisation",
     "PermissionMatrix",
     "PptTemplate",
     "RotaryFriend",
+    "RotaryYear",
     "ServiceHour",
     "User",
 ]

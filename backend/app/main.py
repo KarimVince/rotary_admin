@@ -24,6 +24,8 @@ from app.api import (
     exchange_rates,
     fee_runs,
     fee_settings,
+    finance,
+    finance_categories,
     health,
     honorifics,
     member_applications,
@@ -37,6 +39,7 @@ from app.api import (
     rotary_friend_email,
     rotary_friend_import,
     rotary_friends,
+    rotary_years,
     service_hours,
     users,
 )
@@ -76,10 +79,13 @@ app.include_router(service_hours.router, prefix="/api/v1", tags=["service-hours"
 app.include_router(exchange_rates.router, prefix="/api/v1", tags=["exchange-rates"])
 app.include_router(fee_settings.router, prefix="/api/v1", tags=["fee-settings"])
 app.include_router(fee_runs.router, prefix="/api/v1", tags=["fee-runs"])
+app.include_router(finance.router, prefix="/api/v1", tags=["finance"])
+app.include_router(finance_categories.router, prefix="/api/v1", tags=["finance"])
 app.include_router(member_fees.router, prefix="/api/v1", tags=["member-fees"])
 app.include_router(rotary_friend_email.router, prefix="/api/v1", tags=["rotary-friends"])
 app.include_router(rotary_friend_import.router, prefix="/api/v1", tags=["rotary-friends"])
 app.include_router(rotary_friends.router, prefix="/api/v1", tags=["rotary-friends"])
+app.include_router(rotary_years.router, prefix="/api/v1", tags=["rotary-years"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(board.router, prefix="/api/v1", tags=["board"])

@@ -13,6 +13,10 @@ import DinnerEvents from "./pages/DinnerEvents";
 import DonationsStatistics from "./pages/DonationsStatistics";
 import EventList from "./pages/EventList";
 import EventManageProject from "./pages/EventManageProject";
+import FinanceDonations from "./pages/FinanceDonations";
+import FinanceFundraising from "./pages/FinanceFundraising";
+import FinanceOperational from "./pages/FinanceOperational";
+import FinanceSummary from "./pages/FinanceSummary";
 import Login from "./pages/Login";
 import MemberFees from "./pages/MemberFees";
 import MembersEmail from "./pages/MembersEmail";
@@ -58,6 +62,10 @@ function App() {
               {/* Story 8.23 — same reasoning: matrix-driven
                   (admin.ppt_template), not admin-role-only. */}
               <Route path="/admin/ppt-template" element={<AdminPptTemplate />} />
+              <Route path="/finance" element={<FinanceSummary />} />
+              <Route path="/finance/donations" element={<FinanceDonations />} />
+              <Route path="/finance/fundraising" element={<FinanceFundraising />} />
+              <Route path="/finance/operational" element={<FinanceOperational />} />
               <Route path="/fees" element={<MemberFees />} />
               <Route path="/friends" element={<RotaryFriendsList />} />
               <Route path="/friends/statistics" element={<RotaryFriendsStatistics />} />

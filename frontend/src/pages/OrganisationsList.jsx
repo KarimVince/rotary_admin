@@ -13,10 +13,9 @@ import Card from "../components/Card";
 import { COUNTRIES } from "../data/countries";
 import { SELECT_CLASS } from "../styles/formControls";
 import { useAccess } from "../hooks/useAccess";
+import { useRotaryYears } from "../hooks/useRotaryYears";
 import { classificationColorClass } from "../utils/classificationColors";
-import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
-
-const YEAR_FILTER_OPTIONS = Array.from({ length: 5 }, (_, i) => currentRotaryYear() - i);
+import { rotaryYearLabel } from "../utils/rotaryYear";
 
 function formatHkd(value) {
   return `${Number(value).toLocaleString(undefined, {
@@ -57,6 +56,7 @@ export default function OrganisationsList() {
   const { canRead, canWrite } = useAccess("ngos.organisations");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { yearOptions, currentYear } = useRotaryYears();
 
   // Defaults to "all" on first load (persisted in the URL so the filtered
   // view is bookmarkable/shareable); a specific year narrows it.
@@ -439,10 +439,10 @@ export default function OrganisationsList() {
           className={`${SELECT_CLASS} !w-auto min-w-[130px]`}
         >
           <option value="all">All years</option>
-          {YEAR_FILTER_OPTIONS.map((year) => (
+          {yearOptions.map((year) => (
             <option key={year} value={year}>
               {rotaryYearLabel(year)}
-              {year === currentRotaryYear() ? " (current)" : ""}
+              {year === currentYear ? " (current)" : ""}
             </option>
           ))}
         </select>

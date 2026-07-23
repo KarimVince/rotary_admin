@@ -5,10 +5,10 @@ import {
   Landmark,
   LayoutDashboard,
   Menu,
+  PiggyBank,
   Shield,
   Users,
   Utensils,
-  Wallet,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -21,6 +21,17 @@ import NavSection from "./NavSection";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  {
+    // Story 16.8 — Dinner Forecast + Attendance merged into one page/route,
+    // so the nav collapses from a 2-child section to a single top-level
+    // item (same treatment as Dashboard above), gated by attendance.forecast
+    // since that's the permission key the merged page itself checks.
+    // Moved to right after Dashboard per explicit user request.
+    to: "/dinners",
+    label: "Dinner / Events",
+    icon: Utensils,
+    requiredPermission: "attendance.forecast",
+  },
   {
     // Story 12.3: visibility driven by the members/members.* permissions
     // rather than open-by-default / adminOnly.
@@ -73,24 +84,49 @@ const NAV_ITEMS = [
     ],
   },
   {
-    // Consolidated from 4 sub-pages into one tabbed page (?tab=), same
-    // treatment as Dinner/Events below — nav collapses to a single
-    // top-level item, each tab still individually gated by its own matrix
-    // key at render time.
-    to: "/fees",
-    label: "Member Fees",
-    icon: Wallet,
-    requiredPermission: "fees",
-  },
-  {
-    // Story 16.8 — Dinner Forecast + Attendance merged into one page/route,
-    // so the nav collapses from a 2-child section to a single top-level
-    // item (same treatment as Dashboard below), gated by attendance.forecast
-    // since that's the permission key the merged page itself checks.
-    to: "/dinners",
-    label: "Dinner / Events",
-    icon: Utensils,
-    requiredPermission: "attendance.forecast",
+    // Story 17.2: new Finance module. Each Finance page is its own nav
+    // entry + matrix submenu key (like NGO & Services Project below), not
+    // a single tabbed page — 17.1/17.5 each add their own child here
+    // incrementally.
+    section: "Finance",
+    icon: PiggyBank,
+    requiredPermission: "finance",
+    children: [
+      {
+        // Story 17.1 — the module's landing/summary page, listed first.
+        to: "/finance",
+        label: "Finance Summary",
+        end: true,
+        requiredPermission: "finance.summary",
+      },
+      {
+        to: "/finance/donations",
+        label: "Donation Results",
+        end: true,
+        requiredPermission: "finance.donations",
+      },
+      {
+        to: "/finance/fundraising",
+        label: "Fund Raising Results",
+        requiredPermission: "finance.fundraising",
+      },
+      {
+        // Story 17.4: relocated from its own top-level nav item into
+        // Finance (embed-only, per the user's explicit choice — the old
+        // standalone entry is gone, not duplicated). Route/permission key
+        // (fees/fees.*) and the page's own internal tab bar (Tracking/Run/
+        // Statistics/Settings) are unchanged — this only moves where the
+        // page is reached from.
+        to: "/fees",
+        label: "Member Fees",
+        requiredPermission: "fees",
+      },
+      {
+        to: "/finance/operational",
+        label: "Club Operational Tracking",
+        requiredPermission: "finance.operational",
+      },
+    ],
   },
   {
     // Story 14.13: consolidated from 7 sub-pages into 2 — Event List and
@@ -167,6 +203,11 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { canRead: canViewFinance } = useAccess("finance");
+  const { canRead: canViewFinanceSummary } = useAccess("finance.summary");
+  const { canRead: canViewFinanceDonations } = useAccess("finance.donations");
+  const { canRead: canViewFinanceFundraising } = useAccess("finance.fundraising");
+  const { canRead: canViewFinanceOperational } = useAccess("finance.operational");
   const { canRead: canViewFees } = useAccess("fees");
   const { canRead: canViewFriends } = useAccess("friends");
   const { canRead: canViewFriendsDirectory } = useAccess("friends.directory");
@@ -189,6 +230,13 @@ export default function AppLayout() {
   const { canRead: canViewAdminNgoClassifications } = useAccess("admin.ngo_classifications");
   const { canRead: canViewAdminPptTemplate } = useAccess("admin.ppt_template");
   const { canRead: canViewAdminDinnerEventTypes } = useAccess("admin.dinner_event_types");
+  const { canRead: canViewAdminFinanceCategories } = useAccess("admin.finance_categories");
+  // Story 16.28: admin.rotary_years grants broad READ (every year selector
+  // in the app needs it), so — unlike the other 5 Reference Lists cards,
+  // where read/write-for-admin coincide — nav/card *visibility* here must
+  // key off WRITE, or the Reference Lists section would leak to every
+  // plain user just because they can read the year list.
+  const { canWrite: canManageAdminRotaryYears } = useAccess("admin.rotary_years");
   const { canRead: canViewAttendanceForecast } = useAccess("attendance.forecast");
   const { canRead: canViewEvent } = useAccess("event");
   const { canRead: canViewEventList } = useAccess("event.list");
@@ -201,6 +249,11 @@ export default function AppLayout() {
   const { canRead: canViewEventSetup } = useAccess("event.setup");
 
   const permissionChecks = {
+    finance: canViewFinance,
+    "finance.summary": canViewFinanceSummary,
+    "finance.donations": canViewFinanceDonations,
+    "finance.fundraising": canViewFinanceFundraising,
+    "finance.operational": canViewFinanceOperational,
     fees: canViewFees,
     friends: canViewFriends,
     "friends.directory": canViewFriendsDirectory,
@@ -219,13 +272,15 @@ export default function AppLayout() {
     admin: canViewAdmin,
     "admin.currencies": canViewAdminCurrencies,
     "admin.ppt_template": canViewAdminPptTemplate,
-    // Reference Lists nav link is visible if any of its 4 merged cards is
+    // Reference Lists nav link is visible if any of its 6 merged cards is
     // readable — each card still self-gates on its own key at render time.
     "admin.reference_lists":
       canViewAdminMemberTitles ||
       canViewAdminHonorifics ||
       canViewAdminNgoClassifications ||
-      canViewAdminDinnerEventTypes,
+      canViewAdminDinnerEventTypes ||
+      canViewAdminFinanceCategories ||
+      canManageAdminRotaryYears,
     "attendance.forecast": canViewAttendanceForecast,
     event: canViewEvent,
     "event.list": canViewEventList,

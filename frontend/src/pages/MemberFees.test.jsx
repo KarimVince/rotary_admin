@@ -53,7 +53,23 @@ const SETTINGS = {
   updated_at: new Date().toISOString(),
 };
 
+const ROTARY_YEARS = [
+  {
+    id: "year-this",
+    year: YEAR,
+    label: `${YEAR}–${YEAR + 1}`,
+    start_date: `${YEAR}-07-01`,
+    end_date: `${YEAR + 1}-06-30`,
+    is_current: true,
+    created_at: new Date().toISOString(),
+  },
+];
+
 describe("MemberFees", () => {
+  beforeEach(() => {
+    server.use(http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(ROTARY_YEARS)));
+  });
+
   it("shows a tab bar and defaults to the first tab the user can read", async () => {
     allTabsAllowed();
     server.use(

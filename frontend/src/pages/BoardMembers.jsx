@@ -4,11 +4,9 @@ import { createBoardAssignment, listBoardAssignments } from "../api/boardAssignm
 import { listMembers } from "../api/members";
 import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
+import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS } from "../styles/formControls";
-import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
-
-const CURRENT_YEAR = currentRotaryYear();
-const YEAR_OPTIONS = Array.from({ length: 6 }, (_, index) => CURRENT_YEAR - index);
+import { rotaryYearLabel } from "../utils/rotaryYear";
 
 function latestAssignmentFor(assignments, positionId) {
   const forPosition = assignments.filter((a) => a.board_position_id === positionId);
@@ -22,7 +20,7 @@ export default function BoardMembers() {
   const { canRead } = useAccess("board.members");
   const { canWrite: canManage } = useAccess("board.members");
 
-  const [year, setYear] = useState(CURRENT_YEAR);
+  const { yearOptions, currentYear, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
   const [positions, setPositions] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [members, setMembers] = useState([]);
@@ -35,7 +33,7 @@ export default function BoardMembers() {
   const [saveError, setSaveError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const isCurrentTerm = year === CURRENT_YEAR;
+  const isCurrentTerm = year === currentYear;
   const canAssign = canManage && isCurrentTerm;
 
   const boardPositions = useMemo(
@@ -167,7 +165,7 @@ export default function BoardMembers() {
           onChange={(event) => setYear(Number(event.target.value))}
           className={`${SELECT_CLASS} min-w-[140px]`}
         >
-          {YEAR_OPTIONS.map((y) => (
+          {yearOptions.map((y) => (
             <option key={y} value={y}>
               {rotaryYearLabel(y)}
             </option>

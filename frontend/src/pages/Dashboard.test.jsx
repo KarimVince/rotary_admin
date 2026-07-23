@@ -52,7 +52,7 @@ describe("Dashboard", () => {
           organisations_supported: 3,
           rotary_friends: 7,
           donations_this_year: 4200,
-          fees_collected_this_year: 1500,
+          total_funds_raised_this_year: 1500,
           service_hours_this_year: 32,
         }),
       ),
@@ -74,7 +74,7 @@ describe("Dashboard", () => {
     // the module quick-access link.
     expect(screen.getAllByText("Friends of Rotary")).toHaveLength(1);
     expect(screen.getByText("Donations this rotary year")).toBeInTheDocument();
-    expect(screen.getByText("Fees collected this rotary year")).toBeInTheDocument();
+    expect(screen.getByText("Total funds raised this rotary year")).toBeInTheDocument();
     expect(screen.getByText("Volunteer hours this rotary year")).toBeInTheDocument();
   });
 
