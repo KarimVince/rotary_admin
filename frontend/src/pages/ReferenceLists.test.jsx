@@ -18,6 +18,8 @@ function allAllowed() {
     "admin.honorifics": { canRead: true, canWrite: true },
     "admin.ngo_classifications": { canRead: true, canWrite: true },
     "admin.dinner_event_types": { canRead: true, canWrite: true },
+    "admin.finance_categories": { canRead: true, canWrite: true },
+    "admin.rotary_years": { canRead: true, canWrite: true },
   };
 }
 
@@ -27,6 +29,8 @@ function mockEmptyLists() {
     http.get(`${API_BASE_URL}/honorifics`, () => HttpResponse.json([])),
     http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
     http.get(`${API_BASE_URL}/dinner-event-types`, () => HttpResponse.json([])),
+    http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json([])),
+    http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json([])),
   );
 }
 
@@ -282,12 +286,157 @@ describe("ReferenceLists", () => {
     });
   });
 
+  describe("Finance Categories card", () => {
+    const BASE_CATEGORY = {
+      id: "category-1",
+      name: "Ticket Sales",
+      type: "revenue",
+      sort_order: 0,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+
+    it("lists categories and creates a new one", async () => {
+      allAllowed();
+      mockEmptyLists();
+      let categories = [BASE_CATEGORY];
+      server.use(
+        http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json(categories)),
+        http.post(`${API_BASE_URL}/finance-categories`, async ({ request }) => {
+          const body = await request.json();
+          const created = { ...BASE_CATEGORY, id: "category-2", is_active: true, ...body };
+          categories = [...categories, created];
+          return HttpResponse.json(created, { status: 201 });
+        }),
+      );
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      const card = within(screen.getByRole("region", { name: "Finance Categories" }));
+      expect(card.getByText("Ticket Sales")).toBeInTheDocument();
+
+      await userEvent.selectOptions(card.getByLabelText(/type/i), "cost");
+      await userEvent.type(card.getByLabelText(/name/i), "Venue Rental");
+      await userEvent.click(card.getByRole("button", { name: /add category/i }));
+
+      expect(await card.findByText("Venue Rental")).toBeInTheDocument();
+    });
+
+    it("deactivates a category", async () => {
+      allAllowed();
+      mockEmptyLists();
+      let category = { ...BASE_CATEGORY };
+      server.use(
+        http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json([category])),
+        http.delete(`${API_BASE_URL}/finance-categories/${category.id}`, () => {
+          category = { ...category, is_active: false };
+          return HttpResponse.json(category);
+        }),
+      );
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      const card = within(screen.getByRole("region", { name: "Finance Categories" }));
+      await userEvent.click(card.getByRole("button", { name: /deactivate/i }));
+
+      expect(await card.findByText("Inactive")).toBeInTheDocument();
+    });
+  });
+
+  describe("Rotary Years card", () => {
+    const BASE_YEAR = {
+      id: "year-1",
+      year: 2025,
+      label: "2025–2026",
+      start_date: "2025-07-01",
+      end_date: "2026-06-30",
+      is_current: true,
+      created_at: new Date().toISOString(),
+    };
+
+    it("lists years and adds a new one", async () => {
+      allAllowed();
+      mockEmptyLists();
+      let years = [BASE_YEAR];
+      server.use(
+        http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(years)),
+        http.post(`${API_BASE_URL}/rotary-years`, async ({ request }) => {
+          const body = await request.json();
+          const created = {
+            id: "year-2",
+            year: body.year,
+            label: `${body.year}–${body.year + 1}`,
+            start_date: `${body.year}-07-01`,
+            end_date: `${body.year + 1}-06-30`,
+            is_current: false,
+            created_at: new Date().toISOString(),
+          };
+          years = [...years, created];
+          return HttpResponse.json(created, { status: 201 });
+        }),
+      );
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      const card = within(screen.getByRole("region", { name: "Rotary Years" }));
+      expect(card.getByText("2025–2026")).toBeInTheDocument();
+
+      await userEvent.type(card.getByLabelText(/starting year/i), "2026");
+      await userEvent.click(card.getByRole("button", { name: /add year/i }));
+
+      expect(await card.findByText("2026–2027")).toBeInTheDocument();
+    });
+
+    it("sets a different year as current", async () => {
+      allAllowed();
+      mockEmptyLists();
+      let years = [BASE_YEAR, { ...BASE_YEAR, id: "year-2", year: 2024, label: "2024–2025", is_current: false }];
+      server.use(
+        http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(years)),
+        http.patch(`${API_BASE_URL}/rotary-years/year-2`, () => {
+          years = years.map((y) => ({ ...y, is_current: y.id === "year-2" }));
+          return HttpResponse.json(years.find((y) => y.id === "year-2"));
+        }),
+      );
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      const card = within(screen.getByRole("region", { name: "Rotary Years" }));
+      await userEvent.click(card.getByRole("button", { name: /set as current/i }));
+
+      await waitFor(() => expect(years.find((y) => y.id === "year-2").is_current).toBe(true));
+    });
+
+    it("is hidden for a user who cannot write (read-only access)", async () => {
+      permissionsByKey = {
+        "admin.member_titles": { canRead: false, canWrite: false },
+        "admin.honorifics": { canRead: false, canWrite: false },
+        "admin.ngo_classifications": { canRead: false, canWrite: false },
+        "admin.dinner_event_types": { canRead: false, canWrite: false },
+        "admin.finance_categories": { canRead: false, canWrite: false },
+        "admin.rotary_years": { canRead: true, canWrite: false },
+      };
+      mockEmptyLists();
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      expect(screen.queryByRole("region", { name: "Rotary Years" })).not.toBeInTheDocument();
+    });
+  });
+
   it("hides a card entirely when the user lacks read access to that list", async () => {
     permissionsByKey = {
       "admin.member_titles": { canRead: false, canWrite: false },
       "admin.honorifics": { canRead: true, canWrite: true },
       "admin.ngo_classifications": { canRead: true, canWrite: true },
       "admin.dinner_event_types": { canRead: true, canWrite: true },
+      "admin.finance_categories": { canRead: true, canWrite: true },
+      "admin.rotary_years": { canRead: true, canWrite: true },
     };
     mockEmptyLists();
 

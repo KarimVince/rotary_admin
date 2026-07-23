@@ -14,8 +14,9 @@ import { fetchDonationStatistics, generateDonationStatisticsReport } from "../ap
 import { fetchCurrentPptTemplate } from "../api/pptTemplates";
 import { listNgoClassifications } from "../api/ngoClassifications";
 import { useAccess } from "../hooks/useAccess";
+import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS } from "../styles/formControls";
-import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
+import { rotaryYearLabel } from "../utils/rotaryYear";
 import { currencyLabel } from "../data/currencies";
 
 function formatCurrency(value, currency) {
@@ -32,10 +33,10 @@ const SESSION_KEY_USE_TEMPLATE = "ngoStats.useTemplate";
 
 export default function DonationsStatistics() {
   const { canRead } = useAccess("ngos.statistics");
+  const { yearOptions, currentYear, selectedYear, setSelectedYear } = useRotaryYears();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(null);
   const [reportFormat, setReportFormat] = useState("pdf");
   const [reportType, setReportType] = useState(
     () => sessionStorage.getItem(SESSION_KEY_REPORT_TYPE) || "simplified",
@@ -102,14 +103,12 @@ export default function DonationsStatistics() {
 
   useEffect(() => {
     if (!canRead) return;
-    const filters = {};
-    if (selectedYear !== null) filters.rotary_year = selectedYear;
+    const filters = { rotary_year: selectedYear };
     if (classificationFilter) filters.classification_id = classificationFilter;
     fetchDonationStatistics(filters)
       .then((data) => {
         setStats(data);
         setSelectedCurrency((current) => current ?? data.by_currency[0]?.currency ?? null);
-        setSelectedYear(data.selected_rotary_year);
       })
       .catch((err) => setError(err.detail || "Failed to load donation statistics"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,15 +118,6 @@ export default function DonationsStatistics() {
     () => stats?.by_currency.find((block) => block.currency === selectedCurrency) ?? null,
     [stats, selectedCurrency],
   );
-
-  const yearOptions = useMemo(() => {
-    const years = new Set(
-      (currentStats?.total_by_rotary_year ?? []).map((row) => Number(row.label)),
-    );
-    years.add(currentRotaryYear());
-    if (stats) years.add(stats.selected_rotary_year);
-    return [...years].sort((a, b) => b - a);
-  }, [currentStats, stats]);
 
   if (!canRead) {
     return (
@@ -480,7 +470,7 @@ export default function DonationsStatistics() {
           {yearOptions.map((year) => (
             <option key={year} value={year}>
               {rotaryYearLabel(year)}
-              {year === currentRotaryYear() ? " (current)" : ""}
+              {year === currentYear ? " (current)" : ""}
             </option>
           ))}
         </select>

@@ -19,7 +19,7 @@ def test_dashboard_summary_returns_zero_counts_when_empty(user_client):
         "organisations_supported": 0,
         "rotary_friends": 0,
         "donations_this_year": 0,
-        "fees_collected_this_year": 0,
+        "total_funds_raised_this_year": 0,
         "service_hours_this_year": 0,
     }
 
@@ -81,8 +81,8 @@ def test_dashboard_summary_sums_current_rotary_year_donations(
     assert response.json()["donations_this_year"] == 120.5
 
 
-def test_dashboard_summary_sums_current_rotary_year_paid_fees(
-    user_client, make_member, make_member_fee
+def test_dashboard_summary_sums_current_rotary_year_ad_hoc_donations(
+    user_client, admin_client
 ):
     from datetime import date
 
@@ -91,71 +91,55 @@ def test_dashboard_summary_sums_current_rotary_year_paid_fees(
     this_year = rotary_year(date.today())
     prior_year = this_year - 2
 
-    member = make_member()
-    make_member_fee(member_id=member.id, rotary_year=this_year, amount_due=500, is_paid=True)
-    # Unpaid fee this year must NOT be counted.
-    make_member_fee(
-        member_id=make_member(first_name="Unpaid").id,
-        rotary_year=this_year,
-        amount_due=600,
-        is_paid=False,
+    admin_client.post(
+        "/api/v1/adhoc-donations",
+        json={
+            "donation_date": date.today().isoformat(),
+            "description": "Red box",
+            "amount": 150,
+        },
     )
-    # Paid fee from a prior rotary year must NOT be counted.
-    make_member_fee(
-        member_id=make_member(first_name="Prior").id,
-        rotary_year=prior_year,
-        amount_due=999,
-        is_paid=True,
+    # An ad hoc donation from a prior rotary year must NOT be counted.
+    admin_client.post(
+        "/api/v1/adhoc-donations",
+        json={"donation_date": f"{prior_year}-09-01", "description": "Old", "amount": 999},
     )
 
     response = user_client.get("/api/v1/dashboard/summary")
 
     assert response.status_code == 200
-    assert response.json()["fees_collected_this_year"] == 500
+    assert response.json()["total_funds_raised_this_year"] == 150
 
 
-def test_dashboard_fees_collected_matches_fees_module_when_amount_paid_differs(
-    user_client, admin_client, make_member, make_member_fee
+def test_dashboard_total_funds_raised_matches_finance_fundraising_summary(
+    user_client, admin_client
 ):
-    # Story 15.10 regression: the dashboard card used to sum amount_due for
-    # paid fees, ignoring amount_paid overrides (e.g. a prorated fee, or
-    # Story 8.29's zero-amount fee-exempt member) — diverging from the Fees
-    # module's own total_collected. Both must now agree.
+    # Story 16.26: the dashboard card is sourced from the same
+    # `_compute_fundraising_summary` helper as the Finance module's own
+    # Fund Raising Results page (Story 17.3) — the two must never diverge.
     from datetime import date
 
     from app.core.rotary_year import rotary_year
 
     this_year = rotary_year(date.today())
 
-    prorated_member = make_member(first_name="Prorated")
-    make_member_fee(
-        member_id=prorated_member.id,
-        rotary_year=this_year,
-        amount_due=500,
-        amount_paid=250,
-        is_paid=True,
-    )
-    exempt_member = make_member(first_name="Exempt")
-    make_member_fee(
-        member_id=exempt_member.id,
-        rotary_year=this_year,
-        amount_due=500,
-        amount_paid=0,
-        is_paid=True,
+    admin_client.post(
+        "/api/v1/adhoc-donations",
+        json={"donation_date": date.today().isoformat(), "description": "Dinner", "amount": 300},
     )
 
     dashboard_response = user_client.get("/api/v1/dashboard/summary")
-    fees_response = admin_client.get(
-        "/api/v1/member-fees/statistics", params={"rotary_year": this_year}
+    fundraising_response = admin_client.get(
+        "/api/v1/finance/fundraising-summary", params={"rotary_year": this_year}
     )
 
     assert dashboard_response.status_code == 200
-    assert fees_response.status_code == 200
-    assert dashboard_response.json()["fees_collected_this_year"] == 250
-    assert fees_response.json()["total_collected"] == 250
+    assert fundraising_response.status_code == 200
+    assert dashboard_response.json()["total_funds_raised_this_year"] == 300
+    assert fundraising_response.json()["combined_total"] == 300
     assert (
-        dashboard_response.json()["fees_collected_this_year"]
-        == fees_response.json()["total_collected"]
+        dashboard_response.json()["total_funds_raised_this_year"]
+        == fundraising_response.json()["combined_total"]
     )
 
 

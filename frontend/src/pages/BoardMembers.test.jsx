@@ -63,8 +63,27 @@ function assignment(overrides = {}) {
   };
 }
 
+function rotaryYearRow(year, isCurrent = false) {
+  return {
+    id: `year-${year}`,
+    year,
+    label: `${year}–${year + 1}`,
+    start_date: `${year}-07-01`,
+    end_date: `${year + 1}-06-30`,
+    is_current: isCurrent,
+    created_at: new Date().toISOString(),
+  };
+}
+
+const ROTARY_YEARS = [
+  rotaryYearRow(CURRENT_YEAR, true),
+  rotaryYearRow(CURRENT_YEAR - 1),
+  rotaryYearRow(CURRENT_YEAR - 2),
+];
+
 function mockBaseData({ positions = [PRESIDENT, SECRETARY], assignments = [] } = {}) {
   server.use(
+    http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(ROTARY_YEARS)),
     http.get(`${API_BASE_URL}/board/positions`, () => HttpResponse.json(positions)),
     http.get(`${API_BASE_URL}/board/assignments`, () => HttpResponse.json(assignments)),
     http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([JANE, JOHN])),

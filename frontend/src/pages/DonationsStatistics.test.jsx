@@ -65,6 +65,27 @@ const STATS = {
 // recharts' ResponsiveContainer needs real layout dimensions jsdom doesn't
 // provide, so we assert on the deterministic surface: the summary card, the
 // section headings, and the year-filter callout.
+const ROTARY_YEARS = [
+  {
+    id: "year-this",
+    year: THIS_YEAR,
+    label: `${THIS_YEAR}–${THIS_YEAR + 1}`,
+    start_date: `${THIS_YEAR}-07-01`,
+    end_date: `${THIS_YEAR + 1}-06-30`,
+    is_current: true,
+    created_at: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "year-prior",
+    year: THIS_YEAR - 1,
+    label: `${THIS_YEAR - 1}–${THIS_YEAR}`,
+    start_date: `${THIS_YEAR - 1}-07-01`,
+    end_date: `${THIS_YEAR}-06-30`,
+    is_current: false,
+    created_at: "2026-01-01T00:00:00Z",
+  },
+];
+
 describe("DonationsStatistics", () => {
   beforeEach(() => {
     server.use(
@@ -74,6 +95,9 @@ describe("DonationsStatistics", () => {
       // Story 8.32 — fetched non-fatally on mount to gate the "Use annual
       // club template" checkbox; default to "none uploaded".
       http.get(`${API_BASE_URL}/ppt-templates/current`, () => HttpResponse.json(null)),
+      // Story 16.28 — the year dropdown now sources its options from the
+      // central Rotary Years table.
+      http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(ROTARY_YEARS)),
     );
   });
 

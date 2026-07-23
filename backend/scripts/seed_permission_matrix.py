@@ -222,6 +222,53 @@ DEFAULT_MATRIX = {
             "*": "no_access",
         },
     ),
+    # Story 17.2 — Finance module, restricted to President/Secretary/
+    # Treasurer only (the story's own text says "President, Secretary,
+    # Accountant" — this app has no "Accountant" board position, Treasurer
+    # is the existing finance-focused role, treated as the same thing).
+    # Every other board position and the default user get no_access.
+    "finance": (
+        "no_access",
+        {"President": "write", "Secretary": "write", "Treasurer": "write", "*": "no_access"},
+    ),
+    # Story 17.1 — Finance Summary landing page, same write tier as the
+    # rest of Finance.
+    "finance.summary": (
+        "no_access",
+        {"President": "write", "Secretary": "write", "Treasurer": "write", "*": "no_access"},
+    ),
+    "finance.donations": (
+        "no_access",
+        {"President": "write", "Secretary": "write", "Treasurer": "write", "*": "no_access"},
+    ),
+    # Story 17.3 — Fund Raising Results (event recap + ad hoc donation
+    # entry/edit/delete), same write tier as the rest of Finance.
+    "finance.fundraising": (
+        "no_access",
+        {"President": "write", "Secretary": "write", "Treasurer": "write", "*": "no_access"},
+    ),
+    # Story 17.5 — Club Operational Tracking, same write tier as the rest
+    # of Finance.
+    "finance.operational": (
+        "no_access",
+        {"President": "write", "Secretary": "write", "Treasurer": "write", "*": "no_access"},
+    ),
+    # Story 17.5 — Revenue/Cost Category admin lookup table, same
+    # admin-role-only tier as Member Titles/Honorifics/Currencies (admin
+    # bypasses the matrix entirely at the code level, so no explicit entry
+    # is needed for it here).
+    "admin.finance_categories": ("no_access", {"*": "no_access"}),
+    # Story 16.28 — central Rotary Year config table. Unlike the other
+    # admin lookup tables (Honorifics/Finance Categories, both admin-role
+    # write-only via the matrix and read-only reachable to role=admin),
+    # this one must be READABLE by every board position and the default
+    # user — every year selector across the whole app (Member Fees,
+    # Finance, Dinner, NGOs, Board) reads from GET /rotary-years
+    # regardless of that page's own module permission, and none of those
+    # pages are admin-role-gated. Write (add/edit/delete years) is still
+    # effectively admin-only since no position/default row grants it here
+    # — only the role=admin matrix bypass can write.
+    "admin.rotary_years": ("read", {"*": "read"}),
 }
 
 

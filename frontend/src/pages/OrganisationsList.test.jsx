@@ -63,6 +63,8 @@ describe("OrganisationsList", () => {
       // Story 11.4/11.5 — fetched non-fatally on mount for the badge/filter;
       // default to empty so existing tests don't need to know about it.
       http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
+      // Story 16.28 — fetched non-fatally on mount for the year filter.
+      http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json([])),
     );
   });
 

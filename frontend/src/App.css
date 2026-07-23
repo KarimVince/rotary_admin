@@ -1090,3 +1090,22 @@ select:focus {
   color: var(--text-h);
   font-style: italic;
 }
+
+/* Story 17.1 — Finance Summary "print/export friendly" AC. No page in
+   this app has needed browser print before; scoped generically (nav
+   chrome hidden, any element opting out via .no-print) rather than one
+   more bespoke PDF generator for a page that's a pure aggregation of
+   numbers already computable elsewhere, unlike the chart-heavy
+   statistics report pages. */
+@media print {
+  .app-header,
+  nav,
+  .app-footer,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-body {
+    padding: 0 !important;
+  }
+}

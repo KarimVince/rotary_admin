@@ -25,6 +25,18 @@ import {
   reorderDinnerEventTypes,
   updateDinnerEventType,
 } from "../api/dinnerEventTypes";
+import {
+  createFinanceCategory,
+  deactivateFinanceCategory,
+  listFinanceCategories,
+  updateFinanceCategory,
+} from "../api/financeCategories";
+import {
+  createRotaryYear,
+  deleteRotaryYear,
+  listRotaryYears,
+  updateRotaryYear,
+} from "../api/rotaryYears";
 import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
 
@@ -825,6 +837,339 @@ function DinnerEventTypesCard() {
   );
 }
 
+// ---------- Finance Categories (Story 17.5) ----------
+
+const EMPTY_FINANCE_CATEGORY_FORM = { name: "", type: "revenue", sort_order: 0 };
+
+function FinanceCategoriesCard() {
+  const { canRead, canWrite } = useAccess("admin.finance_categories");
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [form, setForm] = useState(EMPTY_FINANCE_CATEGORY_FORM);
+  const [editingId, setEditingId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  async function loadCategories() {
+    setIsLoading(true);
+    try {
+      const data = await listFinanceCategories({ includeInactive: true });
+      setCategories(data);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err.detail || "Failed to load finance categories");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
+    loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
+
+  function startEdit(category) {
+    setEditingId(category.id);
+    setForm({ name: category.name, type: category.type, sort_order: category.sort_order });
+    setSaveError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(EMPTY_FINANCE_CATEGORY_FORM);
+    setSaveError(null);
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      if (editingId) {
+        await updateFinanceCategory(editingId, {
+          name: form.name,
+          sort_order: Number(form.sort_order),
+        });
+      } else {
+        await createFinanceCategory({ ...form, sort_order: Number(form.sort_order) });
+      }
+      cancelEdit();
+      await loadCategories();
+    } catch (err) {
+      setSaveError(err.detail || "Failed to save finance category");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleToggleActive(category) {
+    if (category.is_active) {
+      await deactivateFinanceCategory(category.id);
+    } else {
+      await updateFinanceCategory(category.id, { is_active: true });
+    }
+    await loadCategories();
+  }
+
+  if (!canRead) return null;
+
+  return (
+    <CardShell
+      label="Finance Categories"
+      title="Finance Categories"
+      subtitle="Revenue and cost categories used on the Club Operational Tracking page."
+    >
+      {isLoading && <p>Loading…</p>}
+      {loadError && <p role="alert">{loadError}</p>}
+      {!isLoading && !loadError && (
+        <div className="flex flex-col gap-1.5 mb-3">
+          {categories.map((category) => (
+            <div
+              key={category.id}
+              className="flex items-center gap-2 px-2.5 py-2 bg-[var(--color-border-light)] rounded-lg text-[13px]"
+            >
+              <span className="font-semibold text-[#0c2340] w-20 shrink-0 capitalize">
+                {category.type}
+              </span>
+              <span className="flex-1 text-[var(--color-muted-text)] truncate">
+                {category.name}
+              </span>
+              <StatusChip active={category.is_active} />
+              {canWrite && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(category)}
+                    className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(category)}
+                    className="text-xs font-semibold text-[var(--color-muted-text-strong)] bg-transparent border-none cursor-pointer"
+                  >
+                    {category.is_active ? "Deactivate" : "Activate"}
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canWrite && (
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-2 border-t border-[var(--color-border-light)] pt-3"
+        >
+          <h3 className="text-[13px] font-bold text-[var(--color-brand-blue-dark)]">
+            {editingId ? "Edit category" : "Add category"}
+          </h3>
+          <label htmlFor="finance-category-type" className="text-xs text-[var(--color-muted-text)]">
+            Type
+          </label>
+          <select
+            id="finance-category-type"
+            value={form.type}
+            onChange={(event) => setForm({ ...form, type: event.target.value })}
+            disabled={!!editingId}
+            className={INPUT_CLASS}
+          >
+            <option value="revenue">Revenue</option>
+            <option value="cost">Cost</option>
+          </select>
+          <label htmlFor="finance-category-name" className="text-xs text-[var(--color-muted-text)]">
+            Name
+          </label>
+          <input
+            id="finance-category-name"
+            type="text"
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            required
+            className={INPUT_CLASS}
+          />
+          <label
+            htmlFor="finance-category-sort-order"
+            className="text-xs text-[var(--color-muted-text)]"
+          >
+            Sort order
+          </label>
+          <input
+            id="finance-category-sort-order"
+            type="number"
+            value={form.sort_order}
+            onChange={(event) => setForm({ ...form, sort_order: event.target.value })}
+            className={INPUT_CLASS}
+          />
+          {saveError && <p role="alert">{saveError}</p>}
+          <div className="flex gap-2 mt-1">
+            <button type="submit" disabled={isSaving} className={PRIMARY_BUTTON_CLASS}>
+              {isSaving ? "Saving…" : editingId ? "Update category" : "Add category"}
+            </button>
+            {editingId && (
+              <button type="button" onClick={cancelEdit} className={SECONDARY_BUTTON_CLASS}>
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+    </CardShell>
+  );
+}
+
+// ---------- Rotary Years (Story 16.28) ----------
+
+function RotaryYearsCard() {
+  // admin.rotary_years grants broad READ (every year selector in the app
+  // needs it) — this admin management card must only render for users who
+  // can actually WRITE, or it would show up (read-only) for every user.
+  const { canWrite } = useAccess("admin.rotary_years");
+  const canRead = canWrite;
+  const [years, setYears] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [newYear, setNewYear] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  async function loadYears() {
+    setIsLoading(true);
+    try {
+      const data = await listRotaryYears();
+      setYears(data);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err.detail || "Failed to load rotary years");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!canRead) {
+      setIsLoading(false);
+      return;
+    }
+    loadYears();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
+
+  async function handleAddYear(event) {
+    event.preventDefault();
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      await createRotaryYear({ year: Number(newYear) });
+      setNewYear("");
+      await loadYears();
+    } catch (err) {
+      setSaveError(err.detail || "Failed to add rotary year");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSetCurrent(year) {
+    await updateRotaryYear(year.id, { is_current: true });
+    await loadYears();
+  }
+
+  async function handleDelete(year) {
+    if (!window.confirm(`Delete rotary year ${year.label}?`)) return;
+    try {
+      await deleteRotaryYear(year.id);
+      await loadYears();
+    } catch (err) {
+      window.alert(err.detail || "Failed to delete rotary year");
+    }
+  }
+
+  if (!canRead) return null;
+
+  const sortedYears = [...years].sort((a, b) => b.year - a.year);
+
+  return (
+    <CardShell
+      label="Rotary Years"
+      title="Rotary Years"
+      subtitle="Single source of the year list/default used by every Rotary Year selector across the app (Member Fees, Finance, Dinner, NGOs, Board, Statistics)."
+    >
+      {isLoading && <p>Loading…</p>}
+      {loadError && <p role="alert">{loadError}</p>}
+      {!isLoading && !loadError && (
+        <div className="flex flex-col gap-1.5 mb-3">
+          {sortedYears.map((year) => (
+            <div
+              key={year.id}
+              className="flex items-center gap-2 px-2.5 py-2 bg-[var(--color-border-light)] rounded-lg text-[13px]"
+            >
+              <span className="font-semibold text-[#0c2340] flex-1">{year.label}</span>
+              {year.is_current ? (
+                <StatusChip active />
+              ) : (
+                canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetCurrent(year)}
+                    className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer"
+                  >
+                    Set as current
+                  </button>
+                )
+              )}
+              {canWrite && !year.is_current && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(year)}
+                  className="text-xs font-semibold text-[var(--color-muted-text-strong)] bg-transparent border-none cursor-pointer"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canWrite && (
+        <form
+          onSubmit={handleAddYear}
+          className="flex flex-col gap-2 border-t border-[var(--color-border-light)] pt-3"
+        >
+          <h3 className="text-[13px] font-bold text-[var(--color-brand-blue-dark)]">
+            Add rotary year
+          </h3>
+          <label htmlFor="rotary-year-input" className="text-xs text-[var(--color-muted-text)]">
+            Starting year (e.g. 2026 for 2026–2027)
+          </label>
+          <input
+            id="rotary-year-input"
+            type="number"
+            value={newYear}
+            onChange={(event) => setNewYear(event.target.value)}
+            required
+            className={INPUT_CLASS}
+          />
+          {saveError && <p role="alert">{saveError}</p>}
+          <div className="flex gap-2 mt-1">
+            <button type="submit" disabled={isSaving} className={PRIMARY_BUTTON_CLASS}>
+              {isSaving ? "Saving…" : "Add year"}
+            </button>
+          </div>
+        </form>
+      )}
+    </CardShell>
+  );
+}
+
 export default function ReferenceLists() {
   return (
     <div className="admin-page">
@@ -837,6 +1182,8 @@ export default function ReferenceLists() {
         <HonorificsCard />
         <NgoClassificationsCard />
         <DinnerEventTypesCard />
+        <FinanceCategoriesCard />
+        <RotaryYearsCard />
       </div>
     </div>
   );

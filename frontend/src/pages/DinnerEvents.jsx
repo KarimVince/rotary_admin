@@ -9,7 +9,8 @@ import { fetchAttendanceStats, startAttendanceForEvent } from "../api/attendance
 import { listDinnerEventTypes } from "../api/dinnerEventTypes";
 import { listMembers } from "../api/members";
 import { useAccess } from "../hooks/useAccess";
-import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
+import { useRotaryYears } from "../hooks/useRotaryYears";
+import { rotaryYearLabel } from "../utils/rotaryYear";
 import { todayInHongKong } from "../utils/eventDate";
 import { downloadIcs, slugify } from "../utils/ics";
 import DinnerForecastEventFormModal from "../components/DinnerForecastEventFormModal";
@@ -72,12 +73,7 @@ export default function DinnerEvents() {
   const { canRead, canWrite } = useAccess("attendance.forecast");
   const navigate = useNavigate();
 
-  const [year, setYear] = useState(currentRotaryYear());
-  const [yearOptions, setYearOptions] = useState(() =>
-    Array.from(new Set([currentRotaryYear(), currentRotaryYear() + 1, currentRotaryYear() - 1])).sort(
-      (a, b) => b - a,
-    ),
-  );
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState(null);
   const [members, setMembers] = useState([]);
@@ -109,11 +105,6 @@ export default function DinnerEvents() {
       ]);
       setEvents(eventsData);
       setStats(statsData);
-      setYearOptions((current) =>
-        Array.from(new Set([...current, ...eventsData.map((event) => event.rotary_year)])).sort(
-          (a, b) => b - a,
-        ),
-      );
     } catch (err) {
       setLoadError(err.detail || "Failed to load dinner events");
     } finally {

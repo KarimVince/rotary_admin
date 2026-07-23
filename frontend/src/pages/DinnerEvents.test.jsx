@@ -90,11 +90,24 @@ async function waitForLoaded() {
   await waitFor(() => expect(screen.queryByText(/^loading…$/i)).not.toBeInTheDocument());
 }
 
+const ROTARY_YEARS = [
+  {
+    id: "year-2026",
+    year: 2026,
+    label: "2026–2027",
+    start_date: "2026-07-01",
+    end_date: "2027-06-30",
+    is_current: true,
+    created_at: new Date().toISOString(),
+  },
+];
+
 describe("DinnerEvents", () => {
   beforeEach(() => {
     mockCanRead = true;
     mockCanWrite = true;
     server.use(
+      http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(ROTARY_YEARS)),
       http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])),
       http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
         HttpResponse.json([NOT_STARTED_EVENT, STARTED_EVENT]),

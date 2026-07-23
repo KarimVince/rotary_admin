@@ -32,7 +32,7 @@ import { listMembers } from "../api/members";
 import Card from "../components/Card";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 import { useAccess } from "../hooks/useAccess";
-import { useFeeYearOptions } from "../hooks/useFeeYearOptions";
+import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS } from "../styles/formControls";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
 
@@ -96,9 +96,7 @@ const TIER_OPTIONS = [
 
 function TrackingTab() {
   const { canRead, canWrite: canManage } = useAccess("fees.tracking");
-  const { yearOptions } = useFeeYearOptions();
-
-  const [year, setYear] = useState(currentRotaryYear());
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
   const [paidFilter, setPaidFilter] = useState("");
   const [search, setSearch] = useState("");
   const [members, setMembers] = useState([]);
@@ -520,9 +518,7 @@ const PRICE_FIELD_BY_TIER = {
 
 function FeeRunTab() {
   const { canWrite: canManage } = useAccess("fees.run");
-  const { yearOptions } = useFeeYearOptions();
-
-  const [year, setYear] = useState(currentRotaryYear());
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
   const [members, setMembers] = useState([]);
   const [feeSettings, setFeeSettings] = useState(null);
   const [memberFees, setMemberFees] = useState([]);
@@ -1061,9 +1057,7 @@ function formatCurrency(value, currency) {
 
 function StatisticsTab() {
   const { canRead } = useAccess("fees.statistics");
-  const { yearOptions } = useFeeYearOptions();
-
-  const [year, setYear] = useState(currentRotaryYear());
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -1270,6 +1264,7 @@ const EMPTY_FORM = {
 function SettingsTab() {
   const { canRead } = useAccess("fees.settings");
   const { canWrite: canManage } = useAccess("fees.settings");
+  const { yearOptions: centralYearOptions } = useRotaryYears();
 
   const [existingYears, setExistingYears] = useState([]);
   const [addedYears, setAddedYears] = useState([]);
@@ -1361,7 +1356,7 @@ function SettingsTab() {
 
   const explicitlyAllowedFutureYears = new Set([...addedYears, ...existingYears]);
   const yearOptions = Array.from(
-    new Set([currentRotaryYear(), currentRotaryYear() - 1, ...existingYears, ...addedYears]),
+    new Set([...centralYearOptions, ...existingYears, ...addedYears]),
   )
     .filter((year) => year <= currentRotaryYear() || explicitlyAllowedFutureYears.has(year))
     .sort((a, b) => b - a);

@@ -77,8 +77,11 @@ const STAT_CARDS = [
     valueClass: "text-[#b8760f]",
   },
   {
-    key: "fees_collected_this_year",
-    label: "Fees collected this rotary year",
+    // Story 16.26: replaces the old "Fees Collected" card — sourced from
+    // the Finance module (event fundraising income + ad hoc donations),
+    // not the Member Fees module.
+    key: "total_funds_raised_this_year",
+    label: "Total funds raised this rotary year",
     format: formatEuros,
     tone: "stat-rose",
     valueClass: "text-[#b8384a]",
