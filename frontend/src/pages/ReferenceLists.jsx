@@ -27,7 +27,7 @@ import {
 } from "../api/dinnerEventTypes";
 import {
   createFinanceCategory,
-  deactivateFinanceCategory,
+  deleteFinanceCategory,
   listFinanceCategories,
   updateFinanceCategory,
 } from "../api/financeCategories";
@@ -854,7 +854,7 @@ function FinanceCategoriesCard() {
   async function loadCategories() {
     setIsLoading(true);
     try {
-      const data = await listFinanceCategories({ includeInactive: true });
+      const data = await listFinanceCategories();
       setCategories(data);
       setLoadError(null);
     } catch (err) {
@@ -893,6 +893,7 @@ function FinanceCategoriesCard() {
       if (editingId) {
         await updateFinanceCategory(editingId, {
           name: form.name,
+          type: form.type,
           sort_order: Number(form.sort_order),
         });
       } else {
@@ -907,13 +908,14 @@ function FinanceCategoriesCard() {
     }
   }
 
-  async function handleToggleActive(category) {
-    if (category.is_active) {
-      await deactivateFinanceCategory(category.id);
-    } else {
-      await updateFinanceCategory(category.id, { is_active: true });
+  async function handleDelete(category) {
+    if (!window.confirm(`Delete finance category "${category.name}"?`)) return;
+    try {
+      await deleteFinanceCategory(category.id);
+      await loadCategories();
+    } catch (err) {
+      window.alert(err.detail || "Failed to delete finance category");
     }
-    await loadCategories();
   }
 
   if (!canRead) return null;
@@ -939,7 +941,6 @@ function FinanceCategoriesCard() {
               <span className="flex-1 text-[var(--color-muted-text)] truncate">
                 {category.name}
               </span>
-              <StatusChip active={category.is_active} />
               {canWrite && (
                 <>
                   <button
@@ -951,10 +952,10 @@ function FinanceCategoriesCard() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleToggleActive(category)}
+                    onClick={() => handleDelete(category)}
                     className="text-xs font-semibold text-[var(--color-muted-text-strong)] bg-transparent border-none cursor-pointer"
                   >
-                    {category.is_active ? "Deactivate" : "Activate"}
+                    Delete
                   </button>
                 </>
               )}
@@ -978,7 +979,6 @@ function FinanceCategoriesCard() {
             id="finance-category-type"
             value={form.type}
             onChange={(event) => setForm({ ...form, type: event.target.value })}
-            disabled={!!editingId}
             className={INPUT_CLASS}
           >
             <option value="revenue">Revenue</option>

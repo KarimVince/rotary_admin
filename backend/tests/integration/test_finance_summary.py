@@ -25,7 +25,7 @@ def test_finance_summary_returns_zero_when_no_data(admin_client):
     assert body["rotary_year"] == 2025
     assert body["total_donations"] == 0
     assert body["total_fundraising"] == 0
-    assert body["total_charity"] == 0
+    assert body["remaining_for_donation"] == 0
     assert body["fees_collected"] == 0
     assert body["total_revenue"] == 0
     assert body["total_expenses"] == 0
@@ -77,13 +77,31 @@ def test_finance_summary_combines_all_modules(
 
     assert body["total_donations"] == 1000
     assert body["total_fundraising"] == 200
-    assert body["total_charity"] == 1200
+    # Fundraising and donations are unrelated flows, never summed —
+    # remaining_for_donation = fundraising - donations (can go negative
+    # when the club has given out more than it's raised this year).
+    assert body["remaining_for_donation"] == -800
 
     assert body["fees_collected"] == 500
     # total_revenue = 500 (fees, auto) + 300 (manual grant) = 800
     assert body["total_revenue"] == 800
     assert body["total_expenses"] == 400
     assert body["net_balance"] == 400
+
+
+def test_finance_summary_remaining_for_donation_is_positive_when_fundraising_exceeds_donations(
+    admin_client, db_session
+):
+    admin_client.post(
+        "/api/v1/adhoc-donations",
+        json={"donation_date": "2025-08-01", "description": "Red box", "amount": 1500},
+    )
+
+    response = admin_client.get("/api/v1/finance/summary", params={"rotary_year": 2025})
+    body = response.json()
+    assert body["total_donations"] == 0
+    assert body["total_fundraising"] == 1500
+    assert body["remaining_for_donation"] == 1500
 
 
 def test_finance_summary_defaults_to_current_rotary_year(admin_client):

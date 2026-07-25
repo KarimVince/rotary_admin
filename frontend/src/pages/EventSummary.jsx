@@ -89,7 +89,6 @@ export default function EventSummary({ event: selectedEvent }) {
     );
   }
 
-  const totalIncome = summary ? summary.total_revenue + summary.total_raised : 0;
   const maxCostCategory = summary
     ? Math.max(...summary.cost_breakdown.map((entry) => entry.value), 1)
     : 1;
@@ -131,24 +130,23 @@ export default function EventSummary({ event: selectedEvent }) {
         <>
           {reportError && <p role="alert">{reportError}</p>}
 
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {/* Story fix: charity fundraising (lucky draw/auction/donations)
+              and the club's own operational result (ticket + sponsor
+              revenue minus organisational cost) are two separate pots of
+              money — never netted together into one blended
+              income/cost/proceeds figure. */}
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             <StatTile
-              bg="var(--tone-teal-bg)"
-              color="var(--color-tone-teal-text)"
-              value={totalIncome}
-              label="Total income"
-            />
-            <StatTile
-              bg="var(--tone-rose-bg)"
-              color="var(--color-tone-rose-text)"
-              value={summary.total_cost}
-              label="Total cost"
+              bg="var(--tone-amber-bg)"
+              color="var(--color-tone-amber-text)"
+              value={summary.total_raised}
+              label="Fundraising total"
             />
             <StatTile
               bg="var(--tone-blue-bg)"
               color="var(--color-brand-blue)"
-              value={totalIncome - summary.total_cost}
-              label="Net proceeds"
+              value={summary.net_operational_result}
+              label="Operational result"
             />
           </div>
 

@@ -323,14 +323,67 @@ describe("ReferenceLists", () => {
       expect(await card.findByText("Venue Rental")).toBeInTheDocument();
     });
 
-    it("deactivates a category", async () => {
+    it("deletes a category after confirmation", async () => {
+      allAllowed();
+      mockEmptyLists();
+      let categories = [BASE_CATEGORY];
+      const deleteSpy = vi.fn();
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      server.use(
+        http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json(categories)),
+        http.delete(`${API_BASE_URL}/finance-categories/${BASE_CATEGORY.id}`, () => {
+          deleteSpy();
+          categories = [];
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      const card = within(screen.getByRole("region", { name: "Finance Categories" }));
+      await userEvent.click(card.getByRole("button", { name: /delete/i }));
+
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(card.queryByText("Ticket Sales")).not.toBeInTheDocument());
+
+      window.confirm.mockRestore();
+    });
+
+    it("does not delete when the confirmation is dismissed", async () => {
+      allAllowed();
+      mockEmptyLists();
+      const deleteSpy = vi.fn();
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+      server.use(
+        http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json([BASE_CATEGORY])),
+        http.delete(`${API_BASE_URL}/finance-categories/${BASE_CATEGORY.id}`, () => {
+          deleteSpy();
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      render(<ReferenceLists />);
+      await waitForLoaded();
+
+      const card = within(screen.getByRole("region", { name: "Finance Categories" }));
+      await userEvent.click(card.getByRole("button", { name: /delete/i }));
+
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(card.getByText("Ticket Sales")).toBeInTheDocument();
+
+      window.confirm.mockRestore();
+    });
+
+    it("allows changing the type of an existing category", async () => {
       allAllowed();
       mockEmptyLists();
       let category = { ...BASE_CATEGORY };
       server.use(
         http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json([category])),
-        http.delete(`${API_BASE_URL}/finance-categories/${category.id}`, () => {
-          category = { ...category, is_active: false };
+        http.patch(`${API_BASE_URL}/finance-categories/${category.id}`, async ({ request }) => {
+          const body = await request.json();
+          category = { ...category, ...body };
           return HttpResponse.json(category);
         }),
       );
@@ -339,9 +392,14 @@ describe("ReferenceLists", () => {
       await waitForLoaded();
 
       const card = within(screen.getByRole("region", { name: "Finance Categories" }));
-      await userEvent.click(card.getByRole("button", { name: /deactivate/i }));
+      await userEvent.click(card.getByRole("button", { name: /^edit$/i }));
 
-      expect(await card.findByText("Inactive")).toBeInTheDocument();
+      const typeSelect = card.getByLabelText(/type/i);
+      expect(typeSelect).not.toBeDisabled();
+      await userEvent.selectOptions(typeSelect, "cost");
+      await userEvent.click(card.getByRole("button", { name: /update category/i }));
+
+      await waitFor(() => expect(category.type).toBe("cost"));
     });
   });
 

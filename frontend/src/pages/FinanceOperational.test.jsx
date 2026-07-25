@@ -144,6 +144,33 @@ describe("FinanceOperational", () => {
     );
   });
 
+  it("lists every category regardless of type, and derives the read-only Type field from the selection", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/finance/operational-summary`, () =>
+        HttpResponse.json({ ...SUMMARY, revenue: [], cost: [], total_revenue: 0, total_cost: 0 }),
+      ),
+      http.get(`${API_BASE_URL}/finance-categories`, () => HttpResponse.json(CATEGORIES)),
+    );
+
+    renderPage();
+    await waitForLoaded();
+
+    const categorySelect = screen.getByLabelText("Category");
+    const options = Array.from(categorySelect.querySelectorAll("option")).map((o) => o.value);
+    expect(options).toEqual(expect.arrayContaining(["cat-revenue-1", "cat-cost-1"]));
+
+    const typeField = screen.getByLabelText("Type");
+    expect(typeField).toHaveAttribute("readonly");
+    expect(typeField).toHaveValue("");
+
+    const user = userEvent.setup();
+    await user.selectOptions(categorySelect, "cat-cost-1");
+    expect(typeField).toHaveValue("Cost");
+
+    await user.selectOptions(categorySelect, "cat-revenue-1");
+    expect(typeField).toHaveValue("Revenue");
+  });
+
   it("shows a permission message when the user cannot read Club Operational Tracking", async () => {
     permissionsByKey = {
       "finance.operational": { canRead: false, canWrite: false },

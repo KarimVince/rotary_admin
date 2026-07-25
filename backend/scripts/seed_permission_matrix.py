@@ -257,7 +257,16 @@ DEFAULT_MATRIX = {
     # admin-role-only tier as Member Titles/Honorifics/Currencies (admin
     # bypasses the matrix entirely at the code level, so no explicit entry
     # is needed for it here).
-    "admin.finance_categories": ("no_access", {"*": "no_access"}),
+    # Read is granted to President/Secretary/Treasurer (the same tier as
+    # finance.operational) since the Club Operational Tracking page's own
+    # entry form needs to list categories for anyone who can reach that
+    # page — not just role=admin users, unlike the write side (managing
+    # the category catalogue in Reference Lists), which stays admin-only
+    # via the matrix bypass.
+    "admin.finance_categories": (
+        "no_access",
+        {"President": "read", "Secretary": "read", "Treasurer": "read", "*": "no_access"},
+    ),
     # Story 16.28 — central Rotary Year config table. Unlike the other
     # admin lookup tables (Honorifics/Finance Categories, both admin-role
     # write-only via the matrix and read-only reachable to role=admin),

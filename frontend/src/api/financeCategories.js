@@ -19,7 +19,7 @@ export function updateFinanceCategory(categoryId, payload) {
   });
 }
 
-export function deactivateFinanceCategory(categoryId) {
+export function deleteFinanceCategory(categoryId) {
   return apiFetch(`/finance-categories/${categoryId}`, {
     method: "DELETE",
   });

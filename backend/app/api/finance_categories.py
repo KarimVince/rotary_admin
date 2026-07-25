@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
 from app.db.session import get_db
-from app.models import FinanceCategory
+from app.models import FinanceCategory, OperationalEntry
 from app.schemas.finance_category import (
     FinanceCategoryCreate,
     FinanceCategoryRead,
@@ -81,21 +81,31 @@ def update_finance_category(
     return category
 
 
-@router.delete("/finance-categories/{category_id}", response_model=FinanceCategoryRead)
+@router.delete("/finance-categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_finance_category(
     category_id: uuid.UUID,
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(ADMIN_FINANCE_CATEGORIES, "write")),
 ):
-    """Soft delete: deactivates the category rather than removing the row,
-    since operational entries may still reference it via category_id."""
+    """Hard delete — a category with no operational entries against it can
+    be freely removed. One already used by an entry is blocked rather than
+    silently orphaning that entry's category_id (SET NULL), since that
+    would lose which category a past entry was actually filed under."""
     category = db.get(FinanceCategory, category_id)
     if category is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Finance category not found"
         )
 
-    category.is_active = False
+    in_use = (
+        db.query(OperationalEntry).filter(OperationalEntry.category_id == category_id).first()
+        is not None
+    )
+    if in_use:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Cannot delete a category that has operational entries recorded against it",
+        )
+
+    db.delete(category)
     db.commit()
-    db.refresh(category)
-    return category

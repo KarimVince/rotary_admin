@@ -17,8 +17,8 @@ const THIS_YEAR = currentRotaryYear();
 const SUMMARY = {
   rotary_year: THIS_YEAR,
   total_donations: 1000,
-  total_fundraising: 200,
-  total_charity: 1200,
+  total_fundraising: 1500,
+  remaining_for_donation: 500,
   fees_collected: 500,
   total_revenue: 800,
   total_expenses: 400,
@@ -67,13 +67,18 @@ describe("FinanceSummary", () => {
 
     expect(screen.getByText("Charity & Donation Results")).toBeInTheDocument();
     expect(screen.getByText("Club Operational Results")).toBeInTheDocument();
-    expect(screen.getByText("1,200 HKD")).toBeInTheDocument();
+    expect(screen.getByText("Total Fundraising")).toBeInTheDocument();
+    expect(screen.getByText("Total Donations")).toBeInTheDocument();
+    expect(screen.getByText("Remaining Amount for Donation")).toBeInTheDocument();
+    expect(screen.getByText("1,500 HKD")).toBeInTheDocument();
     expect(screen.getByText("1,000 HKD")).toBeInTheDocument();
-    expect(screen.getByText("200 HKD")).toBeInTheDocument();
-    expect(screen.getByText("500 HKD")).toBeInTheDocument();
     expect(screen.getByText("800 HKD")).toBeInTheDocument();
+    // fees_collected and remaining_for_donation are both 500 in this fixture
+    expect(screen.getAllByText("500 HKD").length).toBe(2);
     // net_balance and total_expenses are both 400 in this fixture
     expect(screen.getAllByText("400 HKD").length).toBe(2);
+    // Fundraising and Donations must never be silently summed together.
+    expect(screen.queryByText("2,500 HKD")).not.toBeInTheDocument();
   });
 
   it("shows a permission message when the user cannot read the Finance Summary", async () => {

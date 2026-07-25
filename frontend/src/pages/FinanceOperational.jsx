@@ -35,7 +35,7 @@ const SUBMIT_BUTTON_CLASS =
 const CANCEL_BUTTON_CLASS =
   "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] cursor-pointer";
 
-const EMPTY_FORM = { type: "revenue", category_id: "", amount: "", entry_date: "", notes: "" };
+const EMPTY_FORM = { type: "", category_id: "", amount: "", entry_date: "", notes: "" };
 
 function EntryColumn({
   title,
@@ -200,9 +200,12 @@ export default function FinanceOperational() {
     [form.entry_date],
   );
 
-  const categoriesForType = useMemo(
-    () => categories.filter((category) => category.type === form.type),
-    [categories, form.type],
+  const sortedCategories = useMemo(
+    () =>
+      [...categories].sort(
+        (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name),
+      ),
+    [categories],
   );
 
   const revenueCategoryNames = useMemo(
@@ -226,7 +229,7 @@ export default function FinanceOperational() {
     const category = categories.find((c) => c.name === row.category_name);
     setEditingId(row.id);
     setForm({
-      type: category?.type ?? "revenue",
+      type: category?.type ?? "",
       category_id: category?.id ?? "",
       amount: String(row.amount),
       entry_date: row.entry_date ?? "",
@@ -322,36 +325,40 @@ export default function FinanceOperational() {
               <Card variant="default" className="!p-5 !rounded-2xl max-w-[800px]">
                 <form onSubmit={handleSubmit} className="donation-form">
                   <div>
-                    <label htmlFor="operational-type">Type</label>
-                    <select
-                      id="operational-type"
-                      value={form.type}
-                      onChange={(event) =>
-                        setForm({ ...form, type: event.target.value, category_id: "" })
-                      }
-                      className={SELECT_CLASS}
-                      disabled={!!editingId}
-                    >
-                      <option value="revenue">Revenue</option>
-                      <option value="cost">Cost</option>
-                    </select>
-                  </div>
-                  <div>
                     <label htmlFor="operational-category">Category</label>
                     <select
                       id="operational-category"
                       value={form.category_id}
-                      onChange={(event) => setForm({ ...form, category_id: event.target.value })}
+                      onChange={(event) => {
+                        const categoryId = event.target.value;
+                        const category = categories.find((c) => c.id === categoryId);
+                        setForm({
+                          ...form,
+                          category_id: categoryId,
+                          type: category ? category.type : "",
+                        });
+                      }}
                       className={SELECT_CLASS}
                       required
                     >
                       <option value="">Select a category…</option>
-                      {categoriesForType.map((category) => (
+                      {sortedCategories.map((category) => (
                         <option key={category.id} value={category.id}>
-                          {category.name}
+                          {category.name} ({category.type === "revenue" ? "Revenue" : "Cost"})
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label htmlFor="operational-type">Type</label>
+                    <input
+                      id="operational-type"
+                      type="text"
+                      readOnly
+                      value={form.type === "" ? "" : form.type === "revenue" ? "Revenue" : "Cost"}
+                      placeholder="Auto from category"
+                      className={INPUT_CLASS}
+                    />
                   </div>
                   <div>
                     <label htmlFor="operational-amount">Amount (HKD)</label>

@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.models import Event, EventCost, MemberFee
+from app.models import Event, EventCost, EventGuest, EventSetup, EventSponsor, MemberFee
 
 pytestmark = pytest.mark.integration
 
@@ -11,6 +11,19 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def _grant_default_finance_operational_read(make_app_function, make_permission_matrix_entry):
     app_function = make_app_function(key="finance.operational", label="Club Operational Tracking")
+    make_permission_matrix_entry(
+        app_function.id, board_position_id=None, access_level="read", is_default_user=True
+    )
+
+
+@pytest.fixture
+def _grant_default_finance_categories_read(make_app_function, make_permission_matrix_entry):
+    # Mirrors production's seed_permission_matrix.py entry: read is granted
+    # to President/Secretary/Treasurer (not admin-role-only), since the
+    # Club Operational Tracking entry form needs the category list for
+    # anyone who can reach that page. The seed script itself deliberately
+    # never runs against the test DB, so this test grants it directly.
+    app_function = make_app_function(key="admin.finance_categories", label="Finance Categories")
     make_permission_matrix_entry(
         app_function.id, board_position_id=None, access_level="read", is_default_user=True
     )
@@ -68,14 +81,53 @@ def test_non_admin_cannot_create_finance_category(user_client):
     assert response.status_code == 403
 
 
-def test_delete_finance_category_soft_deletes(admin_client):
+def test_non_admin_with_read_grant_can_list_finance_categories(
+    user_client, admin_client, _grant_default_finance_categories_read
+):
+    _make_category(admin_client, name="District Fees", category_type="cost")
+    response = user_client.get("/api/v1/finance-categories")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_non_admin_without_grant_cannot_list_finance_categories(user_client):
+    response = user_client.get("/api/v1/finance-categories")
+    assert response.status_code == 403
+
+
+def test_delete_finance_category_hard_deletes(admin_client):
     category = _make_category(admin_client, name="Utilities", category_type="cost")
     response = admin_client.delete(f"/api/v1/finance-categories/{category['id']}")
-    assert response.status_code == 200
-    assert response.json()["is_active"] is False
+    assert response.status_code == 204
 
     listed = admin_client.get("/api/v1/finance-categories").json()
     assert all(row["id"] != category["id"] for row in listed)
+
+
+def test_delete_finance_category_blocked_when_used_by_operational_entry(admin_client):
+    category = _make_category(admin_client, name="Sponsorship Income", category_type="revenue")
+    admin_client.post("/api/v1/operational-entries", json=_entry(category["id"]))
+
+    response = admin_client.delete(f"/api/v1/finance-categories/{category['id']}")
+    assert response.status_code == 422
+
+    listed = admin_client.get("/api/v1/finance-categories").json()
+    assert any(row["id"] == category["id"] for row in listed)
+
+
+def test_update_finance_category_type(admin_client):
+    category = _make_category(admin_client, name="Flexible Category", category_type="revenue")
+    response = admin_client.patch(
+        f"/api/v1/finance-categories/{category['id']}", json={"type": "cost"}
+    )
+    assert response.status_code == 200
+    assert response.json()["type"] == "cost"
+
+
+def test_non_admin_cannot_delete_finance_category(user_client, admin_client):
+    category = _make_category(admin_client, name="Printing Costs", category_type="cost")
+    response = user_client.delete(f"/api/v1/finance-categories/{category['id']}")
+    assert response.status_code == 403
 
 
 # --- Operational entries ---
@@ -268,3 +320,50 @@ def test_operational_summary_includes_auto_event_cost_row(admin_client, db_sessi
     assert event_rows[0]["category_name"] == "Charity Ball"
     assert event_rows[0]["amount"] == 1200
     assert body["total_cost"] == 1200
+
+
+def test_operational_summary_includes_event_ticket_and_sponsor_revenue_alongside_cost(
+    admin_client, db_session
+):
+    # Bug fix regression: an event's ticket + sponsor revenue must show up
+    # as its own Revenue row alongside its cost row — not just the cost,
+    # which used to make every event look like a pure loss to club
+    # operations with no offsetting income.
+    event = _make_event(db_session, rotary_year=2025, name="Gala Ball")
+    db_session.add(
+        EventSetup(id=uuid.uuid4(), event_id=event.id, ticket_price_normal=500)
+    )
+    db_session.add(
+        EventGuest(id=uuid.uuid4(), event_id=event.id, surname="Doe", first_name="Jane")
+    )
+    db_session.add(
+        EventGuest(id=uuid.uuid4(), event_id=event.id, surname="Smith", first_name="John")
+    )
+    db_session.add(
+        EventSponsor(
+            id=uuid.uuid4(), event_id=event.id, name="Acme Corp", quantity=1, unit_price=3000, total_cost=3000
+        )
+    )
+    db_session.add(
+        EventCost(id=uuid.uuid4(), event_id=event.id, name="Venue", quantity=1, unit_price=800, total_cost=800)
+    )
+    db_session.commit()
+
+    response = admin_client.get(
+        "/api/v1/finance/operational-summary", params={"rotary_year": 2025}
+    )
+    body = response.json()
+
+    revenue_rows = [row for row in body["revenue"] if row["source"] == "event"]
+    assert len(revenue_rows) == 1
+    assert revenue_rows[0]["category_name"] == "Gala Ball"
+    # 2 guests * 500 ticket price + 3000 sponsor = 4000
+    assert revenue_rows[0]["amount"] == 4000
+    assert revenue_rows[0]["editable"] is False
+
+    cost_rows = [row for row in body["cost"] if row["source"] == "event"]
+    assert len(cost_rows) == 1
+    assert cost_rows[0]["amount"] == 800
+
+    assert body["total_revenue"] == 4000
+    assert body["total_cost"] == 800

@@ -8,16 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
 from app.api.donations import _compute_donation_statistics
+from app.core.event_summary import compute_event_summary
 from app.core.member_fee_totals import total_collected
 from app.core.rotary_year import rotary_year as compute_rotary_year
 from app.db.session import get_db
 from app.models import (
     AdhocDonation,
     Event,
-    EventCost,
-    EventItem,
-    EventLuckyDrawConfig,
-    EventSetup,
     FinanceCategory,
     MemberFee,
     OperationalEntry,
@@ -114,35 +111,20 @@ def _compute_fundraising_summary(db: Session, selected_year: int) -> Fundraising
     """Story 17.3 — event fundraising income (auction proceeds, lucky draw
     ticket sales + other_donation) recapped per event, plus the ad hoc
     donations total, combined into one figure for the Finance Summary
-    (17.1). The Event module (Epic 14) only has its data model built so
-    far (Story 14.1) — no UI populates these tables yet, so `events`
-    correctly comes back empty/zero until Epic 14's later stories ship;
-    this endpoint is wired against the real tables so nothing needs
-    revisiting then."""
+    (17.1). Reuses app.core.event_summary.compute_event_summary — the same
+    function the Event module's own Summary page (Story 14.10) is built
+    on — rather than recomputing the fundraising formula a second time, so
+    Finance and the per-event Summary page can never report different
+    numbers for the same event."""
     events = (
         db.query(Event).filter(Event.rotary_year == selected_year).order_by(Event.date).all()
     )
 
-    auction_totals = dict(
-        db.query(EventItem.event_id, func.coalesce(func.sum(EventItem.value_sold), 0))
-        .filter(EventItem.item_type == "auction", EventItem.value_sold.isnot(None))
-        .group_by(EventItem.event_id)
-        .all()
-    )
-    lucky_draw_configs = {row.event_id: row for row in db.query(EventLuckyDrawConfig).all()}
-    ticket_prices = dict(db.query(EventSetup.event_id, EventSetup.lucky_draw_ticket_price).all())
-
     rows: list[EventFundraisingRow] = []
     event_fundraising_total = 0.0
     for event in events:
-        auction_total = float(auction_totals.get(event.id, 0) or 0)
-        config = lucky_draw_configs.get(event.id)
-        ticket_price = float(ticket_prices.get(event.id) or 0)
-        tickets_sold = config.tickets_sold if config else 0
-        other_donation_total = float(config.other_donation) if config else 0.0
-        lucky_draw_total = tickets_sold * ticket_price
-        total = auction_total + lucky_draw_total + other_donation_total
-        if total == 0:
+        event_summary = compute_event_summary(db, event.id)
+        if event_summary.total_raised == 0:
             # Nothing raised yet for this event — omit rather than clutter
             # the recap with an all-zero row for every dinner/event.
             continue
@@ -151,13 +133,13 @@ def _compute_fundraising_summary(db: Session, selected_year: int) -> Fundraising
                 event_id=event.id,
                 event_name=event.name,
                 event_date=event.date,
-                auction_total=auction_total,
-                lucky_draw_total=lucky_draw_total,
-                other_donation_total=other_donation_total,
-                total=total,
+                auction_total=event_summary.auction_total,
+                lucky_draw_total=event_summary.lucky_draw_total,
+                other_donation_total=event_summary.other_donation,
+                total=event_summary.total_raised,
             )
         )
-        event_fundraising_total += total
+        event_fundraising_total += event_summary.total_raised
 
     adhoc_donations_total = float(
         db.query(func.coalesce(func.sum(AdhocDonation.amount), 0))
@@ -278,11 +260,18 @@ def delete_operational_entry(
 
 
 def _compute_operational_summary(db: Session, selected_year: int) -> OperationalSummary:
-    """Story 17.5 — manual revenue/cost entries plus two auto-pulled,
-    read-only rows: the Member Fees collected total (Revenue) and one
-    lump-sum-per-event row from the Event module's cost data (Cost). Same
-    "wired against the real tables now, $0 until Epic 14 has UI" reasoning
-    as Story 17.3's fundraising summary."""
+    """Story 17.5 — manual revenue/cost entries plus auto-pulled, read-only
+    rows: the Member Fees collected total, and — per event — its ticket +
+    sponsor revenue (Revenue) alongside its organisational cost (Cost).
+
+    Bug fix: this used to add only the event's *cost* row, never its
+    matching ticket/sponsor *revenue* — every event showed up as a pure
+    loss to club operations, with no offsetting income, which both
+    overstated Total Cost and collapsed Net Balance. Both sides are now
+    computed via app.core.event_summary.compute_event_summary (the same
+    function the Event module's own Summary page uses), so an event's
+    net effect on club operations here always matches its own
+    `net_operational_result` there, and the two can never diverge."""
     manual_entries = (
         db.query(OperationalEntry).filter(OperationalEntry.rotary_year == selected_year).all()
     )
@@ -328,27 +317,35 @@ def _compute_operational_summary(db: Session, selected_year: int) -> Operational
         total_revenue += fees_total
 
     events = db.query(Event).filter(Event.rotary_year == selected_year).order_by(Event.date).all()
-    event_cost_totals = dict(
-        db.query(EventCost.event_id, func.coalesce(func.sum(EventCost.total_cost), 0))
-        .group_by(EventCost.event_id)
-        .all()
-    )
     for event in events:
-        event_total = float(event_cost_totals.get(event.id, 0) or 0)
-        if event_total == 0:
-            continue
-        cost_rows.append(
-            OperationalSummaryRow(
-                id=None,
-                category_name=event.name,
-                amount=event_total,
-                entry_date=event.date,
-                notes=None,
-                source="event",
-                editable=False,
+        event_summary = compute_event_summary(db, event.id)
+        event_revenue = event_summary.ticket_revenue + event_summary.sponsor_revenue
+        if event_revenue > 0:
+            revenue_rows.append(
+                OperationalSummaryRow(
+                    id=None,
+                    category_name=event.name,
+                    amount=event_revenue,
+                    entry_date=event.date,
+                    notes=None,
+                    source="event",
+                    editable=False,
+                )
             )
-        )
-        total_cost += event_total
+            total_revenue += event_revenue
+        if event_summary.total_cost > 0:
+            cost_rows.append(
+                OperationalSummaryRow(
+                    id=None,
+                    category_name=event.name,
+                    amount=event_summary.total_cost,
+                    entry_date=event.date,
+                    notes=None,
+                    source="event",
+                    editable=False,
+                )
+            )
+            total_cost += event_summary.total_cost
 
     return OperationalSummary(
         rotary_year=selected_year,
@@ -403,7 +400,10 @@ def finance_summary(
         rotary_year=selected_year,
         total_donations=total_donations,
         total_fundraising=total_fundraising,
-        total_charity=total_donations + total_fundraising,
+        # Fundraising (in) and Donations (out) are unrelated flows, never
+        # summed — this is what's left of what's been raised after what's
+        # already been given out.
+        remaining_for_donation=total_fundraising - total_donations,
         fees_collected=fees_collected,
         total_revenue=operational.total_revenue,
         total_expenses=operational.total_cost,

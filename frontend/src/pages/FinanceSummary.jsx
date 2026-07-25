@@ -130,22 +130,26 @@ export default function FinanceSummary() {
             <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
               Charity &amp; Donation Results
             </h2>
+            <p className="text-xs text-[var(--color-muted-text)] mb-3 -mt-2">
+              Fundraising (money raised) and Donations (money given out) are separate, unrelated
+              flows — never added together.
+            </p>
             <div className="flex flex-col gap-4">
               <StatCard
-                value={formatCurrency(summary.total_charity)}
-                label="Total Charity Raised"
+                value={formatCurrency(summary.remaining_for_donation)}
+                label="Remaining Amount for Donation"
                 tone="stat-lavender"
               />
               <div className="grid grid-cols-2 gap-4">
                 <StatCard
-                  value={formatCurrency(summary.total_donations)}
-                  label="Total Donations"
-                  tone="stat-blue"
-                />
-                <StatCard
                   value={formatCurrency(summary.total_fundraising)}
                   label="Total Fundraising"
                   tone="stat-teal"
+                />
+                <StatCard
+                  value={formatCurrency(summary.total_donations)}
+                  label="Total Donations"
+                  tone="stat-blue"
                 />
               </div>
             </div>

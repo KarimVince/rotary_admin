@@ -57,6 +57,20 @@ describe("EventSummary", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
+  it("keeps the top-level Fundraising Total and Operational Result figures separate, never netted together", async () => {
+    render(<EventSummary event={EVENT} />);
+    await waitForLoaded();
+
+    expect(screen.getByText("Fundraising total")).toBeInTheDocument();
+    expect(screen.getByText("Operational result")).toBeInTheDocument();
+    // Fundraising total (7,500) and operational result (3,800) each render
+    // once, standalone — never blended into a merged "total income" figure.
+    expect(screen.getAllByText("HKD 7,500").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("HKD 3,800").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Total income")).not.toBeInTheDocument();
+    expect(screen.queryByText("Net proceeds")).not.toBeInTheDocument();
+  });
+
   it("shows all four card sections with correct computed values", async () => {
     render(<EventSummary event={EVENT} />);
     await waitForLoaded();
