@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventLuckyDraw from "./EventLuckyDraw";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -63,7 +64,11 @@ describe("EventLuckyDraw", () => {
   it("denies access without events.lucky_draw read", async () => {
     mockCanRead = false;
     mockCanWrite = false;
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
@@ -72,7 +77,11 @@ describe("EventLuckyDraw", () => {
   }
 
   it("computes summary cards from config, items, and setup prices", async () => {
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(summaryCard("Tickets Sold")).toHaveTextContent("100");
@@ -84,7 +93,11 @@ describe("EventLuckyDraw", () => {
   });
 
   it("shows Value Sold only for auction items", async () => {
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     const auctionRow = screen.getByText("Painting").closest("tr");
@@ -97,7 +110,11 @@ describe("EventLuckyDraw", () => {
 
   it("hides write actions for read-only users", async () => {
     mockCanWrite = false;
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.queryByText("+ Add Item")).not.toBeInTheDocument();
@@ -113,7 +130,11 @@ describe("EventLuckyDraw", () => {
       }),
     );
 
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: "+ Add Item" }));
@@ -143,7 +164,11 @@ describe("EventLuckyDraw", () => {
     );
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     const row = screen.getByText("Painting").closest("tr");
@@ -164,7 +189,11 @@ describe("EventLuckyDraw", () => {
       }),
     );
 
-    render(<EventLuckyDraw event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     await userEvent.clear(screen.getByLabelText(/tickets sold/i));
@@ -205,7 +234,11 @@ describe("EventLuckyDraw", () => {
         }),
       );
 
-      render(<EventLuckyDraw event={EVENT} />);
+      render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Programme List" }));
@@ -224,7 +257,11 @@ describe("EventLuckyDraw", () => {
         }),
       );
 
-      render(<EventLuckyDraw event={EVENT} />);
+      render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Lucky Draw Results" }));
@@ -242,7 +279,11 @@ describe("EventLuckyDraw", () => {
         }),
       );
 
-      render(<EventLuckyDraw event={EVENT} />);
+      render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Auction Receipts" }));
@@ -256,7 +297,11 @@ describe("EventLuckyDraw", () => {
         ),
       );
 
-      render(<EventLuckyDraw event={EVENT} />);
+      render(
+      <ThemeProvider>
+        <EventLuckyDraw event={EVENT} />
+      </ThemeProvider>,
+    );
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Auction Receipts" }));

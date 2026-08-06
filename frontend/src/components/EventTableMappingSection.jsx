@@ -74,11 +74,11 @@ export default function EventTableMappingSection({ eventId }) {
   }
 
   const inputClass =
-    "w-full rounded-[10px] border border-[var(--color-border-medium)] px-2 py-1.5 text-[13px] text-[#0c2340]";
+    "w-full rounded-[10px] border border-[var(--color-border-medium)] px-2 py-1.5 text-[13px] text-[var(--text-h)]";
 
   return (
     <div className="rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)]">
-      <span className="mb-3 block text-[13px] font-bold uppercase tracking-[0.03em] text-[#0c2340]">
+      <span className="mb-3 block text-[13px] font-bold uppercase tracking-[0.03em] text-[var(--text-h)]">
         Table Mapping
       </span>
       {error && (

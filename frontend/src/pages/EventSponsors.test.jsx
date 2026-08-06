@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventSponsors from "./EventSponsors";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -44,12 +45,20 @@ describe("EventSponsors", () => {
   it("denies access without events.sponsors read", async () => {
     mockCanRead = false;
     mockCanWrite = false;
-    render(<EventSponsors event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSponsors event={EVENT} />
+      </ThemeProvider>,
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
   it("shows sponsor grouped by category with Total Amount column", async () => {
-    render(<EventSponsors event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSponsors event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.getByText("Total Amount")).toBeInTheDocument();
@@ -65,7 +74,11 @@ describe("EventSponsors", () => {
       }),
     );
 
-    render(<EventSponsors event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSponsors event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: "+ Add Item" }));

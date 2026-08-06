@@ -291,7 +291,7 @@ function BoardPositionTable({ positions, assignments, canAssign, onAssign }) {
           const isVacant = !assignment || assignment.end_date !== null;
           return (
             <tr key={position.id} className="border-t border-[var(--color-border-light)]">
-              <td className="px-5 py-3 text-sm font-semibold text-[#0c2340]">{position.name}</td>
+              <td className="px-5 py-3 text-sm font-semibold text-[var(--text-h)]">{position.name}</td>
               <td className="px-5 py-3 text-sm">
                 {isVacant ? (
                   <span className="inline-block rounded-full px-2.5 py-1 text-xs font-bold bg-[var(--color-border-light)] text-[var(--color-muted-text)]">

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
 import { server } from "../test/mocks/server";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import DonationsStatistics from "./DonationsStatistics";
@@ -9,6 +10,14 @@ import DonationsStatistics from "./DonationsStatistics";
 vi.mock("../hooks/useAccess", () => ({
   useAccess: () => ({ canRead: true, canWrite: true }),
 }));
+
+function renderPage() {
+  return render(
+    <ThemeProvider>
+      <DonationsStatistics />
+    </ThemeProvider>,
+  );
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 const THIS_YEAR = currentRotaryYear();
@@ -106,7 +115,7 @@ describe("DonationsStatistics", () => {
       http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
 
     expect(await screen.findByText("1,300 HKD")).toBeInTheDocument();
     // Story 8.30 — "Top organisations"/"By classification" render once per
@@ -126,7 +135,7 @@ describe("DonationsStatistics", () => {
       ),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/server error/i);
   });
@@ -151,7 +160,7 @@ describe("DonationsStatistics", () => {
       ),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
 
     expect(await screen.findByText("1,300 HKD")).toBeInTheDocument();
     expect(screen.getByLabelText("Currency")).toBeInTheDocument();
@@ -162,7 +171,7 @@ describe("DonationsStatistics", () => {
       http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
 
     // All-time cards.
     expect(await screen.findByText("1,300 HKD")).toBeInTheDocument();
@@ -193,7 +202,7 @@ describe("DonationsStatistics", () => {
       ),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
 
     expect(await screen.findByText(/3 donations in SGD excluded/i)).toBeInTheDocument();
   });
@@ -230,7 +239,7 @@ describe("DonationsStatistics", () => {
       http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(EMPTY_STATS)),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
 
     expect(await screen.findByLabelText("Classification")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Classification"), {
@@ -260,7 +269,7 @@ describe("DonationsStatistics", () => {
       http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<DonationsStatistics />);
+    renderPage();
     await screen.findByText("1,300 HKD");
 
     expect(screen.getByText(`Selected Year — ${THIS_YEAR}–${THIS_YEAR + 1}`)).toBeInTheDocument();
@@ -313,7 +322,7 @@ describe("DonationsStatistics", () => {
         }),
       );
 
-      render(<DonationsStatistics />);
+      renderPage();
       await screen.findByText("1,300 HKD");
 
       await userEvent.selectOptions(screen.getByLabelText("Content"), "integral");
@@ -335,7 +344,7 @@ describe("DonationsStatistics", () => {
         ),
       );
 
-      render(<DonationsStatistics />);
+      renderPage();
       await screen.findByText("1,300 HKD");
 
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
@@ -350,7 +359,7 @@ describe("DonationsStatistics", () => {
         http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
       );
 
-      render(<DonationsStatistics />);
+      renderPage();
       await screen.findByText("1,300 HKD");
 
       expect(screen.getByText("42 h")).toBeInTheDocument();

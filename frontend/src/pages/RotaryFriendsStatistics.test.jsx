@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
 import { server } from "../test/mocks/server";
 import RotaryFriendsStatistics from "./RotaryFriendsStatistics";
 
@@ -9,6 +10,14 @@ let mockCanRead = true;
 vi.mock("../hooks/useAccess", () => ({
   useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanRead }),
 }));
+
+function renderPage() {
+  return render(
+    <ThemeProvider>
+      <RotaryFriendsStatistics />
+    </ThemeProvider>,
+  );
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -40,7 +49,7 @@ describe("RotaryFriendsStatistics", () => {
       http.get(`${API_BASE_URL}/rotary-friends/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<RotaryFriendsStatistics />);
+    renderPage();
 
     expect(await screen.findByText("3")).toBeInTheDocument();
     expect(screen.getByText("Total Friends")).toBeInTheDocument();
@@ -62,7 +71,7 @@ describe("RotaryFriendsStatistics", () => {
       ),
     );
 
-    render(<RotaryFriendsStatistics />);
+    renderPage();
 
     expect(await screen.findByText(/no rotary friends recorded yet/i)).toBeInTheDocument();
   });
@@ -75,7 +84,7 @@ describe("RotaryFriendsStatistics", () => {
       ),
     );
 
-    render(<RotaryFriendsStatistics />);
+    renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/server error/i);
   });
@@ -83,7 +92,7 @@ describe("RotaryFriendsStatistics", () => {
   it("denies access for a user with no friends.view access", () => {
     mockCanRead = false;
 
-    render(<RotaryFriendsStatistics />);
+    renderPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
@@ -120,7 +129,7 @@ describe("RotaryFriendsStatistics", () => {
         }),
       );
 
-      render(<RotaryFriendsStatistics />);
+      renderPage();
       await screen.findByText("Total Friends");
 
       await userEvent.selectOptions(screen.getByLabelText("Content"), "integral");
@@ -140,7 +149,7 @@ describe("RotaryFriendsStatistics", () => {
         ),
       );
 
-      render(<RotaryFriendsStatistics />);
+      renderPage();
       await screen.findByText("Total Friends");
 
       const checkbox = await screen.findByLabelText(/use annual club template/i);

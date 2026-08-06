@@ -12,6 +12,7 @@ import {
   updateEventSponsorCategory,
 } from "../api/eventSetup";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import EventCategoryList from "../components/EventCategoryList";
 import EventTableMappingSection from "../components/EventTableMappingSection";
 
@@ -25,6 +26,7 @@ const FIELDS = [
 ];
 
 export default function EventSetup({ event: selectedEvent }) {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("event.setup");
 
   const [prices, setPrices] = useState({
@@ -89,7 +91,7 @@ export default function EventSetup({ event: selectedEvent }) {
   return (
     <div className="admin-page admin-page-wide event-setup-page">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="m-0 text-2xl font-semibold text-[#0c2340]">Event Setup</h1>
+        <h1 className="m-0 text-2xl font-semibold text-[var(--text-h)]">Event Setup</h1>
         {selectedEvent && canWrite && (
           <button
             type="submit"
@@ -104,8 +106,18 @@ export default function EventSetup({ event: selectedEvent }) {
 
       {selectedEvent && (
         <>
-          <div className="mb-4 rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)]">
-            <span className="text-[13px] font-bold uppercase tracking-[0.03em] text-[#0c2340]">
+          <div
+            className={`mb-4 rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)] ${
+              isMinimal ? "border border-[var(--border)]" : ""
+            }`}
+          >
+            <span
+              className={
+                isMinimal
+                  ? "seclabel"
+                  : "text-[13px] font-bold uppercase tracking-[0.03em] text-[var(--text-h)]"
+              }
+            >
               Ticketing &amp; payment
             </span>
             <form
@@ -127,7 +139,7 @@ export default function EventSetup({ event: selectedEvent }) {
                     value={prices[key]}
                     onChange={(e) => setPrices({ ...prices, [key]: e.target.value })}
                     disabled={!canWrite}
-                    className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-[10px] text-[14px] text-[#0c2340]"
+                    className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-[10px] text-[14px] text-[var(--text-h)]"
                   />
                 </label>
               ))}

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
 import { server } from "../test/mocks/server";
 import EventList from "./EventList";
 
@@ -49,9 +50,11 @@ const PAST_EVENT = {
 
 function renderEventList() {
   return render(
-    <MemoryRouter>
-      <EventList />
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter>
+        <EventList />
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

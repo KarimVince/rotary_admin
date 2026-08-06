@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { createEvent, updateEvent } from "../api/events";
 import { formatCurrency } from "../utils/formatters";
+import { useTheme } from "../context/ThemeContext";
 
 export default function EventFormModal({ event, members, onClose, onSaved }) {
+  const { isMinimal } = useTheme();
   const isEditing = Boolean(event);
   const [form, setForm] = useState({
     name: event?.name || "",
@@ -38,12 +40,15 @@ export default function EventFormModal({ event, members, onClose, onSaved }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className={`modal-overlay ${isMinimal ? "event-modal-overlay" : ""}`} onClick={onClose}>
+      <div
+        className={`modal-dialog ${isMinimal ? "event-modal-dialog" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <form onSubmit={handleSubmit}>
           <h2>{isEditing ? "Edit event" : "New event"}</h2>
 
-          <div className="member-form-grid">
+          <div className={`member-form-grid ${isMinimal ? "event-form-grid" : ""}`}>
             <div className="field-full">
               <label htmlFor="event-name">Name</label>
               <input

@@ -3,11 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import MembersEmail from "./MembersEmail";
 
 vi.mock("../hooks/useAccess", () => ({
   useAccess: () => ({ canRead: true, canWrite: true }),
 }));
+
+function renderPage() {
+  return render(
+    <ThemeProvider>
+      <MembersEmail />
+    </ThemeProvider>,
+  );
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -68,7 +77,7 @@ describe("MembersEmail", () => {
   it("shows the email log", async () => {
     mockLoadHandlers();
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     expect(screen.getByText("Old newsletter")).toBeInTheDocument();
@@ -79,7 +88,7 @@ describe("MembersEmail", () => {
   it("shows an empty state when nothing has been sent yet", async () => {
     mockLoadHandlers([]);
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     expect(screen.getByText(/no emails sent yet/i)).toBeInTheDocument();
@@ -88,7 +97,7 @@ describe("MembersEmail", () => {
   it("selects and clears every recipient via the top-level Select all action", async () => {
     mockLoadHandlers();
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: /^select all$/i }));
@@ -114,7 +123,7 @@ describe("MembersEmail", () => {
       }),
     );
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -147,7 +156,7 @@ describe("MembersEmail", () => {
       }),
     );
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -176,7 +185,7 @@ describe("MembersEmail", () => {
       }),
     );
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hi");
@@ -221,7 +230,7 @@ describe("MembersEmail", () => {
       }),
     );
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -264,7 +273,7 @@ describe("MembersEmail", () => {
       ),
     );
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     const photo = new File(["photo-bytes"], "photo.png", { type: "image/png" });
@@ -286,7 +295,7 @@ describe("MembersEmail", () => {
       ),
     );
 
-    render(<MembersEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -324,7 +333,7 @@ describe("MembersEmail", () => {
         }),
       );
 
-      render(<MembersEmail />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -346,7 +355,7 @@ describe("MembersEmail", () => {
     it("shows saved drafts, and loads one into the compose form on Edit", async () => {
       mockLoadHandlers([LOG_ENTRY], [DRAFT]);
 
-      render(<MembersEmail />);
+      renderPage();
       await waitForLoaded();
 
       expect(screen.getByText("Saved subject")).toBeInTheDocument();
@@ -369,7 +378,7 @@ describe("MembersEmail", () => {
       );
       vi.spyOn(window, "confirm").mockReturnValue(true);
 
-      render(<MembersEmail />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Delete" }));
@@ -397,7 +406,7 @@ describe("MembersEmail", () => {
         }),
       );
 
-      render(<MembersEmail />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Edit" }));

@@ -3,7 +3,15 @@ import { apiFetch, apiUpload } from "./client";
 function buildQuery(params) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
+    if (value === undefined || value === null || value === "") return;
+    // Title/nationality filters are multi-select — an array value becomes
+    // one repeated query param per entry (`title_id=a&title_id=b`),
+    // matching FastAPI's `list[...]` query parsing (see dinnerForecast.js's
+    // event_type filter for the same pattern).
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      value.forEach((entry) => query.append(key, entry));
+    } else {
       query.set(key, value);
     }
   });

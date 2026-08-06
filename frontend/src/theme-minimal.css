@@ -1,0 +1,897 @@
+/* "Minimal" design theme — scoped entirely under [data-theme="minimal"] on
+   <html> (set by src/context/ThemeContext.jsx). Never redefines a base
+   :root/@theme value, so Classic (the default, no data-theme override) is
+   provably unchanged by this file's existence.
+
+   Reference: design_handoff_minimal_restyle/Rotary Admin Redesign v2 -
+   Minimal.html, supplied by the user. Token mapping documented in that
+   handoff's README.md. */
+
+:root[data-theme="minimal"] {
+  /* Core brand tokens (index.css :root) */
+  --rotary-blue: #1a5fb4;
+  --rotary-blue-dark: #124a90;
+  --rotary-gold: #e79f22;
+
+  --text: #3a4557;
+  --text-h: #141b2b;
+  /* Page canvas — pure white, matching Classic's content area exactly (not
+     the prototype's #fafbfd off-white) per user feedback: the main content
+     background (excluding header/footer/menu) must read as white, not grey. */
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --border: #e9ecf2;
+  --accent: #1a5fb4;
+  --accent-bg: #e7f0fb;
+  --shadow: none;
+
+  --sans: "Archivo", system-ui, sans-serif;
+  --heading: "Archivo", system-ui, sans-serif;
+
+  /* Tailwind @theme mirrors (tailwind.css) */
+  --color-brand-blue: #1a5fb4;
+  --color-brand-blue-dark: #124a90;
+  /* STEP-1: nav rail is now SOLID blue (AppLayout.jsx's <nav> already fills
+     bg-[var(--color-brand-blue-light)] — repurposing the value, not the
+     variable name, keeps that JSX untouched). */
+  --color-brand-blue-light: #4f7fbf;
+  --color-brand-blue-chip: transparent;
+  --color-brand-blue-chip-strong: rgba(255, 255, 255, 0.08);
+  --color-brand-gold: #e79f22;
+  --color-card-border: #e9ecf2;
+  --shadow-card: 0 0 0 1px #e9ecf2;
+  --shadow-nav-card: 0 6px 20px -6px rgba(18, 74, 144, 0.35);
+  --color-muted-text: #727c8c;
+  --color-muted-text-strong: #3a4557;
+  --color-border-light: #f1f3f7;
+  --color-border-faint: #f1f3f7;
+  --shadow-card-lg: none;
+
+  /* Net-new tokens the prototype needs that the app doesn't have yet —
+     additive only, nothing above reuses these names. */
+  --accent-ink: #124a90;
+  --accent-soft: #e7f0fb;
+  --accent-softer: #f3f8fe;
+  --gold-ink: #a9700c;
+  --gold-soft: #fcf1d8;
+  --gold-softer: #fdf8ec;
+  --faint: #9aa3b2;
+  --line: #e9ecf2;
+  --line-2: #f1f3f7;
+  --bg-alt: #fafbfd;
+  --canvas-alt: #fafbfd;
+  --r: 10px;
+  --r-lg: 14px;
+  /* STEP-2: prototype's neutral/status names the app doesn't have — aliases
+     of the existing --text/--color-muted-text/--color-tone-rose-text
+     values, not new colors. */
+  --ink-2: #3a4557;
+  --muted: #727c8c;
+  --ok: #1a7a68;
+  --ok-bg: #eefaf6;
+  --warn: #b8760f;
+  --warn-bg: #fdf6e9;
+  --low: #b8384a;
+  --low-bg: #fdeef0;
+  /* STEP-1: solid-blue menu rail + gold active row. */
+  --menu-fill: #4f7fbf;
+  --menu-active: #e79f22;
+  --menu-active-ink: #3d2905;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────── */
+:root[data-theme="minimal"] h1 {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+/* ── Shell / navigation ─────────────────────────────────────────────── */
+/* Round 2 (per the user's reference screenshot): the nav rail is a flush,
+   square-cornered sidebar spanning full height — no floating card, no
+   shadow. AppLayout.jsx branches its own className string on isMinimal for
+   the shape; NavSection.jsx does the same for row-level white/gold text, so
+   no CSS hooks are needed here. */
+
+/* ── Cards ──────────────────────────────────────────────────────────── */
+:root[data-theme="minimal"] [data-variant="default"],
+:root[data-theme="minimal"] [data-variant="elevated"],
+:root[data-theme="minimal"] [data-variant="module-link"] {
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  border-radius: var(--r-lg) !important;
+  transition: border-color 0.13s, background-color 0.13s;
+}
+:root[data-theme="minimal"] [data-variant="module-link"]:hover,
+:root[data-theme="minimal"] [data-variant="elevated"]:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-softer);
+}
+
+/* STEP-1: blue/gold "duo" — the six named tone variants collapse onto two
+   looks (kept as pure CSS so Card.jsx / Dashboard.jsx don't need to branch
+   on theme; Dashboard.jsx is explicitly out of scope for this step).
+   Grouping follows VARIANT_CLASSES' declaration order in Card.jsx so it
+   alternates blue/gold across both Dashboard card rows (stat cards and the
+   module-link icon tiles list their tones in that same order). */
+:root[data-theme="minimal"] [data-variant="stat-blue"],
+:root[data-theme="minimal"] [data-variant="stat-teal"],
+:root[data-theme="minimal"] [data-variant="stat-rose"] {
+  background: var(--accent-soft) !important;
+  box-shadow: none !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--r) !important;
+}
+:root[data-theme="minimal"] [data-variant="stat-lavender"],
+:root[data-theme="minimal"] [data-variant="stat-amber"],
+:root[data-theme="minimal"] [data-variant="stat-green"] {
+  background: var(--gold-soft) !important;
+  box-shadow: none !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--r) !important;
+}
+
+/* Audit fix: Dashboard.jsx's own valueClass/iconClass strings (untouched,
+   per this step's scope) still paint the *value text* and *module-icon
+   glyph* in the plain accent/tone color — the reference's blue/gold duo
+   uses the darker "ink" variants there instead (verified via computed-style
+   diff against the reference prototype). Same ancestor-scoped substring
+   trick as the hex sweep: match on the literal Tailwind class Dashboard.jsx
+   already emits, scoped to the matching stat-card ancestor, so no JS
+   changes to Dashboard.jsx are needed. */
+:root[data-theme="minimal"] [data-variant="stat-blue"] [class*="text-[var(--color-brand-blue)]"],
+:root[data-theme="minimal"] [data-variant="stat-teal"] [class*="text-[var(--color-tone-teal-text)]"],
+:root[data-theme="minimal"] [data-variant="stat-rose"] [class*="text-[var(--color-tone-rose-text)]"] {
+  color: var(--accent-ink) !important;
+}
+:root[data-theme="minimal"] [data-variant="stat-lavender"] [class*="text-[var(--color-tone-lavender-text)]"],
+:root[data-theme="minimal"] [data-variant="stat-amber"] [class*="text-[var(--color-tone-amber-text)]"],
+:root[data-theme="minimal"] [data-variant="stat-green"] [class*="text-[#1f7a3d]"] {
+  color: var(--gold-ink) !important;
+}
+
+/* Audit fix 2: the top "Club overview" stat cards (Dashboard.jsx) and the
+   Dinner/Events summary row (DinnerEvents.jsx's <StatCard>) share this same
+   two-<span> "flex flex-col" shape — verified via computed-style diff
+   against the reference, their value font-size (30px vs the ref's 27px),
+   label font-size/color (14px dark-blue vs the ref's 12px muted grey), tick
+   mark above the value, and card padding (20px vs 18/18/16) all drifted
+   from the prototype. `[class*="flex-col"]` scopes this out from the
+   module-access icon chips, which reuse the same stat-* variants at 40px
+   with no flex-col/span children. */
+:root[data-theme="minimal"] [data-variant^="stat-"][class*="flex-col"] {
+  padding: 18px 18px 16px !important;
+}
+:root[data-theme="minimal"] [data-variant^="stat-"][class*="flex-col"]::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  margin-bottom: 13px;
+  opacity: 0.4;
+  background: var(--accent-ink);
+}
+:root[data-theme="minimal"] [data-variant="stat-lavender"][class*="flex-col"]::before,
+:root[data-theme="minimal"] [data-variant="stat-amber"][class*="flex-col"]::before,
+:root[data-theme="minimal"] [data-variant="stat-green"][class*="flex-col"]::before {
+  background: var(--gold-ink);
+}
+:root[data-theme="minimal"] [data-variant^="stat-"][class*="flex-col"] > span:first-child {
+  font-size: 27px !important;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+:root[data-theme="minimal"] [data-variant^="stat-"][class*="flex-col"] > span:last-child {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--muted) !important;
+  margin-top: 9px !important;
+  line-height: 1.35;
+}
+
+/* Audit fix 3: the reference's "duo" is a strict position-based alternation
+   (nth-child odd = blue, even = gold) across a stat-card row — cards
+   otherwise alternate by their individual named tone (stat-blue/teal/rose
+   vs stat-lavender/amber/green above), which doesn't always land on a clean
+   blue/gold/blue/gold checker depending on tone order (verified against the
+   reference). `.stat-duo-grid` is a shared marker class (added purely for
+   this CSS hook) applied by any page that wants strict positional
+   alternation for one stat-card row — currently Dashboard.jsx's Club
+   Overview grid and MembersStatistics.jsx's two stat rows. DinnerEvents'
+   3-card summary does NOT use it — it keeps its own semantic per-tone
+   coloring below. Selectors are kept as specific as the rules above (same
+   class-count) so they win the cascade without touching them. */
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"]:nth-child(odd) {
+  background: var(--accent-soft) !important;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"]:nth-child(even) {
+  background: var(--gold-soft) !important;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"]:nth-child(odd)::before {
+  background: var(--accent-ink);
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"]:nth-child(even)::before {
+  background: var(--gold-ink);
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"]:nth-child(odd) > span:first-child {
+  color: var(--accent-ink) !important;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"]:nth-child(even) > span:first-child {
+  color: var(--gold-ink) !important;
+}
+
+/* App-wide stat-card format (2026-08-06 request): every page's stat-card
+   row should look *exactly* like Dashboard.jsx's "Club overview" grid —
+   compact padding/tick/type-scale, not just the blue/gold alternation
+   above. Originally scoped to `.club-overview-grid` only (Dashboard-only,
+   with other pages' `.stat-duo-grid` rows kept at the larger size) — widened
+   to key off `.stat-duo-grid` itself (same selector Dashboard already
+   carries alongside `.club-overview-grid`) so any page's stat-card row gets
+   this exact look just by adding the `.stat-duo-grid` marker class, no new
+   CSS needed per page.
+   `.stat-compact` (added 2026-08-06) is the same sizing without the
+   position-based nth-child alternation above — for spots like
+   FinanceOperational.jsx's Revenue/Cost totals, where each card sits alone
+   in its own column (not siblings in one row), so nth-child(odd) would
+   paint both of them blue regardless of their actual named tone. Use
+   `.stat-duo-grid` when cards are siblings that should alternate by
+   position; use `.stat-compact` when a card's tone is meaningful on its
+   own and must not be overridden by position. */
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"][class*="flex-col"],
+:root[data-theme="minimal"] .stat-compact > [data-variant^="stat-"][class*="flex-col"] {
+  padding: 8px 14px 7px !important;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"][class*="flex-col"]::before,
+:root[data-theme="minimal"] .stat-compact > [data-variant^="stat-"][class*="flex-col"]::before {
+  display: none;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"][class*="flex-col"] > span:first-child,
+:root[data-theme="minimal"] .stat-compact > [data-variant^="stat-"][class*="flex-col"] > span:first-child {
+  font-size: 18px !important;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant^="stat-"][class*="flex-col"] > span:last-child,
+:root[data-theme="minimal"] .stat-compact > [data-variant^="stat-"][class*="flex-col"] > span:last-child {
+  margin-top: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+/* `.stat-compact` cards keep their named-tone color (set by Card.jsx's
+   variant, e.g. stat-teal/stat-amber) instead of `.stat-duo-grid`'s
+   position-based override — but that named-tone rule only sets background,
+   not the value text's ink color the way the duo rule does. Mirror it here,
+   scoped to `.stat-compact` so `.stat-duo-grid` rows are unaffected. */
+:root[data-theme="minimal"] .stat-compact > [data-variant="stat-blue"] > span:first-child,
+:root[data-theme="minimal"] .stat-compact > [data-variant="stat-teal"] > span:first-child,
+:root[data-theme="minimal"] .stat-compact > [data-variant="stat-rose"] > span:first-child {
+  color: var(--accent-ink) !important;
+}
+:root[data-theme="minimal"] .stat-compact > [data-variant="stat-lavender"] > span:first-child,
+:root[data-theme="minimal"] .stat-compact > [data-variant="stat-amber"] > span:first-child,
+:root[data-theme="minimal"] .stat-compact > [data-variant="stat-green"] > span:first-child {
+  color: var(--gold-ink) !important;
+}
+
+/* Module-access + board cards (variant="module-link"): white hairline,
+   accent hover — see theme-minimal.css's [data-variant="module-link"] rule
+   above for the base look; hover color kept to a single accent treatment
+   here (not alternating blue/gold) since these cards aren't individually
+   tagged with a tone in Dashboard.jsx. */
+:root[data-theme="minimal"] [data-variant="module-link"] {
+  border-radius: var(--r) !important;
+}
+
+/* Audit fix 4: "module-link" backs both the Module-access tiles and the
+   Board-members cards (Dashboard.jsx) with the same generic Card variant,
+   but the reference gives them different padding/height (.modcard vs
+   .boardcard) — verified via computed-style diff (real: 20px padding/both;
+   reference: 15px 16px for module cards, 13px 15px for board cards, which
+   read visibly shorter/tighter). Distinguish them structurally instead of
+   touching Dashboard.jsx: board cards' avatar is `rounded-full`, module
+   cards' icon tile is the nested stat-* chip (`rounded-[10px]`). */
+:root[data-theme="minimal"] [data-variant="module-link"]:has([class*="rounded-[10px]"]) {
+  padding: 15px 16px !important;
+  gap: 13px !important;
+}
+:root[data-theme="minimal"] [data-variant="module-link"]:has([class*="rounded-full"]) {
+  padding: 13px 15px !important;
+  gap: 12px !important;
+}
+:root[data-theme="minimal"] [data-variant="module-link"] > [data-variant^="stat-"] {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 9px !important;
+}
+
+/* Audit fix 6: board cards were still visibly taller than module-access
+   cards despite matching padding (fix 4) — the board avatar reuses the
+   shared `--avatar-size` token (4.5rem/72px, sized for the Members
+   directory's big photo, not this card), and the role/position line had no
+   truncation (unlike the module card's description, which already
+   truncates), so a long combined role list wraps to 2+ lines and the CSS
+   grid stretches every card in that row to match. Shrink the avatar to the
+   reference's 40px and force the role line to one line with an ellipsis —
+   `--avatar-size` itself is left untouched since Members-directory photos
+   (not yet restyled for Minimal) still depend on its 72px value. */
+:root[data-theme="minimal"] [data-variant="module-link"]:has([class*="rounded-full"]) [class*="rounded-full"] {
+  width: 40px !important;
+  height: 40px !important;
+  font-size: 13px !important;
+}
+:root[data-theme="minimal"] [data-variant="module-link"]:has([class*="rounded-full"])
+  [class*="text-xs"][class*="text-[var(--color-muted-text)]"] {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Audit fix 5: three spots still read as accent blue instead of the
+   reference's plain dark ink — Dashboard's Club-Planning month headings
+   (DinnerMonthCard.jsx's <CompactMonthCard>, 15px), and both the
+   Module-access title and Board-members name (both share the identical
+   `text-[var(--color-brand-blue-dark)]` class in Dashboard.jsx). Scoped
+   narrowly (15px for the month heading) so DinnerEvents' own 17px month
+   headings — a different, already correct, spot — aren't touched. */
+:root[data-theme="minimal"] [class*="text-[15px]"][class*="text-[var(--color-brand-blue)]"] {
+  color: var(--text-h) !important;
+}
+:root[data-theme="minimal"] [data-variant="module-link"] [class*="text-[var(--color-brand-blue-dark)]"] {
+  color: var(--text-h) !important;
+}
+
+/* ── Members Directory card grid (STEP-3) ──────────────────────────────
+   MembersList.jsx's card grid reuses [data-variant="default"] (hairline +
+   accent hover, defined above); this just adds the reference's "duo" gold
+   accent on every 3rd-and-2nd card's avatar, matching the prototype's
+   `body.cards-duo .membergrid .mcard:nth-child(3n+2)` rule. */
+:root[data-theme="minimal"] .member-card-grid {
+  gap: 14px !important;
+}
+:root[data-theme="minimal"] .member-card-grid > [data-variant="default"]:nth-child(3n + 2) [class*="bg-[var(--accent-soft)]"] {
+  background: var(--gold-soft) !important;
+  color: var(--gold-ink) !important;
+}
+
+/* ── Members Directory modals (STEP-3), reused by NGO/Organisations
+   modal (STEP-7 — `.ngo-*` marker classes added alongside the `.members-*`
+   ones since OrganisationsList.jsx's Add/Edit-organisation modal is the same
+   shape) ─────────────────────────────────────────────────────────────────
+   `.modal-overlay`/`.modal-dialog`/`.member-form-grid`/`.modal-actions` are
+   shared by many other pages' forms (Finance, Events) that haven't been
+   restyled yet, so this can't touch those classes directly — every rule here
+   is scoped through the `.members-*`/`.ngo-*` marker classes each page adds
+   only in its own isMinimal branch. */
+:root[data-theme="minimal"] .members-modal-overlay,
+:root[data-theme="minimal"] .ngo-modal-overlay,
+:root[data-theme="minimal"] .friends-modal-overlay,
+:root[data-theme="minimal"] .event-modal-overlay {
+  background: rgba(20, 27, 43, 0.42);
+}
+:root[data-theme="minimal"] .members-modal-dialog,
+:root[data-theme="minimal"] .ngo-modal-dialog,
+:root[data-theme="minimal"] .friends-modal-dialog,
+:root[data-theme="minimal"] .event-modal-dialog {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 60px -18px rgba(20, 27, 43, 0.45);
+  padding: 0;
+  font-size: 13.5px;
+}
+:root[data-theme="minimal"] .ngo-modal-dialog,
+:root[data-theme="minimal"] .event-modal-dialog--wide {
+  max-width: 720px;
+}
+/* RotaryFriendsList.jsx's two modals (Add/Edit friend, Import CSV) aren't
+   built around a `.members-form-grid`-style padded grid — their content
+   sits directly in the dialog, so (unlike members/ngo) the dialog itself
+   carries the padding. */
+:root[data-theme="minimal"] .friends-modal-dialog {
+  padding: 24px 26px;
+}
+:root[data-theme="minimal"] .friends-modal-dialog h2 {
+  color: var(--ink, var(--text-h));
+}
+:root[data-theme="minimal"] .friends-modal-dialog table {
+  font-size: 13px;
+}
+:root[data-theme="minimal"] .members-modal-dialog--wide {
+  max-width: 760px;
+}
+:root[data-theme="minimal"] .members-modal-dialog--narrow {
+  max-width: 460px;
+}
+:root[data-theme="minimal"] .members-modal-dialog h2,
+:root[data-theme="minimal"] .ngo-modal-dialog h2,
+:root[data-theme="minimal"] .event-modal-dialog h2 {
+  margin: 0;
+  padding: 22px 26px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink, var(--text-h));
+  letter-spacing: -0.01em;
+}
+:root[data-theme="minimal"] .members-modal-dialog .admin-page-note {
+  margin: 7px 0 0;
+  padding: 0 26px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+:root[data-theme="minimal"] .members-form-grid,
+:root[data-theme="minimal"] .ngo-form-grid,
+:root[data-theme="minimal"] .event-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px 16px;
+  padding: 22px 26px;
+  margin: 0;
+}
+:root[data-theme="minimal"] .members-form-grid--single {
+  grid-template-columns: 1fr;
+}
+:root[data-theme="minimal"] .members-form-grid .field-full,
+:root[data-theme="minimal"] .ngo-form-grid .field-full,
+:root[data-theme="minimal"] .event-form-grid .field-full {
+  grid-column: 1 / -1;
+}
+:root[data-theme="minimal"] .members-form-grid label,
+:root[data-theme="minimal"] .ngo-form-grid label,
+:root[data-theme="minimal"] .event-form-grid label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+:root[data-theme="minimal"] .members-form-grid input,
+:root[data-theme="minimal"] .members-form-grid select,
+:root[data-theme="minimal"] .members-form-grid textarea,
+:root[data-theme="minimal"] .ngo-form-grid input,
+:root[data-theme="minimal"] .ngo-form-grid select,
+:root[data-theme="minimal"] .ngo-form-grid textarea,
+:root[data-theme="minimal"] .event-form-grid input,
+:root[data-theme="minimal"] .event-form-grid select,
+:root[data-theme="minimal"] .event-form-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink, var(--text));
+}
+:root[data-theme="minimal"] .members-form-grid input:focus,
+:root[data-theme="minimal"] .members-form-grid select:focus,
+:root[data-theme="minimal"] .members-form-grid textarea:focus,
+:root[data-theme="minimal"] .ngo-form-grid input:focus,
+:root[data-theme="minimal"] .ngo-form-grid select:focus,
+:root[data-theme="minimal"] .ngo-form-grid textarea:focus,
+:root[data-theme="minimal"] .event-form-grid input:focus,
+:root[data-theme="minimal"] .event-form-grid select:focus,
+:root[data-theme="minimal"] .event-form-grid textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+:root[data-theme="minimal"] .members-form-grid input[type="checkbox"],
+:root[data-theme="minimal"] .ngo-form-grid input[type="checkbox"],
+:root[data-theme="minimal"] .event-form-grid input[type="checkbox"] {
+  width: auto;
+}
+:root[data-theme="minimal"] .event-form-grid div:has(> input[type="checkbox"]) {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+:root[data-theme="minimal"] .event-form-grid div:has(> input[type="checkbox"]) label {
+  margin-bottom: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+:root[data-theme="minimal"] .event-form-grid input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions,
+:root[data-theme="minimal"] .ngo-modal-dialog .modal-actions,
+:root[data-theme="minimal"] .event-modal-dialog .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 26px 22px;
+  border-top: 1px solid var(--border);
+}
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions button[type="submit"],
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions button.btn-add-member,
+:root[data-theme="minimal"] .ngo-modal-dialog .modal-actions button[type="submit"],
+:root[data-theme="minimal"] .event-modal-dialog .modal-actions button[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 15px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+}
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions button[type="submit"]:hover,
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions button.btn-add-member:hover,
+:root[data-theme="minimal"] .ngo-modal-dialog .modal-actions button[type="submit"]:hover,
+:root[data-theme="minimal"] .event-modal-dialog .modal-actions button[type="submit"]:hover {
+  background: var(--accent-ink);
+}
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions button[type="button"],
+:root[data-theme="minimal"] .ngo-modal-dialog .modal-actions button[type="button"],
+:root[data-theme="minimal"] .event-modal-dialog .modal-actions button[type="button"] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 15px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--ink-2);
+}
+:root[data-theme="minimal"] .members-modal-dialog .modal-actions button[type="button"]:hover,
+:root[data-theme="minimal"] .ngo-modal-dialog .modal-actions button[type="button"]:hover,
+:root[data-theme="minimal"] .event-modal-dialog .modal-actions button[type="button"]:hover {
+  background: var(--bg-alt);
+}
+
+/* Add/Edit member modal chrome: close (x) button, eyebrow kicker, and the
+   Add-flow's explanatory sub-copy — new elements, only rendered in the
+   isMinimal branch (MembersList.jsx), matching the prototype's
+   `.modal-x`/`.modal-kicker`/`.modal-head p` look. */
+:root[data-theme="minimal"] .members-modal-x {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
+:root[data-theme="minimal"] .members-modal-x:hover {
+  background: var(--bg-alt);
+  color: var(--ink, var(--text-h));
+}
+:root[data-theme="minimal"] .members-modal-dialog form {
+  position: relative;
+}
+:root[data-theme="minimal"] .members-modal-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 22px 26px 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+:root[data-theme="minimal"] .members-modal-dialog--wide h2 {
+  margin: 9px 0 0;
+  padding: 0 26px;
+}
+:root[data-theme="minimal"] .members-modal-sub {
+  margin: 7px 0 0;
+  padding: 0 26px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* Honorary/Couple checkboxes: reuse the "label above input" field markup
+   but lay a checkbox row out like the prototype's `.check` (box + label
+   inline) via CSS only, avoiding a JSX field-order rewrite. */
+:root[data-theme="minimal"] .members-form-grid div:has(> input[type="checkbox"]) {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+:root[data-theme="minimal"] .members-form-grid div:has(> input[type="checkbox"]) label {
+  margin-bottom: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+:root[data-theme="minimal"] .members-form-grid input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* ── NGO & Services Project (STEP-7) ────────────────────────────────────
+   OrganisationsList.jsx's card grid reuses `.member-card-grid` directly (the
+   prototype's own NGOs() view shares the identical `.membergrid`/`.mcard`
+   classes with the Members Directory, so no separate NGO-specific grid rule
+   is needed — see the "── Members Directory card grid" block above). */
+:root[data-theme="minimal"] .ngo-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-left: 0;
+}
+
+/* Org logo / building-2 fallback chip — 48-52px per the STEP-7 spec, distinct
+   from Classic's --logo-size (96px, still used unchanged by the Add/Edit
+   modal's logo preview, out of this step's scope). */
+:root[data-theme="minimal"] .ngo-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+:root[data-theme="minimal"] .ngo-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+:root[data-theme="minimal"] .member-card-grid > [data-variant="default"]:nth-child(3n + 2) .ngo-avatar {
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+}
+
+/* OrganisationDetail.jsx: current-rotary-year row tint — donations get the
+   accent-soft wash, service hours get the gold-soft one (matching the
+   Total-donated/Total-service-hours stat card duo below), replacing
+   Classic's --tone-amber-bg/--tone-teal-bg. */
+:root[data-theme="minimal"] .donation-row-current {
+  background: var(--accent-soft);
+}
+:root[data-theme="minimal"] .service-hour-row-current {
+  background: var(--gold-soft);
+}
+
+/* 2026-08-06: DonationsStatistics.jsx's `.ngo-stats-grid` and
+   EventManageBento.jsx's `.event-summary-grid` used to carry their own
+   smaller/larger one-off font sizes here, deviating from the standard
+   Dashboard "Club overview" stat-card look. Per an explicit app-wide
+   request to make every stat-card row match Dashboard's format exactly,
+   those overrides were removed — both containers already carry the shared
+   `.stat-duo-grid` marker class (see the rule above), so they now inherit
+   the exact same 18px/11px compact type-scale as Dashboard with no
+   page-specific CSS needed.
+*/
+
+/* OrganisationDetail.jsx's donation/service-hour forms (`.donation-form`,
+   shared with Classic) — field spacing/label tightened to the Step-1/3
+   field look; inputs/selects already inherit the global minimal
+   input/select/textarea rule below. */
+:root[data-theme="minimal"] .donation-form {
+  gap: 15px 16px;
+}
+:root[data-theme="minimal"] .donation-form label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────── */
+:root[data-theme="minimal"] table {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+:root[data-theme="minimal"] table th {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+}
+:root[data-theme="minimal"] table td {
+  font-size: 13.5px;
+  color: var(--text);
+  border-bottom: 1px solid var(--line-2);
+}
+:root[data-theme="minimal"] table tbody tr:hover {
+  background: var(--accent-softer);
+}
+:root[data-theme="minimal"] table tfoot tr,
+:root[data-theme="minimal"] table tr.totals-row {
+  font-weight: 700;
+  color: var(--text-h);
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
+}
+
+/* Section label — small uppercase muted heading with a bottom hairline,
+   used by the Finance pages' isMinimal branch in place of the bold accent
+   <h2> (only applied where the page opts in via className="seclabel"). */
+.seclabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint, var(--color-muted-text));
+  margin: 38px 0 15px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+}
+.seclabel:first-child {
+  margin-top: 0;
+}
+/* Dashboard.jsx passes its own "mt-6"/"mt-3" spacing utilities to
+   SectionLabel and the grid that follows it (shared with Classic) — Minimal
+   ignores that className (see SectionLabel.jsx) and relies on .seclabel's
+   own margin instead, so the following grid's own margin-top utility must
+   be zeroed or the gap doubles up (verified via computed-style diff: 24px
+   real vs the reference's 15px). */
+:root[data-theme="minimal"] .seclabel + * {
+  margin-top: 0 !important;
+}
+
+/* ── Finance pages: compact label/value block layout ───────────────────
+   Only rendered by each Finance page's isMinimal branch (see
+   components/FinanceBlock.jsx), so these classes never appear in Classic
+   markup — no [data-theme] scoping needed, but vars still fall back
+   gracefully in case that ever changes. */
+.fin-block {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 14px);
+  overflow: hidden;
+}
+.fin-blockhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--line-2, var(--border));
+}
+.fin-mm {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+.fin-rt {
+  font-size: 12px;
+  color: var(--color-muted-text);
+  font-weight: 600;
+}
+.fin-frow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line-2, var(--border));
+  font-size: 14px;
+}
+.fin-frow:last-child {
+  border-bottom: none;
+}
+.fin-fl {
+  color: var(--text);
+}
+.fin-fv {
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fin-total {
+  background: var(--accent-softer, var(--accent-bg));
+}
+.fin-total .fin-fl {
+  font-weight: 600;
+  color: var(--text-h);
+}
+.fin-total .fin-fv {
+  color: var(--accent-ink, var(--accent));
+}
+
+/* ── Event Guest List (STEP-9) — icon action buttons in the guest table,
+   only rendered by EventGuestList.jsx's isMinimal branch. ──────────────── */
+.event-iact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted, var(--color-muted-text));
+  cursor: pointer;
+}
+.event-iact:hover {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.event-iact.event-iact-danger:hover {
+  background: var(--low-bg);
+  color: var(--low);
+}
+
+/* Manage Project bento cards (STEP-9) — accent-soft icon chip, only
+   rendered by EventManageBento.jsx's isMinimal branch. */
+.event-bento-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  flex-shrink: 0;
+}
+
+/* Manage Project nav row (STEP-9) — blue/gold "duo" alternation matching
+   the reference (Guest List/Operational Cost/Rundown blue, Sponsors/Lucky
+   Draw/Setup gold). Position-based like .stat-duo-grid elsewhere in the
+   app — NavCard returns null when the user lacks access to a panel, so a
+   hidden card never renders a DOM node and nth-child naturally skips it. */
+.event-nav-grid > button:nth-child(even) .event-bento-icon {
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+:root[data-theme="minimal"] .app-footer {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted, var(--color-muted-text));
+  font-size: 12.5px;
+  opacity: 1;
+  padding: 18px 40px;
+}
+:root[data-theme="minimal"] .app-footer a {
+  color: var(--text);
+  font-weight: 500;
+}
+:root[data-theme="minimal"] .app-footer a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+:root[data-theme="minimal"] .app-footer-links span[aria-hidden] {
+  color: var(--faint);
+}
+
+/* ── Buttons / forms ────────────────────────────────────────────────── */
+:root[data-theme="minimal"] button:not([class*="!bg-transparent"]) {
+  border-radius: 8px;
+}
+:root[data-theme="minimal"] input,
+:root[data-theme="minimal"] select,
+:root[data-theme="minimal"] textarea {
+  border-radius: 8px !important;
+  border-color: var(--border) !important;
+}
+:root[data-theme="minimal"] input:focus,
+:root[data-theme="minimal"] select:focus,
+:root[data-theme="minimal"] textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--accent) !important;
+}

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventOperationalCost from "./EventOperationalCost";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -53,12 +54,20 @@ describe("EventOperationalCost", () => {
   it("denies access without events.costs read", async () => {
     mockCanRead = false;
     mockCanWrite = false;
-    render(<EventOperationalCost event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventOperationalCost event={EVENT} />
+      </ThemeProvider>,
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
   it("shows a flat table with category chips and a total row", async () => {
-    render(<EventOperationalCost event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventOperationalCost event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.getByText("Flowers").closest("tr")).toHaveTextContent("100");
@@ -79,7 +88,11 @@ describe("EventOperationalCost", () => {
       }),
     );
 
-    render(<EventOperationalCost event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventOperationalCost event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: "+ Add Item" }));
@@ -107,7 +120,11 @@ describe("EventOperationalCost", () => {
     );
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
-    render(<EventOperationalCost event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventOperationalCost event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     const row = screen.getByText("Flowers").closest("tr");
@@ -121,7 +138,11 @@ describe("EventOperationalCost", () => {
 
   it("hides write actions for read-only users", async () => {
     mockCanWrite = false;
-    render(<EventOperationalCost event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventOperationalCost event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.queryByText("+ Add Item")).not.toBeInTheDocument();
@@ -158,7 +179,11 @@ describe("EventOperationalCost", () => {
         }),
       );
 
-      render(<EventOperationalCost event={EVENT} />);
+      render(
+      <ThemeProvider>
+        <EventOperationalCost event={EVENT} />
+      </ThemeProvider>,
+    );
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Generate Report" }));

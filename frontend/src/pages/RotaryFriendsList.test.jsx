@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
 import { server } from "../test/mocks/server";
 import RotaryFriendsList from "./RotaryFriendsList";
 
@@ -14,6 +15,14 @@ vi.mock("../hooks/useAccess", () => ({
 function mockRole(role) {
   mockCanRead = true;
   mockCanWrite = role === "admin";
+}
+
+function renderPage() {
+  return render(
+    <ThemeProvider>
+      <RotaryFriendsList />
+    </ThemeProvider>,
+  );
 }
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -56,7 +65,7 @@ describe("RotaryFriendsList", () => {
 
   it("lists Rotary friends for an authenticated user", async () => {
     mockRole("user");
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     expect(screen.getByText("Sara Nguyen")).toBeInTheDocument();
@@ -65,7 +74,7 @@ describe("RotaryFriendsList", () => {
 
   it("does not show the Add button for non-admins", async () => {
     mockRole("user");
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     expect(screen.queryByRole("button", { name: /add friend/i })).not.toBeInTheDocument();
@@ -73,7 +82,7 @@ describe("RotaryFriendsList", () => {
 
   it("filters friends by the search box", async () => {
     mockRole("user");
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByLabelText("Search"), "sara");
@@ -84,7 +93,7 @@ describe("RotaryFriendsList", () => {
 
   it("filters friends by tag", async () => {
     mockRole("user");
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.selectOptions(screen.getByLabelText("Tag"), "sponsor");
@@ -95,7 +104,7 @@ describe("RotaryFriendsList", () => {
 
   it("filters friends by source", async () => {
     mockRole("user");
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.selectOptions(screen.getByLabelText("Source"), "Golf tournament");
@@ -106,7 +115,7 @@ describe("RotaryFriendsList", () => {
 
   it("blocks submission when neither email nor whatsapp is provided", async () => {
     mockRole("admin");
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: /add friend/i }));
@@ -132,7 +141,7 @@ describe("RotaryFriendsList", () => {
       }),
     );
 
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: /add friend/i }));
@@ -161,7 +170,7 @@ describe("RotaryFriendsList", () => {
       ),
     );
 
-    render(<RotaryFriendsList />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
@@ -232,7 +241,7 @@ describe("RotaryFriendsList", () => {
         }),
       );
 
-      render(<RotaryFriendsList />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: /import csv/i }));
@@ -273,7 +282,7 @@ describe("RotaryFriendsList", () => {
         ),
       );
 
-      render(<RotaryFriendsList />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: /import csv/i }));
@@ -313,7 +322,7 @@ describe("RotaryFriendsList", () => {
         ),
       );
 
-      render(<RotaryFriendsList />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: /export csv/i }));
@@ -327,7 +336,7 @@ describe("RotaryFriendsList", () => {
     mockCanRead = false;
     mockCanWrite = false;
 
-    render(<RotaryFriendsList />);
+    renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
     expect(screen.queryByText("Sara Nguyen")).not.toBeInTheDocument();

@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import FinanceDonations from "./FinanceDonations";
 
@@ -13,11 +14,13 @@ vi.mock("../hooks/useAccess", () => ({
 
 function renderFinanceDonations() {
   return render(
-    <MemoryRouter initialEntries={["/finance/donations"]}>
-      <Routes>
-        <Route path="/finance/donations" element={<FinanceDonations />} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={["/finance/donations"]}>
+        <Routes>
+          <Route path="/finance/donations" element={<FinanceDonations />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

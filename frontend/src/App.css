@@ -195,6 +195,16 @@ select:focus {
 
 .app-content {
   flex: 1;
+  /* Fix (2026-08-06): flex items default to `min-width: auto`, so a wide
+     descendant (e.g. Member Fees' Tracking table, `min-width: 920px` —
+     wider than any other page's content) could force this whole flex item,
+     and with it the `.app-body` row it shares with the nav sidebar, past
+     the viewport width — squeezing/overlapping the sidebar instead of
+     staying contained by the table's own `overflow-x-auto` wrapper.
+     `min-width: 0` lets this item shrink to the space actually available
+     next to the nav, same as every other page, regardless of how wide any
+     one page's content gets. */
+  min-width: 0;
   padding: 32px;
 }
 
@@ -1108,4 +1118,22 @@ select:focus {
   .app-body {
     padding: 0 !important;
   }
+}
+
+/* Dashboard "Club overview" stat cards — roughly half the default Card
+   padding/type-scale so the row reads as a compact strip instead of a full
+   stat-card block; scoped to .club-overview-grid so it doesn't touch the
+   same stat-* variants reused elsewhere (Dinner/Events summary, Members
+   Statistics, etc). */
+.club-overview-grid [data-variant^="stat-"] {
+  padding: 10px 14px 9px !important;
+}
+.club-overview-grid [data-variant^="stat-"] > span:first-child {
+  font-size: 18px !important;
+  line-height: 1.1 !important;
+}
+.club-overview-grid [data-variant^="stat-"] > span:last-child {
+  margin-top: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
 }

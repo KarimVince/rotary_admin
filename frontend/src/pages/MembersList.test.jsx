@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuth } from "../hooks/useAuth";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import MembersList from "./MembersList";
 
 let mockCanRead = true;
@@ -20,9 +21,11 @@ function mockRole(role) {
 
 function renderMembersList() {
   return render(
-    <MemoryRouter>
-      <MembersList />
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter>
+        <MembersList />
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

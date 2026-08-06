@@ -9,6 +9,7 @@ from app.api.deps import require_access
 from app.core.attendance_support import (
     compute_event_counts,
     eligible_and_present,
+    started_event_ids,
     validate_event_type,
 )
 from app.core.dinner_forecast_report import build_csv_report, build_pdf_report
@@ -16,7 +17,7 @@ from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
-from app.models import AttendanceEvent, AttendanceRecord, DinnerEventType, User
+from app.models import AttendanceEvent, DinnerEventType, User
 from app.schemas.attendance import AttendanceEventRead
 from app.schemas.dinner_forecast import (
     DinnerForecastEventCreate,
@@ -46,18 +47,6 @@ def _get_event_or_404(db: Session, event_id: uuid.UUID) -> AttendanceEvent:
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     return event
-
-
-def _started_event_ids(db: Session, event_ids: list[uuid.UUID]) -> set[uuid.UUID]:
-    if not event_ids:
-        return set()
-    rows = (
-        db.query(AttendanceRecord.event_id)
-        .filter(AttendanceRecord.event_id.in_(event_ids))
-        .distinct()
-        .all()
-    )
-    return {row[0] for row in rows}
 
 
 def _to_forecast_read(
@@ -104,7 +93,7 @@ def list_dinner_forecast_events(
         rotary_year if rotary_year is not None else compute_current_rotary_year(date.today())
     )
     events = _list_query(db, selected_year, event_type).all()
-    started = _started_event_ids(db, [event.id for event in events])
+    started = started_event_ids(db, [event.id for event in events])
     if unstarted_only:
         events = [event for event in events if event.id not in started]
     counts = compute_event_counts(db, [event.id for event in events if event.id in started])
@@ -160,7 +149,7 @@ def update_dinner_forecast_event(
 
     db.commit()
     db.refresh(event)
-    started = bool(_started_event_ids(db, [event.id]))
+    started = bool(started_event_ids(db, [event.id]))
     bucket = compute_event_counts(db, [event.id]).get(event.id) if started else None
     return _to_forecast_read(event, started, bucket)
 

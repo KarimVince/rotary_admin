@@ -7,7 +7,10 @@ import {
   updateOperationalEntry,
 } from "../api/finance";
 import Card from "../components/Card";
+import RotaryYearField from "../components/RotaryYearField";
+import { SectionHeading, TableWrap } from "../components/SectionHeading";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import { useRotaryYears } from "../hooks/useRotaryYears";
 import { useWindowFocusRefetch } from "../hooks/useWindowFocusRefetch";
 import { INPUT_CLASS, SELECT_CLASS } from "../styles/formControls";
@@ -21,7 +24,21 @@ function formatCurrency(value) {
   })} HKD`;
 }
 
-function StatCard({ value, label, tone }) {
+// 2026-08-06: minimal branch matches Dashboard's stat-card shape exactly
+// (value-first <span>, then label <span>) — now rendered as three true
+// siblings in one row (Revenue/Cost/Result), so `.stat-duo-grid`'s
+// position-based blue/gold alternation applies directly, same as every
+// other stat-card row in the app. Classic keeps its original label-first
+// div layout with each card's own named tone.
+function StatCard({ value, label, tone, isMinimal }) {
+  if (isMinimal) {
+    return (
+      <Card variant={tone} className="flex flex-col">
+        <span className="text-3xl font-bold">{value}</span>
+        <span className="mt-2 text-sm">{label}</span>
+      </Card>
+    );
+  }
   return (
     <Card variant={tone} className="flex min-h-[104px] flex-col justify-center">
       <div className="text-xs font-semibold text-[var(--color-muted-text)]">{label}</div>
@@ -39,8 +56,6 @@ const EMPTY_FORM = { type: "", category_id: "", amount: "", entry_date: "", note
 
 function EntryColumn({
   title,
-  tone,
-  total,
   rows,
   categories,
   categoryFilter,
@@ -48,6 +63,7 @@ function EntryColumn({
   canWrite,
   onEdit,
   onDelete,
+  isMinimal,
 }) {
   const filteredRows = categoryFilter
     ? rows.filter((row) => row.category_name === categoryFilter)
@@ -55,8 +71,11 @@ function EntryColumn({
 
   return (
     <div>
-      <StatCard value={formatCurrency(total)} label={title} tone={tone} />
-      <div className="flex items-center gap-2 mt-4 mb-2">
+      {/* 2026-08-06: the Revenue/Cost totals moved up into a shared 3-card
+          row (with the new Result card) above both columns — this heading
+          replaces the standalone stat card that used to sit here. */}
+      <SectionHeading isMinimal={isMinimal}>{title}</SectionHeading>
+      <div className="flex items-center gap-2 mt-2 mb-2">
         <label className="text-xs font-semibold text-[var(--color-muted-text)]">
           Filter by category
         </label>
@@ -77,7 +96,7 @@ function EntryColumn({
       {filteredRows.length === 0 ? (
         <p className="text-sm text-[var(--color-muted-text)]">No entries for this filter.</p>
       ) : (
-        <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden">
+        <TableWrap isMinimal={isMinimal}>
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border-faint)]">
@@ -140,7 +159,7 @@ function EntryColumn({
               ))}
             </tbody>
           </table>
-        </Card>
+        </TableWrap>
       )}
     </div>
   );
@@ -149,8 +168,9 @@ function EntryColumn({
 // Story 17.5 — Finance module, Club Operational Tracking page. Own nav
 // entry under Finance (see Story 17.2 follow-up in AppLayout.jsx).
 export default function FinanceOperational() {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("finance.operational");
-  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
+  const { yearOptions, currentYear, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [summary, setSummary] = useState(null);
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -290,23 +310,32 @@ export default function FinanceOperational() {
         </p>
       </div>
 
-      <div className="flex items-center gap-3 mb-4 mt-4">
-        <label htmlFor="operational-year" className="text-sm font-semibold">
-          Rotary Year
-        </label>
-        <select
-          id="operational-year"
-          className={SELECT_CLASS}
-          value={year}
-          onChange={(event) => setYear(Number(event.target.value))}
-        >
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>
-              {rotaryYearLabel(y)}
-            </option>
-          ))}
-        </select>
-      </div>
+      {isMinimal ? (
+        <RotaryYearField
+          year={year}
+          yearOptions={yearOptions}
+          currentYear={currentYear}
+          onChange={setYear}
+        />
+      ) : (
+        <div className="flex items-center gap-3 mb-4 mt-4">
+          <label htmlFor="operational-year" className="text-sm font-semibold">
+            Rotary Year
+          </label>
+          <select
+            id="operational-year"
+            className={SELECT_CLASS}
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {rotaryYearLabel(y)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && (
@@ -317,11 +346,63 @@ export default function FinanceOperational() {
 
       {!isLoading && !loadError && summary && (
         <>
+          {/* 2026-08-06: Revenue/Cost totals + new Result card (Revenue -
+              Cost) as three real siblings in one row, so `.stat-duo-grid`'s
+              position-based blue/gold alternation applies directly — same
+              pattern as every other stat-card row in the app. */}
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 ${isMinimal ? "stat-duo-grid" : ""}`}>
+            <StatCard
+              value={formatCurrency(summary.total_revenue)}
+              label="Total Revenue"
+              tone="stat-teal"
+              isMinimal={isMinimal}
+            />
+            <StatCard
+              value={formatCurrency(summary.total_cost)}
+              label="Total Cost"
+              tone="stat-rose"
+              isMinimal={isMinimal}
+            />
+            <StatCard
+              value={formatCurrency(summary.total_revenue - summary.total_cost)}
+              label="Result"
+              tone="stat-blue"
+              isMinimal={isMinimal}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <EntryColumn
+              title="Total Revenue"
+              rows={summary.revenue}
+              categories={revenueCategoryNames}
+              categoryFilter={revenueCategoryFilter}
+              onCategoryFilterChange={setRevenueCategoryFilter}
+              canWrite={canWrite}
+              onEdit={startEdit}
+              onDelete={handleDelete}
+              isMinimal={isMinimal}
+            />
+            <EntryColumn
+              title="Total Cost"
+              rows={summary.cost}
+              categories={costCategoryNames}
+              categoryFilter={costCategoryFilter}
+              onCategoryFilterChange={setCostCategoryFilter}
+              canWrite={canWrite}
+              onEdit={startEdit}
+              onDelete={handleDelete}
+              isMinimal={isMinimal}
+            />
+          </div>
+
+          {/* 2026-08-06: moved below the Revenue/Cost columns per explicit
+              request — was above them before. */}
           {canWrite && (
-            <section className="mb-6">
-              <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
+            <section className="mt-6">
+              <SectionHeading isMinimal={isMinimal}>
                 {editingId ? "Edit entry" : "Add entry"}
-              </h2>
+              </SectionHeading>
               <Card variant="default" className="!p-5 !rounded-2xl max-w-[800px]">
                 <form onSubmit={handleSubmit} className="donation-form">
                   <div>
@@ -420,33 +501,6 @@ export default function FinanceOperational() {
               </Card>
             </section>
           )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <EntryColumn
-              title="Total Revenue"
-              tone="stat-teal"
-              total={summary.total_revenue}
-              rows={summary.revenue}
-              categories={revenueCategoryNames}
-              categoryFilter={revenueCategoryFilter}
-              onCategoryFilterChange={setRevenueCategoryFilter}
-              canWrite={canWrite}
-              onEdit={startEdit}
-              onDelete={handleDelete}
-            />
-            <EntryColumn
-              title="Total Cost"
-              tone="stat-rose"
-              total={summary.total_cost}
-              rows={summary.cost}
-              categories={costCategoryNames}
-              categoryFilter={costCategoryFilter}
-              onCategoryFilterChange={setCostCategoryFilter}
-              canWrite={canWrite}
-              onEdit={startEdit}
-              onDelete={handleDelete}
-            />
-          </div>
         </>
       )}
     </div>

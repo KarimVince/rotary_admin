@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { AuthProvider } from "../context/AuthContext";
+import { ThemeProvider } from "../context/ThemeContext";
 import { server } from "../test/mocks/server";
 import Login from "./Login";
 
@@ -22,15 +23,17 @@ const MOCK_USER = {
 
 function renderLogin(initialPath = "/login", initialState = undefined) {
   render(
-    <AuthProvider>
-      <MemoryRouter initialEntries={[{ pathname: initialPath, state: initialState }]}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<div>Dashboard page</div>} />
-          <Route path="/members" element={<div>Members page</div>} />
-        </Routes>
-      </MemoryRouter>
-    </AuthProvider>,
+    <ThemeProvider>
+      <AuthProvider>
+        <MemoryRouter initialEntries={[{ pathname: initialPath, state: initialState }]}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/dashboard" element={<div>Dashboard page</div>} />
+            <Route path="/members" element={<div>Members page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    </ThemeProvider>,
   );
 }
 

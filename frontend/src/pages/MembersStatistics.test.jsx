@@ -3,7 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import MembersStatistics from "./MembersStatistics";
+
+function renderPage() {
+  return render(
+    <ThemeProvider>
+      <MembersStatistics />
+    </ThemeProvider>,
+  );
+}
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -77,7 +86,7 @@ describe("MembersStatistics", () => {
       http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    const { container } = render(<MembersStatistics />);
+    const { container } = renderPage();
 
     await screen.findByText("Total Members");
     const values = Array.from(container.querySelectorAll(".stat-value")).map(
@@ -99,7 +108,7 @@ describe("MembersStatistics", () => {
       http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<MembersStatistics />);
+    renderPage();
 
     await screen.findByText("Total Members");
     expect(screen.queryByText(/past members/i)).not.toBeInTheDocument();
@@ -110,7 +119,7 @@ describe("MembersStatistics", () => {
       http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<MembersStatistics />);
+    renderPage();
 
     const totalCard = (await screen.findByText("Total Members")).closest(".stat-card");
     const honoraryCard = screen.getByText("Honorary Members").closest(".stat-card");
@@ -130,7 +139,7 @@ describe("MembersStatistics", () => {
       http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)),
     );
 
-    render(<MembersStatistics />);
+    renderPage();
 
     expect(await screen.findByRole("heading", { name: /members by join year/i })).toBeInTheDocument();
     expect(
@@ -151,7 +160,7 @@ describe("MembersStatistics", () => {
       ),
     );
 
-    render(<MembersStatistics />);
+    renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/server error/i);
   });
@@ -191,7 +200,7 @@ describe("MembersStatistics", () => {
         }),
       );
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
 
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
@@ -213,7 +222,7 @@ describe("MembersStatistics", () => {
         }),
       );
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
 
       await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
@@ -230,7 +239,7 @@ describe("MembersStatistics", () => {
         ),
       );
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
 
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
@@ -241,7 +250,7 @@ describe("MembersStatistics", () => {
     it("disables the template checkbox with a tooltip when no template is uploaded", async () => {
       server.use(http.get(`${API_BASE_URL}/members/statistics`, () => HttpResponse.json(STATS)));
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
       // The template checkbox is also disabled for non-pptx formats (see the
       // "disables ... for PDF format" test below) — select pptx first so
@@ -271,7 +280,7 @@ describe("MembersStatistics", () => {
         ),
       );
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
       await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
 
@@ -295,7 +304,7 @@ describe("MembersStatistics", () => {
         ),
       );
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
 
       await waitFor(() =>
@@ -325,7 +334,7 @@ describe("MembersStatistics", () => {
         }),
       );
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
       await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
       await userEvent.selectOptions(screen.getByLabelText(/content/i), "integral");
@@ -356,7 +365,7 @@ describe("MembersStatistics", () => {
         ),
       );
 
-      const { unmount } = render(<MembersStatistics />);
+      const { unmount } = renderPage();
       await screen.findByText("Total Members");
       await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
       await userEvent.selectOptions(screen.getByLabelText(/content/i), "integral");
@@ -366,7 +375,7 @@ describe("MembersStatistics", () => {
       await userEvent.click(screen.getByLabelText(/use annual club template/i));
       unmount();
 
-      render(<MembersStatistics />);
+      renderPage();
       await screen.findByText("Total Members");
       expect(screen.getByLabelText(/content/i)).toHaveValue("integral");
       await waitFor(() =>

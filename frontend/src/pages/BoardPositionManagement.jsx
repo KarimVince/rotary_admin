@@ -227,7 +227,7 @@ export default function BoardPositionManagement() {
             <tbody>
               {positions.map((position) => (
                 <tr key={position.id} className="border-t border-[var(--color-border-light)]">
-                  <td className="px-5 py-3 text-sm font-semibold text-[#0c2340]">{position.name}</td>
+                  <td className="px-5 py-3 text-sm font-semibold text-[var(--text-h)]">{position.name}</td>
                   <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{position.display_order}</td>
                   <td className="px-5 py-3">
                     <span

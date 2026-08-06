@@ -441,7 +441,7 @@ export default function UserManagement() {
                 return (
                   <tr key={user.id} className="border-t border-[var(--color-border-light)]">
                     <td className="px-5 py-3 text-sm">{user.email}</td>
-                    <td className="px-5 py-3 text-sm font-semibold text-[#0c2340]">{user.full_name}</td>
+                    <td className="px-5 py-3 text-sm font-semibold text-[var(--text-h)]">{user.full_name}</td>
                     <td className="px-5 py-3">
                       <select
                         value={user.role}

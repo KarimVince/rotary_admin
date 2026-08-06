@@ -3,7 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventSetup from "./EventSetup";
+
+function renderEventSetup(props) {
+  return render(
+    <ThemeProvider>
+      <EventSetup {...props} />
+    </ThemeProvider>,
+  );
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -46,12 +55,12 @@ describe("EventSetup", () => {
   it("denies access without events.setup read", async () => {
     mockCanRead = false;
     mockCanWrite = false;
-    render(<EventSetup event={EVENT} />);
+    renderEventSetup({ event: EVENT });
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
   it("loads the selected event's ticket prices", async () => {
-    render(<EventSetup event={EVENT} />);
+    renderEventSetup({ event: EVENT });
 
     await waitFor(() => expect(screen.getByLabelText(/ticket price \(normal\)/i)).toHaveValue(500));
     expect(screen.getByLabelText(/ticket price \(early bird\)/i)).toHaveValue(400);
@@ -67,7 +76,7 @@ describe("EventSetup", () => {
       }),
     );
 
-    render(<EventSetup event={EVENT} />);
+    renderEventSetup({ event: EVENT });
     await waitFor(() => expect(screen.getByLabelText(/ticket price \(normal\)/i)).toHaveValue(500));
 
     await userEvent.clear(screen.getByLabelText(/ticket price \(normal\)/i));
@@ -80,7 +89,7 @@ describe("EventSetup", () => {
   });
 
   it("shows the table mapping section with existing rows", async () => {
-    render(<EventSetup event={EVENT} />);
+    renderEventSetup({ event: EVENT });
 
     expect(await screen.findByText("Table Mapping")).toBeInTheDocument();
     expect(screen.getByLabelText("Table number 1")).toHaveValue(1);
@@ -88,7 +97,7 @@ describe("EventSetup", () => {
   });
 
   it("shows cost and sponsor category lists", async () => {
-    render(<EventSetup event={EVENT} />);
+    renderEventSetup({ event: EVENT });
 
     expect(await screen.findByText("Cost Categories")).toBeInTheDocument();
     expect(screen.getByText("Venue")).toBeInTheDocument();
@@ -105,7 +114,7 @@ describe("EventSetup", () => {
       }),
     );
 
-    render(<EventSetup event={EVENT} />);
+    renderEventSetup({ event: EVENT });
     await screen.findByText("Cost Categories");
 
     await userEvent.type(screen.getByLabelText("Cost Categories name"), "Printing");

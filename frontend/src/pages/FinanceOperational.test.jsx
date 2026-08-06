@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import FinanceOperational from "./FinanceOperational";
 
@@ -59,11 +60,13 @@ const SUMMARY = {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/finance/operational"]}>
-      <Routes>
-        <Route path="/finance/operational" element={<FinanceOperational />} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={["/finance/operational"]}>
+        <Routes>
+          <Route path="/finance/operational" element={<FinanceOperational />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

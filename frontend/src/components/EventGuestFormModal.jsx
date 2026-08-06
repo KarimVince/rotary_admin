@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { createEventGuest, updateEventGuest } from "../api/eventGuests";
+import { useTheme } from "../context/ThemeContext";
 
 export default function EventGuestFormModal({ eventId, guest, members, tableMapping, onClose, onSaved }) {
+  const { isMinimal } = useTheme();
   const isEditing = Boolean(guest);
   const [form, setForm] = useState({
     title: guest?.title || "",
@@ -38,12 +40,15 @@ export default function EventGuestFormModal({ eventId, guest, members, tableMapp
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className={`modal-overlay ${isMinimal ? "event-modal-overlay" : ""}`} onClick={onClose}>
+      <div
+        className={`modal-dialog ${isMinimal ? "event-modal-dialog event-modal-dialog--wide" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <form onSubmit={handleSubmit}>
           <h2>{isEditing ? "Edit guest" : "New guest"}</h2>
 
-          <div className="member-form-grid">
+          <div className={`member-form-grid ${isMinimal ? "event-form-grid" : ""}`}>
             <div>
               <label htmlFor="guest-title">Title</label>
               <input

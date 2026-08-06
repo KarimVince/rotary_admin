@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import Dashboard from "./Dashboard";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -22,9 +23,11 @@ vi.mock("../hooks/useAccess", () => ({
 
 function renderDashboard() {
   render(
-    <MemoryRouter>
-      <Dashboard />
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

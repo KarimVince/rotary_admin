@@ -1,5 +1,6 @@
 import Card from "./Card";
 import SectionLabel from "./SectionLabel";
+import { useTheme } from "../context/ThemeContext";
 
 const STATUS_STYLES = {
   sent: { bgClass: "bg-[var(--tone-teal-bg)]", textClass: "text-[var(--color-tone-teal-text)]", label: "Sent" },
@@ -16,8 +17,20 @@ const STATUS_STYLES = {
   },
 };
 
+// Minimal reference names these `--ok`/`--warn`/`--low` (a status pill
+// palette used app-wide by the restyle), distinct from the classic tone-*
+// tokens above.
+const STATUS_STYLES_MINIMAL = {
+  sent: { bgClass: "bg-[var(--ok-bg)]", textClass: "text-[var(--ok)]", label: "Sent" },
+  partial_failure: { bgClass: "bg-[var(--warn-bg)]", textClass: "text-[var(--warn)]", label: "Partial failure" },
+  failed: { bgClass: "bg-[var(--low-bg)]", textClass: "text-[var(--low)]", label: "Failed" },
+  no_recipients: { bgClass: "bg-[var(--bg-alt)]", textClass: "text-[var(--muted)]", label: "No recipients" },
+};
+
 function StatusChip({ status }) {
-  const style = STATUS_STYLES[status] ?? {
+  const { isMinimal } = useTheme();
+  const styles = isMinimal ? STATUS_STYLES_MINIMAL : STATUS_STYLES;
+  const style = styles[status] ?? {
     bgClass: "bg-[var(--color-border-light)]",
     textClass: "text-[var(--color-muted-text)]",
     label: status,
@@ -89,7 +102,7 @@ export default function EmailLogTable({ entries }) {
               <tr key={entry.id} className="border-b border-[var(--color-border-light)] last:border-b-0">
                 <td
                   title={entry.subject}
-                  className="max-w-0 truncate px-4 py-2 text-[13px] font-semibold text-[#0c2340]"
+                  className="max-w-0 truncate px-4 py-2 text-[13px] font-semibold text-[var(--text-h)]"
                 >
                   {entry.subject}
                 </td>

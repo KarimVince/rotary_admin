@@ -1,10 +1,20 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { useTheme } from "../context/ThemeContext";
 
 const TOOL_BUTTON_CLASS =
   "border border-[var(--color-card-border)] bg-white rounded-lg px-3 py-1.5 text-[13px] text-[var(--color-muted-text-strong)] cursor-pointer hover:border-[var(--color-brand-blue)] hover:text-[var(--color-brand-blue)]";
 
-function ToolbarDivider() {
-  return <div className="w-px bg-[var(--color-card-border)] my-1 mx-1.5" />;
+// Minimal reference (Membership Application-style toolbar): plain muted
+// text buttons on a hairline-bottomed strip, not bordered boxes.
+const TOOL_BUTTON_CLASS_MINIMAL =
+  "border-none bg-transparent px-1.5 py-0 text-[13px] text-[var(--muted)] cursor-pointer hover:text-[var(--accent)]";
+
+function ToolbarDivider({ isMinimal }) {
+  return (
+    <div
+      className={isMinimal ? "w-px bg-[var(--border)] my-0.5 mx-1" : "w-px bg-[var(--color-card-border)] my-1 mx-1.5"}
+    />
+  );
 }
 
 // Reusable contentEditable rich-text body editor, used by every message
@@ -16,6 +26,8 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   { placeholder = "Write your message…", extraButtons = [], onChange, onEmptyChange, disabled = false },
   ref,
 ) {
+  const { isMinimal } = useTheme();
+  const toolButtonClass = isMinimal ? TOOL_BUTTON_CLASS_MINIMAL : TOOL_BUTTON_CLASS;
   const editorRef = useRef(null);
   const [isEmpty, setIsEmpty] = useState(true);
 
@@ -95,38 +107,48 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   }
 
   return (
-    <div>
-      <div className="flex gap-1 py-3 border-b border-[var(--color-card-border)] flex-wrap">
-        <button type="button" className={`${TOOL_BUTTON_CLASS} font-bold`} onClick={() => exec("bold")} disabled={disabled}>
+    <div className={isMinimal ? "border border-[var(--border)] rounded-[8px] overflow-hidden" : undefined}>
+      <div
+        className={
+          isMinimal
+            ? "flex items-center gap-1 py-[7px] px-[11px] border-b border-[var(--line-2)] flex-wrap"
+            : "flex gap-1 py-3 border-b border-[var(--color-card-border)] flex-wrap"
+        }
+      >
+        <button type="button" className={`${toolButtonClass} font-bold`} onClick={() => exec("bold")} disabled={disabled}>
           B
         </button>
-        <button type="button" className={`${TOOL_BUTTON_CLASS} italic`} onClick={() => exec("italic")} disabled={disabled}>
+        <button type="button" className={`${toolButtonClass} italic`} onClick={() => exec("italic")} disabled={disabled}>
           I
         </button>
         <button
           type="button"
-          className={`${TOOL_BUTTON_CLASS} underline`}
+          className={`${toolButtonClass} underline`}
           onClick={() => exec("underline")}
           disabled={disabled}
         >
           U
         </button>
-        <ToolbarDivider />
-        <button type="button" className={TOOL_BUTTON_CLASS} onClick={() => exec("insertUnorderedList")} disabled={disabled}>
+        <ToolbarDivider isMinimal={isMinimal} />
+        <button type="button" className={toolButtonClass} onClick={() => exec("insertUnorderedList")} disabled={disabled}>
           • List
         </button>
-        <button type="button" className={TOOL_BUTTON_CLASS} onClick={() => exec("insertOrderedList")} disabled={disabled}>
+        <button type="button" className={toolButtonClass} onClick={() => exec("insertOrderedList")} disabled={disabled}>
           1. List
         </button>
-        <ToolbarDivider />
-        <button type="button" className={TOOL_BUTTON_CLASS} onClick={handleLink} disabled={disabled}>
+        <ToolbarDivider isMinimal={isMinimal} />
+        <button type="button" className={toolButtonClass} onClick={handleLink} disabled={disabled}>
           Link
         </button>
-        {extraButtons.map((button) => (
+        {extraButtons.map((button, index) => (
           <button
             key={button.key}
             type="button"
-            className={TOOL_BUTTON_CLASS}
+            className={
+              isMinimal
+                ? `${index === 0 ? "ml-auto" : ""} border-none bg-transparent px-1.5 py-0 text-[12.5px] font-semibold text-[var(--accent)] cursor-pointer hover:text-[var(--accent-ink)]`
+                : TOOL_BUTTON_CLASS
+            }
             title={button.title}
             onClick={button.onClick}
             disabled={disabled}
@@ -136,9 +158,15 @@ const RichTextEditor = forwardRef(function RichTextEditor(
         ))}
       </div>
 
-      <div className="relative mt-4">
+      <div className={isMinimal ? "relative p-[11px]" : "relative mt-4"}>
         {isEmpty && (
-          <div className="absolute top-0 left-0 text-[var(--color-muted-text)] text-[15px] pointer-events-none">
+          <div
+            className={
+              isMinimal
+                ? "absolute top-[11px] left-[11px] text-[var(--faint)] text-[13.5px] pointer-events-none"
+                : "absolute top-0 left-0 text-[var(--color-muted-text)] text-[15px] pointer-events-none"
+            }
+          >
             {placeholder}
           </div>
         )}
@@ -147,7 +175,11 @@ const RichTextEditor = forwardRef(function RichTextEditor(
           data-testid="email-body-editor"
           contentEditable={!disabled}
           onInput={handleInput}
-          className="min-h-[260px] text-[15px] leading-relaxed text-[var(--color-brand-blue-dark)] outline-none [&_div]:my-3"
+          className={
+            isMinimal
+              ? "min-h-[220px] text-[13.5px] leading-relaxed text-[var(--ink)] outline-none [&_div]:my-2"
+              : "min-h-[260px] text-[15px] leading-relaxed text-[var(--color-brand-blue-dark)] outline-none [&_div]:my-3"
+          }
         />
       </div>
     </div>

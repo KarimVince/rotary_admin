@@ -107,7 +107,7 @@ export default function AdminPptTemplate() {
                 PPT
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-[#0c2340] truncate">
+                <div className="text-sm font-semibold text-[var(--text-h)] truncate">
                   {template.original_filename}
                 </div>
                 <div className="text-xs text-[var(--color-muted-text)]">

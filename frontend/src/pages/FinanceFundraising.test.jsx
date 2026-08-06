@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import { currentRotaryYear } from "../utils/rotaryYear";
 import FinanceFundraising from "./FinanceFundraising";
 
@@ -48,11 +49,13 @@ const ADHOC_DONATIONS = [
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/finance/fundraising"]}>
-      <Routes>
-        <Route path="/finance/fundraising" element={<FinanceFundraising />} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={["/finance/fundraising"]}>
+        <Routes>
+          <Route path="/finance/fundraising" element={<FinanceFundraising />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

@@ -12,6 +12,7 @@ import { CompactMonthCard, groupEventsByMonth } from "../components/DinnerMonthC
 import SectionLabel from "../components/SectionLabel";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../context/ThemeContext";
 import { AVATAR_TONES, getInitials } from "../utils/avatar";
 import { currentRotaryYear, rotaryYear as rotaryYearOf } from "../utils/rotaryYear";
 
@@ -68,13 +69,13 @@ const STAT_CARDS = [
     valueClass: "text-[#1f7a3d]",
     requiredPermission: "members",
   },
-  { key: "organisations_supported", label: "NGOs supported", tone: "stat-lavender", valueClass: "text-[#5b3fa0]" },
+  { key: "organisations_supported", label: "NGOs supported", tone: "stat-lavender", valueClass: "text-[var(--color-tone-lavender-text)]" },
   {
     key: "donations_this_year",
     label: "Donations this rotary year",
     format: formatEuros,
     tone: "stat-amber",
-    valueClass: "text-[#b8760f]",
+    valueClass: "text-[var(--color-tone-amber-text)]",
   },
   {
     // Story 16.26: replaces the old "Fees Collected" card — sourced from
@@ -84,7 +85,7 @@ const STAT_CARDS = [
     label: "Total funds raised this rotary year",
     format: formatEuros,
     tone: "stat-rose",
-    valueClass: "text-[#b8384a]",
+    valueClass: "text-[var(--color-tone-rose-text)]",
   },
   // Story 16.14 — same NGOs & Donations module data as organisations_supported
   // above; gated on "ngos" read like the module link below, since this is
@@ -118,7 +119,7 @@ const MODULE_LINKS = [
     description: "Partners & giving",
     icon: Building2,
     tone: "stat-lavender",
-    iconClass: "text-[#5b3fa0]",
+    iconClass: "text-[var(--color-tone-lavender-text)]",
     requiredPermission: "ngos",
   },
   {
@@ -127,7 +128,7 @@ const MODULE_LINKS = [
     description: "Community contacts",
     icon: HeartHandshake,
     tone: "stat-teal",
-    iconClass: "text-[#1a7a68]",
+    iconClass: "text-[var(--color-tone-teal-text)]",
     requiredPermission: "friends",
   },
   {
@@ -136,7 +137,7 @@ const MODULE_LINKS = [
     description: "Billing & collection",
     icon: Wallet,
     tone: "stat-amber",
-    iconClass: "text-[#b8760f]",
+    iconClass: "text-[var(--color-tone-amber-text)]",
     requiredPermission: "fees",
   },
   {
@@ -145,7 +146,7 @@ const MODULE_LINKS = [
     description: "Positions & assignments",
     icon: Landmark,
     tone: "stat-rose",
-    iconClass: "text-[#b8384a]",
+    iconClass: "text-[var(--color-tone-rose-text)]",
     requiredPermission: "board",
   },
   // Story 8.18: gated on the "attendance" menu-level function (10.10),
@@ -162,6 +163,7 @@ const MODULE_LINKS = [
 ];
 
 export default function Dashboard() {
+  const { isMinimal } = useTheme();
   const { user } = useAuth();
   const { canRead: canViewMembers } = useAccess("members");
   const { canRead: canViewNgos } = useAccess("ngos");
@@ -283,7 +285,11 @@ export default function Dashboard() {
       {error && <p role="alert">{error}</p>}
 
       <SectionLabel className="mt-6">Club overview</SectionLabel>
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div
+        className={`club-overview-grid mt-3 grid gap-4 ${
+          isMinimal ? "stat-duo-grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-3"
+        }`}
+      >
         {visibleStatCards.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
             <span className={`text-3xl font-bold ${card.valueClass}`}>

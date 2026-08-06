@@ -3,7 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventGuestList from "./EventGuestList";
+
+function renderGuestList(props) {
+  return render(
+    <ThemeProvider>
+      <EventGuestList {...props} />
+    </ThemeProvider>,
+  );
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -80,12 +89,12 @@ describe("EventGuestList", () => {
   it("denies access without events.guests read", async () => {
     mockCanRead = false;
     mockCanWrite = false;
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
   it("shows summary cards computed from guests and setup prices", async () => {
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     await waitForLoaded();
 
     await screen.findByText("Guests Registered");
@@ -98,7 +107,7 @@ describe("EventGuestList", () => {
   });
 
   it("resolves Theme Name and Rotary Name from table mapping", async () => {
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     await waitForLoaded();
 
     const row = screen.getByText("Smith").closest("tr");
@@ -118,7 +127,7 @@ describe("EventGuestList", () => {
       }),
     );
 
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: "Paid" }));
@@ -136,7 +145,7 @@ describe("EventGuestList", () => {
     );
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     await waitForLoaded();
 
     const row = screen.getByText("Smith").closest("tr");
@@ -150,7 +159,7 @@ describe("EventGuestList", () => {
 
   it("hides write actions for read-only users", async () => {
     mockCanWrite = false;
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     await waitForLoaded();
 
     expect(screen.queryByText("+ Add Guest")).not.toBeInTheDocument();
@@ -166,7 +175,7 @@ describe("EventGuestList", () => {
       }),
     );
 
-    render(<EventGuestList event={EVENT} />);
+    renderGuestList({ event: EVENT });
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
@@ -209,7 +218,7 @@ describe("EventGuestList", () => {
         }),
       );
 
-      render(<EventGuestList event={EVENT} />);
+      renderGuestList({ event: EVENT });
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Generate Report" }));

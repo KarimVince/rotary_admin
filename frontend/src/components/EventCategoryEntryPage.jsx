@@ -1,8 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  FileDown,
+  Filter,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import { formatCurrency } from "../utils/formatters";
 import EventCategoryEntryFormModal from "./EventCategoryEntryFormModal";
 import Card from "./Card";
+import MultiSelectDropdown from "./MultiSelectDropdown";
+
+function buildSortableColumns(totalFieldLabel) {
+  return [
+    { key: "name", label: "Name" },
+    { key: "category", label: "Category" },
+    { key: "quantity", label: "Quantity" },
+    { key: "unit_price", label: "Unit Price" },
+    { key: "total", label: totalFieldLabel },
+  ];
+}
+
+function entrySortValue(entry, key) {
+  switch (key) {
+    case "total":
+      return entry.total_cost ?? entry.total_amount ?? 0;
+    case "quantity":
+    case "unit_price":
+      return entry[key] ?? 0;
+    default:
+      return entry[key] || "";
+  }
+}
 
 const CHIP_TONES = [
   { bg: "var(--tone-blue-bg)", color: "var(--color-brand-blue)" },
@@ -15,6 +49,17 @@ const CHIP_TONES = [
 function categoryTone(category, categories) {
   const index = categories.indexOf(category);
   return CHIP_TONES[index === -1 ? 0 : index % CHIP_TONES.length];
+}
+
+function TableWrapper({ isMinimal, children }) {
+  if (isMinimal) {
+    return <div className="overflow-hidden">{children}</div>;
+  }
+  return (
+    <Card variant="default" className="p-0 overflow-hidden">
+      {children}
+    </Card>
+  );
 }
 
 // Shared panel body for Operational Cost (Story 14.8) and Sponsor (Story
@@ -34,6 +79,7 @@ export default function EventCategoryEntryPage({
   deleteEntryFn,
   downloadReportFn,
 }) {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess(accessKey);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -48,6 +94,19 @@ export default function EventCategoryEntryPage({
   const [reportFormat, setReportFormat] = useState("pdf");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
+
+  const [categoryFilters, setCategoryFilters] = useState([]);
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+
+  function toggleSort(key) {
+    if (sortKey === key) {
+      setSortDir((direction) => (direction === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   useEffect(() => {
     if (!canRead) {
@@ -80,6 +139,25 @@ export default function EventCategoryEntryPage({
     () => entries.reduce((sum, e) => sum + (e.total_cost ?? e.total_amount ?? 0), 0),
     [entries],
   );
+
+  const sortableColumns = useMemo(() => buildSortableColumns(totalFieldLabel), [totalFieldLabel]);
+
+  const visibleEntries = useMemo(() => {
+    let rows = entries;
+    if (categoryFilters.length > 0) {
+      rows = rows.filter((entry) => categoryFilters.includes(entry.category || ""));
+    }
+    if (sortKey) {
+      rows = [...rows].sort((a, b) => {
+        const av = entrySortValue(a, sortKey);
+        const bv = entrySortValue(b, sortKey);
+        const cmp =
+          typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return rows;
+  }, [entries, categoryFilters, sortKey, sortDir]);
 
   function openCreate() {
     setEditingEntry(null);
@@ -134,18 +212,20 @@ export default function EventCategoryEntryPage({
 
   return (
     <div className="admin-page admin-page-wide">
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="m-0 text-2xl font-semibold text-[#0c2340]">{title}</h1>
-        {canWrite && selectedEvent && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
-          >
-            + Add Item
-          </button>
-        )}
-      </div>
+      {!isMinimal && (
+        <div className="mb-5 flex items-center justify-between">
+          <h1 className="m-0 text-2xl font-semibold text-[var(--text-h)]">{title}</h1>
+          {canWrite && selectedEvent && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
+            >
+              Add Item
+            </button>
+          )}
+        </div>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -156,57 +236,130 @@ export default function EventCategoryEntryPage({
 
           {selectedEvent && !isLoadingEntries && (
             <>
-              <div className="mb-4 flex items-center gap-3">
-                <label htmlFor={`${accessKey}-report-format`} className="sr-only">
-                  Format
-                </label>
-                <select
-                  id={`${accessKey}-report-format`}
-                  value={reportFormat}
-                  onChange={(e) => setReportFormat(e.target.value)}
-                  disabled={isGeneratingReport}
-                  className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[13px]"
-                >
-                  <option value="pdf">PDF</option>
-                  <option value="csv">CSV</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={handleGenerateReport}
-                  disabled={isGeneratingReport}
-                  className="rounded-[10px] bg-[var(--color-brand-blue-light)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]"
-                >
-                  {isGeneratingReport ? "Generating…" : "Generate Report"}
-                </button>
+              <div className={`mb-4 flex ${isMinimal ? "items-end justify-between" : "items-center"} gap-3`}>
+                <div className={isMinimal ? "flex items-end gap-3" : "flex items-center gap-3"}>
+                  {isMinimal ? (
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        htmlFor={`${accessKey}-report-format`}
+                        className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+                      >
+                        Format
+                      </label>
+                      <select
+                        id={`${accessKey}-report-format`}
+                        value={reportFormat}
+                        onChange={(e) => setReportFormat(e.target.value)}
+                        disabled={isGeneratingReport}
+                        className="h-[38px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
+                      >
+                        <option value="pdf">PDF</option>
+                        <option value="csv">CSV</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <label htmlFor={`${accessKey}-report-format`} className="sr-only">
+                        Format
+                      </label>
+                      <select
+                        id={`${accessKey}-report-format`}
+                        value={reportFormat}
+                        onChange={(e) => setReportFormat(e.target.value)}
+                        disabled={isGeneratingReport}
+                        className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[13px]"
+                      >
+                        <option value="pdf">PDF</option>
+                        <option value="csv">CSV</option>
+                      </select>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleGenerateReport}
+                    disabled={isGeneratingReport}
+                    className={
+                      isMinimal
+                        ? "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)]"
+                        : "rounded-[10px] bg-[var(--color-brand-blue-light)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]"
+                    }
+                  >
+                    {isMinimal && <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />}
+                    {isGeneratingReport ? "Generating…" : "Generate Report"}
+                  </button>
+                  {categoryNames.length > 0 && (
+                    <MultiSelectDropdown
+                      icon={Filter}
+                      ariaLabel="Category"
+                      allLabel="All categories"
+                      options={categoryNames.map((name) => ({ value: name, label: name }))}
+                      selected={categoryFilters}
+                      onToggleOption={(value) =>
+                        setCategoryFilters((current) =>
+                          current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
+                        )
+                      }
+                      onClear={() => setCategoryFilters([])}
+                    />
+                  )}
+                </div>
+                {isMinimal && canWrite && selectedEvent && (
+                  <button
+                    type="button"
+                    onClick={openCreate}
+                    className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)]"
+                  >
+                    <Plus className="w-[15px] h-[15px]" aria-hidden="true" />
+                    Add Item
+                  </button>
+                )}
               </div>
               {reportError && <p role="alert">{reportError}</p>}
 
               {entries.length === 0 ? (
                 <p className="member-empty-state">No items added for this event yet.</p>
+              ) : visibleEntries.length === 0 ? (
+                <p className="member-empty-state">No items match the selected filter.</p>
               ) : (
-                <Card variant="default" className="p-0 overflow-hidden">
+                <TableWrapper isMinimal={isMinimal}>
                   <table className="w-full border-collapse text-left">
                     <thead>
                       <tr className="border-b border-[var(--color-border-faint)]">
-                        {["Name", "Category", "Quantity", "Unit Price", totalFieldLabel, "Actions"].map(
-                          (label) => (
-                            <th
-                              key={label}
-                              className="px-5 py-3 text-[12px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]"
+                        {sortableColumns.map(({ key, label }) => (
+                          <th
+                            key={key}
+                            className="px-5 py-3 text-[12px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(key)}
+                              className="inline-flex items-center gap-1 bg-transparent p-0 uppercase tracking-[0.03em] text-inherit"
                             >
                               {label}
-                            </th>
-                          ),
-                        )}
+                              {sortKey === key ? (
+                                sortDir === "asc" ? (
+                                  <ChevronUp className="w-3 h-3" aria-hidden="true" />
+                                ) : (
+                                  <ChevronDown className="w-3 h-3" aria-hidden="true" />
+                                )
+                              ) : (
+                                <ChevronsUpDown className="w-3 h-3 opacity-40" aria-hidden="true" />
+                              )}
+                            </button>
+                          </th>
+                        ))}
+                        <th className="px-5 py-3 text-[12px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {entries.map((entry) => {
+                      {visibleEntries.map((entry) => {
                         const tone = categoryTone(entry.category, categoryNames);
                         return (
                           <tr
                             key={entry.id}
-                            className="border-b border-[var(--color-border-light)] text-[13px] text-[#0c2340] last:border-b-0"
+                            className="border-b border-[var(--color-border-light)] text-[13px] text-[var(--text-h)] last:border-b-0"
                           >
                             <td className="px-5 py-[13px] font-semibold">{entry.name}</td>
                             <td className="px-5 py-[13px]">
@@ -226,20 +379,22 @@ export default function EventCategoryEntryPage({
                             </td>
                             <td className="px-5 py-[13px]">
                               {canWrite && (
-                                <div className="flex gap-3">
+                                <div className="flex gap-1">
                                   <button
                                     type="button"
                                     onClick={() => openEdit(entry)}
-                                    className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-brand-blue)]"
+                                    title="Edit"
+                                    className="event-iact"
                                   >
-                                    Edit
+                                    <Pencil className="w-[14px] h-[14px]" aria-hidden="true" />
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleDelete(entry)}
-                                    className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-tone-rose-text)]"
+                                    title="Delete"
+                                    className="event-iact event-iact-danger"
                                   >
-                                    Delete
+                                    <Trash2 className="w-[14px] h-[14px]" aria-hidden="true" />
                                   </button>
                                 </div>
                               )}
@@ -248,7 +403,7 @@ export default function EventCategoryEntryPage({
                         );
                       })}
                       {showTotalRow && (
-                        <tr className="bg-[var(--color-border-light)] text-[13px] font-bold text-[#0c2340]">
+                        <tr className="bg-[var(--color-border-light)] text-[13px] font-bold text-[var(--text-h)]">
                           <td className="px-5 py-[13px]">Total</td>
                           <td className="px-5 py-[13px]" />
                           <td className="px-5 py-[13px]" />
@@ -259,7 +414,7 @@ export default function EventCategoryEntryPage({
                       )}
                     </tbody>
                   </table>
-                </Card>
+                </TableWrapper>
               )}
             </>
           )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Check, Filter, Search, UserPlus, FileText, X } from "lucide-react";
 import { API_ORIGIN } from "../api/client";
 import { COUNTRIES } from "../data/countries";
 import { listMemberTitles } from "../api/memberTitles";
@@ -16,8 +17,11 @@ import {
   uploadMemberPhoto,
 } from "../api/members";
 import Card from "../components/Card";
+import MultiSelectDropdown from "../components/MultiSelectDropdown";
+import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../context/ThemeContext";
 
 const STATUS_LABELS = { active: "Active", past: "Past" };
 
@@ -87,6 +91,7 @@ function toPayload(form) {
 }
 
 export default function MembersList() {
+  const { isMinimal } = useTheme();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const { canRead, canWrite } = useAccess("members.directory");
@@ -111,8 +116,12 @@ export default function MembersList() {
 
   const [statusFilter, setStatusFilter] = useState("active");
   const [honoraryOnly, setHonoraryOnly] = useState(false);
-  const [titleFilter, setTitleFilter] = useState("");
-  const [nationalityFilter, setNationalityFilter] = useState("");
+  // Story 16.29 (Minimal restyle): Title/Nationality are multi-select in the
+  // new design, so both are stored as arrays — Classic's native <select>
+  // still only ever holds 0 or 1 entries, keeping its single-choice
+  // behavior/DOM unchanged (see the isMinimal ? ... : ... branch below).
+  const [titleFilters, setTitleFilters] = useState([]);
+  const [nationalityFilters, setNationalityFilters] = useState([]);
   const [search, setSearch] = useState("");
 
   const [form, setForm] = useState(EMPTY_FORM);
@@ -171,8 +180,8 @@ export default function MembersList() {
       const filters = {};
       if (statusFilter) filters.status = statusFilter;
       if (honoraryOnly) filters.is_honorary = true;
-      if (titleFilter) filters.title_id = titleFilter;
-      if (nationalityFilter) filters.nationality = nationalityFilter;
+      if (titleFilters.length > 0) filters.title_id = titleFilters;
+      if (nationalityFilters.length > 0) filters.nationality = nationalityFilters;
       const data = await listMembers(filters);
       setMembers(data);
       setLoadError(null);
@@ -204,7 +213,7 @@ export default function MembersList() {
     }
     loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRead, statusFilter, honoraryOnly, titleFilter, nationalityFilter]);
+  }, [canRead, statusFilter, honoraryOnly, titleFilters, nationalityFilters]);
 
   const visibleMembers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -221,6 +230,20 @@ export default function MembersList() {
     () => [...new Set(members.map((member) => member.nationality).filter(Boolean))].sort(),
     [members],
   );
+
+  function toggleTitleFilter(titleId) {
+    setTitleFilters((current) =>
+      current.includes(titleId) ? current.filter((id) => id !== titleId) : [...current, titleId],
+    );
+  }
+
+  function toggleNationalityFilter(nationality) {
+    setNationalityFilters((current) =>
+      current.includes(nationality)
+        ? current.filter((n) => n !== nationality)
+        : [...current, nationality],
+    );
+  }
 
   function openAddModal() {
     setEditingId(null);
@@ -400,7 +423,27 @@ export default function MembersList() {
     <div className="admin-page admin-page-wide">
       <div className="page-header-row">
         <h1>Members Directory</h1>
-        {canWrite && (
+        {canWrite && isMinimal && (
+          <div className="page-header-actions flex items-center gap-[9px]">
+            <button
+              type="button"
+              onClick={openApplicationModal}
+              className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)]"
+            >
+              <FileText className="w-[15px] h-[15px]" aria-hidden="true" />
+              Application
+            </button>
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)]"
+            >
+              <UserPlus className="w-[15px] h-[15px]" aria-hidden="true" />
+              Add Member
+            </button>
+          </div>
+        )}
+        {canWrite && !isMinimal && (
           <div className="page-header-actions">
             <button type="button" className="btn-add-member" onClick={openAddModal}>
               Add Member
@@ -413,8 +456,14 @@ export default function MembersList() {
       </div>
 
       {isApplicationModalOpen && canWrite && (
-        <div className="modal-overlay" onClick={closeApplicationModal}>
-          <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
+        <div
+          className={`modal-overlay ${isMinimal ? "members-modal-overlay" : ""}`}
+          onClick={closeApplicationModal}
+        >
+          <div
+            className={`modal-dialog ${isMinimal ? "members-modal-dialog members-modal-dialog--narrow" : ""}`}
+            onClick={(event) => event.stopPropagation()}
+          >
             {!applicationResult ? (
               <form onSubmit={handleCreateApplication}>
                 <h2>New member application</h2>
@@ -423,7 +472,7 @@ export default function MembersList() {
                   the rest is left blank for the prospect to complete and sign.
                 </p>
 
-                <div className="member-form-grid">
+                <div className={`member-form-grid ${isMinimal ? "members-form-grid members-form-grid--single" : ""}`}>
                   <div className="field-full">
                     <label htmlFor="application-name">Name</label>
                     <input
@@ -473,31 +522,34 @@ export default function MembersList() {
             ) : (
               <>
                 <h2>Application generated</h2>
-                <p>
+                <div className={isMinimal ? "px-[26px] pt-[18px] pb-[4px] flex flex-col gap-2" : undefined}>
+                  <p>
+                    <button
+                      type="button"
+                      className="btn-add-member"
+                      onClick={handleDownloadApplication}
+                      disabled={isDownloadingApplication}
+                    >
+                      {isDownloadingApplication ? "Downloading…" : "Download the PDF"}
+                    </button>
+                  </p>
+
+                  {applicationError && <p role="alert">{applicationError}</p>}
+
+                  <p>
+                    {applicationResult.email_sent_at
+                      ? `Emailed ${new Date(applicationResult.email_sent_at).toLocaleString()}`
+                      : "Not emailed yet."}
+                  </p>
                   <button
                     type="button"
                     className="btn-add-member"
-                    onClick={handleDownloadApplication}
-                    disabled={isDownloadingApplication}
+                    onClick={handleSendApplication}
+                    disabled={!applicationResult.email || isSendingEmail}
                   >
-                    {isDownloadingApplication ? "Downloading…" : "Download the PDF"}
+                    {isSendingEmail ? "Sending…" : "Send email"}
                   </button>
-                </p>
-
-                {applicationError && <p role="alert">{applicationError}</p>}
-
-                <p>
-                  {applicationResult.email_sent_at
-                    ? `Emailed ${new Date(applicationResult.email_sent_at).toLocaleString()}`
-                    : "Not emailed yet."}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSendApplication}
-                  disabled={!applicationResult.email || isSendingEmail}
-                >
-                  {isSendingEmail ? "Sending…" : "Send email"}
-                </button>
+                </div>
 
                 <div className="modal-actions">
                   <button type="button" onClick={closeApplicationModal}>
@@ -511,12 +563,40 @@ export default function MembersList() {
       )}
 
       {isModalOpen && canWrite && (
-        <div className="modal-overlay" onClick={cancelEdit}>
-          <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
+        <div
+          className={`modal-overlay ${isMinimal ? "members-modal-overlay" : ""}`}
+          onClick={cancelEdit}
+        >
+          <div
+            className={`modal-dialog ${isMinimal ? "members-modal-dialog members-modal-dialog--wide" : ""}`}
+            onClick={(event) => event.stopPropagation()}
+          >
             <form onSubmit={handleSubmit}>
+              {isMinimal && (
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  aria-label="Close"
+                  className="members-modal-x"
+                >
+                  <X className="w-[17px] h-[17px]" aria-hidden="true" />
+                </button>
+              )}
+              {isMinimal && (
+                <div className="members-modal-kicker">
+                  <UserPlus className="w-[14px] h-[14px]" aria-hidden="true" />
+                  {editingId ? "Edit member" : "Add member"}
+                </div>
+              )}
               <h2>{editingId ? "Edit member" : "Add member"}</h2>
+              {isMinimal && !editingId && (
+                <p className="members-modal-sub">
+                  Creates a member record directly from these details. All fields can be edited
+                  later from the member&rsquo;s profile.
+                </p>
+              )}
 
-              <div className="member-form-grid">
+              <div className={`member-form-grid ${isMinimal ? "members-form-grid" : ""}`}>
                 <div>
                   <label htmlFor="member-first-name">First name</label>
                   <input
@@ -809,10 +889,15 @@ export default function MembersList() {
                 </div>
               </div>
 
-              {saveError && <p role="alert">{saveError}</p>}
+              {saveError && (
+                <p role="alert" className={isMinimal ? "px-[26px]" : undefined}>
+                  {saveError}
+                </p>
+              )}
               <div className="modal-actions">
                 <button type="submit" disabled={isSaving}>
-                  {isSaving ? "Saving…" : editingId ? "Update member" : "Save member"}
+                  {isMinimal && !isSaving && <Check className="w-4 h-4" aria-hidden="true" />}
+                  {isSaving ? "Saving…" : editingId ? "Update member" : isMinimal ? "Submit" : "Save member"}
                 </button>
                 <button type="button" onClick={cancelEdit}>
                   Cancel
@@ -823,62 +908,129 @@ export default function MembersList() {
         </div>
       )}
 
-      <div className="member-filter-bar">
-        <input
-          id="filter-search"
-          className="member-filter-search"
-          type="text"
-          placeholder="Search by name or email…"
-          aria-label="Search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <select
-          id="filter-status"
-          aria-label="Status"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-        >
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="past">Past</option>
-        </select>
-        <label htmlFor="filter-honorary-only" className="member-filter-checkbox-label">
-          <input
-            id="filter-honorary-only"
-            type="checkbox"
-            checked={honoraryOnly}
-            onChange={(event) => setHonoraryOnly(event.target.checked)}
+      {isMinimal ? (
+        <div className="mb-[22px] flex flex-wrap items-center gap-[10px]">
+          <div className="flex h-[38px] flex-1 min-w-[240px] items-center gap-[9px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px]">
+            <Search className="w-4 h-4 shrink-0 text-[var(--faint)]" aria-hidden="true" />
+            <input
+              id="filter-search"
+              type="text"
+              placeholder="Search by name or email…"
+              aria-label="Search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
+            />
+          </div>
+
+          <SingleSelectDropdown
+            ariaLabel="Status"
+            minWidthClass="min-w-[130px]"
+            value={statusFilter}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "past", label: "Past" },
+              { value: "", label: "All statuses" },
+            ]}
+            onSelect={setStatusFilter}
           />
-          Honorary only
-        </label>
-        <select
-          id="filter-title"
-          aria-label="Title"
-          value={titleFilter}
-          onChange={(event) => setTitleFilter(event.target.value)}
-        >
-          <option value="">All titles</option>
-          {titles.map((title) => (
-            <option key={title.id} value={title.id}>
-              {title.label}
-            </option>
-          ))}
-        </select>
-        <select
-          id="filter-nationality"
-          aria-label="Nationality"
-          value={nationalityFilter}
-          onChange={(event) => setNationalityFilter(event.target.value)}
-        >
-          <option value="">All nationalities</option>
-          {nationalityOptions.map((nationality) => (
-            <option key={nationality} value={nationality}>
-              {nationality}
-            </option>
-          ))}
-        </select>
-      </div>
+
+          <label
+            htmlFor="filter-honorary-only"
+            className="inline-flex h-[38px] items-center gap-2 text-[13.5px] font-medium text-[var(--ink-2)]"
+          >
+            <input
+              id="filter-honorary-only"
+              type="checkbox"
+              checked={honoraryOnly}
+              onChange={(event) => setHonoraryOnly(event.target.checked)}
+            />
+            Honorary only
+          </label>
+
+          <MultiSelectDropdown
+            icon={Filter}
+            ariaLabel="Title"
+            allLabel="All titles"
+            options={titles.map((title) => ({ value: title.id, label: title.label }))}
+            selected={titleFilters}
+            onToggleOption={toggleTitleFilter}
+            onClear={() => setTitleFilters([])}
+          />
+
+          <MultiSelectDropdown
+            icon={Filter}
+            ariaLabel="Nationality"
+            allLabel="All nationalities"
+            options={nationalityOptions.map((nationality) => ({
+              value: nationality,
+              label: nationality,
+            }))}
+            selected={nationalityFilters}
+            onToggleOption={toggleNationalityFilter}
+            onClear={() => setNationalityFilters([])}
+          />
+        </div>
+      ) : (
+        <div className="member-filter-bar">
+          <input
+            id="filter-search"
+            className="member-filter-search"
+            type="text"
+            placeholder="Search by name or email…"
+            aria-label="Search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <select
+            id="filter-status"
+            aria-label="Status"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="past">Past</option>
+          </select>
+          <label htmlFor="filter-honorary-only" className="member-filter-checkbox-label">
+            <input
+              id="filter-honorary-only"
+              type="checkbox"
+              checked={honoraryOnly}
+              onChange={(event) => setHonoraryOnly(event.target.checked)}
+            />
+            Honorary only
+          </label>
+          <select
+            id="filter-title"
+            aria-label="Title"
+            value={titleFilters[0] ?? ""}
+            onChange={(event) => setTitleFilters(event.target.value ? [event.target.value] : [])}
+          >
+            <option value="">All titles</option>
+            {titles.map((title) => (
+              <option key={title.id} value={title.id}>
+                {title.label}
+              </option>
+            ))}
+          </select>
+          <select
+            id="filter-nationality"
+            aria-label="Nationality"
+            value={nationalityFilters[0] ?? ""}
+            onChange={(event) =>
+              setNationalityFilters(event.target.value ? [event.target.value] : [])
+            }
+          >
+            <option value="">All nationalities</option>
+            {nationalityOptions.map((nationality) => (
+              <option key={nationality} value={nationality}>
+                {nationality}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -952,36 +1104,71 @@ export default function MembersList() {
       )}
 
       {!isLoading && !loadError && visibleMembers.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
+            isMinimal ? "member-card-grid lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"
+          }`}
+        >
           {visibleMembers.map((member) => {
             const title = member.title_id ? titleById.get(member.title_id) : null;
             const age = computeAge(member.date_of_birth);
+            const avatarSizeClass = isMinimal ? "w-[60px] h-[60px]" : "w-[var(--avatar-size)] h-[var(--avatar-size)]";
             return (
               <Card
                 key={member.id}
                 variant="default"
-                className="flex flex-col items-center text-center gap-1 cursor-pointer hover:shadow-lg transition-shadow"
+                className={`flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow ${
+                  isMinimal ? "!gap-[7px] !p-[20px_16px]" : "hover:shadow-lg"
+                }`}
                 onClick={() => openDetail(member)}
               >
                 {member.photo_url ? (
                   <img
-                    className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full object-cover bg-[var(--color-card-border)] shrink-0"
+                    className={`${avatarSizeClass} rounded-full object-cover shrink-0 ${
+                      isMinimal ? "bg-[var(--accent-soft)]" : "bg-[var(--color-card-border)]"
+                    }`}
                     src={resolvePhotoUrl(member.photo_url)}
                     alt=""
                   />
                 ) : (
-                  <div className="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full bg-[var(--color-card-border)] flex items-center justify-center text-base font-semibold text-[var(--color-brand-blue-dark)] shrink-0">
+                  <div
+                    className={`${avatarSizeClass} rounded-full flex items-center justify-center shrink-0 ${
+                      isMinimal
+                        ? "bg-[var(--accent-soft)] text-[19px] font-bold text-[var(--accent-ink)]"
+                        : "bg-[var(--color-card-border)] text-base font-semibold text-[var(--color-brand-blue-dark)]"
+                    }`}
+                  >
                     {initials(member)}
                   </div>
                 )}
                 <div className="min-w-0 w-full">
                   <div className="flex items-center justify-center gap-2">
-                    <span className="font-semibold text-[var(--color-brand-blue-dark)] truncate">
+                    <span
+                      className={`truncate ${
+                        isMinimal
+                          ? "text-[14.5px] font-semibold text-[var(--ink)]"
+                          : "font-semibold text-[var(--color-brand-blue-dark)]"
+                      }`}
+                    >
                       {member.first_name} {member.last_name}
                     </span>
-                    {title && <span className="inline-badge shrink-0">{title.code}</span>}
+                    {title && (
+                      <span
+                        className={
+                          isMinimal
+                            ? "shrink-0 text-[11px] font-semibold text-[var(--muted)]"
+                            : "inline-badge shrink-0"
+                        }
+                      >
+                        {title.code}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-sm text-gray-500 truncate">
+                  <div
+                    className={`truncate ${
+                      isMinimal ? "text-[12.5px] text-[var(--muted)]" : "text-sm text-gray-500"
+                    }`}
+                  >
                     {[
                       age !== null ? `${age}y old` : null,
                       member.gender,
@@ -992,7 +1179,9 @@ export default function MembersList() {
                       .join(" · ")}
                   </div>
                 </div>
-                <div className="text-xs text-gray-400">
+                <div
+                  className={isMinimal ? "text-[11.5px] text-[var(--faint)] mt-1" : "text-xs text-gray-400"}
+                >
                   {member.years_in_this_club}y in club · {member.years_as_rotarian}y as Rotarian
                 </div>
               </Card>

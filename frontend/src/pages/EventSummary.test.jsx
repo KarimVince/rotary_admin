@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventSummary from "./EventSummary";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -53,12 +54,20 @@ describe("EventSummary", () => {
 
   it("denies access without events.summary read", async () => {
     mockCanRead = false;
-    render(<EventSummary event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSummary event={EVENT} />
+      </ThemeProvider>,
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
 
   it("keeps the top-level Fundraising Total and Operational Result figures separate, never netted together", async () => {
-    render(<EventSummary event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSummary event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.getByText("Fundraising total")).toBeInTheDocument();
@@ -72,7 +81,11 @@ describe("EventSummary", () => {
   });
 
   it("shows all four card sections with correct computed values", async () => {
-    render(<EventSummary event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSummary event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.getByText("Fundraising Results")).toBeInTheDocument();
@@ -99,7 +112,11 @@ describe("EventSummary", () => {
   });
 
   it("renders the three breakdown charts", async () => {
-    render(<EventSummary event={EVENT} />);
+    render(
+      <ThemeProvider>
+        <EventSummary event={EVENT} />
+      </ThemeProvider>,
+    );
     await waitForLoaded();
 
     expect(screen.getByText("Income breakdown")).toBeInTheDocument();
@@ -137,7 +154,11 @@ describe("EventSummary", () => {
         }),
       );
 
-      render(<EventSummary event={EVENT} />);
+      render(
+      <ThemeProvider>
+        <EventSummary event={EVENT} />
+      </ThemeProvider>,
+    );
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Generate Report" }));

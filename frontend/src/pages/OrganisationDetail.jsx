@@ -19,6 +19,7 @@ import {
 } from "../api/serviceHours";
 import Card from "../components/Card";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import { SELECT_CLASS, INPUT_CLASS } from "../styles/formControls";
 import { classificationColorClass } from "../utils/classificationColors";
 import { currentRotaryYear, rotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
@@ -28,10 +29,9 @@ import { CURRENCIES, currencyLabel } from "../data/currencies";
 // same Card-wrapped, uppercase-header, text-link-action pattern as
 // EmailLogTable.jsx / MemberFees.jsx, the design baseline this story asked
 // for, instead of the page's old plain `.data-table` CSS class.
-const ACTION_BUTTON_CLASS = "bg-transparent border-none p-0 mr-4 text-[13px] font-semibold text-[var(--color-brand-blue)] cursor-pointer";
-const DELETE_BUTTON_CLASS = "bg-transparent border-none p-0 text-[13px] font-semibold text-[var(--color-tone-rose-text)] cursor-pointer";
-const SUBMIT_BUTTON_CLASS = "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-none";
-const CANCEL_BUTTON_CLASS = "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] cursor-pointer";
+// STEP-7 (Minimal restyle): these are computed per-theme inside the
+// component (isMinimal swaps the color tokens) rather than fixed module
+// constants — see ACTION_BUTTON_CLASS etc. below.
 
 function EntryTable({ columns, rows, isAdmin }) {
   return (
@@ -80,9 +80,23 @@ function resolveLogoUrl(logoUrl) {
 }
 
 export default function OrganisationDetail() {
+  const { isMinimal } = useTheme();
   const { organisationId } = useParams();
   const { canRead, canWrite: isAdmin } = useAccess("ngos.organisations");
   const thisRotaryYear = currentRotaryYear();
+
+  const ACTION_BUTTON_CLASS = isMinimal
+    ? "bg-transparent border-none p-0 mr-4 text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)] cursor-pointer"
+    : "bg-transparent border-none p-0 mr-4 text-[13px] font-semibold text-[var(--color-brand-blue)] cursor-pointer";
+  const DELETE_BUTTON_CLASS = isMinimal
+    ? "bg-transparent border-none p-0 text-[13px] font-semibold text-[var(--low)] hover:opacity-80 cursor-pointer"
+    : "bg-transparent border-none p-0 text-[13px] font-semibold text-[var(--color-tone-rose-text)] cursor-pointer";
+  const SUBMIT_BUTTON_CLASS = isMinimal
+    ? "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-white bg-[var(--accent)] hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-none"
+    : "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-none";
+  const CANCEL_BUTTON_CLASS = isMinimal
+    ? "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-[var(--ink-2)] bg-transparent border border-[var(--border)] hover:bg-[var(--bg-alt)] cursor-pointer"
+    : "rounded-lg px-4 py-2 text-[13.5px] font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] cursor-pointer";
 
   const [organisation, setOrganisation] = useState(null);
   const [donations, setDonations] = useState([]);
@@ -296,7 +310,7 @@ export default function OrganisationDetail() {
   }
 
   const CELL_CLASS = "px-5 py-[14px] text-[14px] text-[var(--color-muted-text)]";
-  const CELL_STRONG_CLASS = "px-5 py-[14px] text-[14px] font-semibold text-[#0c2340]";
+  const CELL_STRONG_CLASS = "px-5 py-[14px] text-[14px] font-semibold text-[var(--text-h)]";
 
   function renderHoursRow(entry, highlight) {
     return (
@@ -374,11 +388,22 @@ export default function OrganisationDetail() {
 
   return (
     <div className="admin-page">
-      <Link to="/ngos" className="text-[13px] font-semibold text-[var(--color-brand-blue)]">
+      <Link
+        to="/ngos"
+        className={`text-[13px] font-semibold ${isMinimal ? "text-[var(--accent)] hover:text-[var(--accent-ink)]" : "text-[var(--color-brand-blue)]"}`}
+      >
         ← Back to organisations
       </Link>
       <div className="org-detail-header mt-3">
-        {organisation.logo_url ? (
+        {isMinimal ? (
+          <div className="ngo-avatar">
+            {organisation.logo_url ? (
+              <img src={resolveLogoUrl(organisation.logo_url)} alt="" />
+            ) : (
+              <Building2 className="w-6 h-6" aria-hidden="true" />
+            )}
+          </div>
+        ) : organisation.logo_url ? (
           <img
             className="org-detail-logo"
             src={resolveLogoUrl(organisation.logo_url)}
@@ -389,12 +414,18 @@ export default function OrganisationDetail() {
             <Building2 className="w-8 h-8" aria-hidden="true" />
           </div>
         )}
-        <h1 className="text-[22px] font-bold text-[var(--color-brand-blue-dark)]">
+        <h1
+          className={
+            isMinimal
+              ? "text-[22px] font-bold text-[var(--ink)]"
+              : "text-[22px] font-bold text-[var(--color-brand-blue-dark)]"
+          }
+        >
           {organisation.name}
         </h1>
         {organisation.classification_id && classificationsById.has(organisation.classification_id) && (
           <span
-            className={`inline-badge ${classificationColorClass(
+            className={`${isMinimal ? "ngo-pill" : "inline-badge"} ${classificationColorClass(
               classificationsById.get(organisation.classification_id).name,
             )}`}
           >
@@ -402,7 +433,7 @@ export default function OrganisationDetail() {
           </span>
         )}
       </div>
-      <div className="org-detail-meta">
+      <div className={isMinimal ? "org-detail-meta text-[13.5px] text-[var(--ink-2)] leading-relaxed" : "org-detail-meta"}>
         {organisation.country && <p>Country: {organisation.country}</p>}
         {organisation.description && <p>{organisation.description}</p>}
         {organisation.contact_name && <p>Contact: {organisation.contact_name}</p>}
@@ -415,28 +446,54 @@ export default function OrganisationDetail() {
 
       {/* Story 16.20: distinct tinted cards (not bare text) for the two
           running totals, same tone palette used across every other
-          module's stat cards. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-w-[700px]">
-        <Card variant="stat-blue" className="!p-4">
-          <p className="m-0 text-[15px] font-semibold text-[var(--color-brand-blue-dark)]">
-            Total donated (all years):{" "}
-            {Object.keys(totalsByCurrency).length === 0
-              ? formatAmount(0, "HKD")
-              : Object.entries(totalsByCurrency)
-                  .map(([currency, sum]) => formatAmount(sum, currency))
-                  .join(", ")}
-          </p>
+          module's stat cards. STEP-7: Minimal renders the same computed
+          values as a value/label stat card (`.stat-duo-grid` gives the
+          accent/gold alternation for free); Classic keeps its own
+          single-paragraph card untouched. */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-w-[700px] ${isMinimal ? "stat-duo-grid" : ""}`}>
+        <Card variant="stat-blue" className={isMinimal ? "flex flex-col" : "!p-4"}>
+          {isMinimal ? (
+            <>
+              <span className="text-3xl font-bold">
+                {Object.keys(totalsByCurrency).length === 0
+                  ? formatAmount(0, "HKD")
+                  : Object.entries(totalsByCurrency)
+                      .map(([currency, sum]) => formatAmount(sum, currency))
+                      .join(", ")}
+              </span>
+              <span className="mt-2 text-sm">Total donated (all years)</span>
+            </>
+          ) : (
+            <p className="m-0 text-[15px] font-semibold text-[var(--color-brand-blue-dark)]">
+              Total donated (all years):{" "}
+              {Object.keys(totalsByCurrency).length === 0
+                ? formatAmount(0, "HKD")
+                : Object.entries(totalsByCurrency)
+                    .map(([currency, sum]) => formatAmount(sum, currency))
+                    .join(", ")}
+            </p>
+          )}
         </Card>
-        <Card variant="stat-teal" className="!p-4">
-          <p className="m-0 text-[15px] font-semibold text-[var(--color-brand-blue-dark)]">
-            Total service hours (all years): {formatHours(totalHours)} — Current year (
-            {rotaryYearLabel(thisRotaryYear)}): {formatHours(totalHoursCurrentYear)}
-          </p>
+        <Card variant="stat-teal" className={isMinimal ? "flex flex-col" : "!p-4"}>
+          {isMinimal ? (
+            <>
+              <span className="text-3xl font-bold">{formatHours(totalHours)}</span>
+              <span className="mt-2 text-sm">
+                Total service hours (all years) — Current year ({rotaryYearLabel(thisRotaryYear)}):{" "}
+                {formatHours(totalHoursCurrentYear)}
+              </span>
+            </>
+          ) : (
+            <p className="m-0 text-[15px] font-semibold text-[var(--color-brand-blue-dark)]">
+              Total service hours (all years): {formatHours(totalHours)} — Current year (
+              {rotaryYearLabel(thisRotaryYear)}): {formatHours(totalHoursCurrentYear)}
+            </p>
+          )}
         </Card>
       </div>
 
       <section className="donation-current-section">
-        <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)]">
+        <h2 className={isMinimal ? "seclabel" : "text-[17px] font-bold text-[var(--color-brand-blue)]"}>
           Current rotary year ({rotaryYearLabel(thisRotaryYear)})
         </h2>
         {currentYearDonations.length === 0 ? (
@@ -452,7 +509,13 @@ export default function OrganisationDetail() {
 
       {isAdmin && (
         <section className="donation-form-section mt-6">
-          <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
+          <h2
+            className={
+              isMinimal
+                ? "seclabel !mt-0"
+                : "text-[17px] font-bold text-[var(--color-brand-blue)] mb-3"
+            }
+          >
             {editingId ? "Edit donation" : "Add donation"}
           </h2>
           <Card variant="default" className="!p-5 !rounded-2xl max-w-[700px]">
@@ -534,7 +597,7 @@ export default function OrganisationDetail() {
       )}
 
       <section className="donation-history-section mt-6">
-        <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)]">
+        <h2 className={isMinimal ? "seclabel" : "text-[17px] font-bold text-[var(--color-brand-blue)]"}>
           Donation history (past years)
         </h2>
         {pastDonations.length === 0 ? (
@@ -548,12 +611,18 @@ export default function OrganisationDetail() {
         )}
       </section>
 
-      <h2 className="service-hours-heading text-[19px] font-bold text-[var(--color-brand-blue-dark)] mt-8">
+      <h2
+        className={
+          isMinimal
+            ? "service-hours-heading text-[19px] font-bold text-[var(--ink)] mt-8"
+            : "service-hours-heading text-[19px] font-bold text-[var(--color-brand-blue-dark)] mt-8"
+        }
+      >
         Services
       </h2>
 
       <section className="service-hours-current-section">
-        <h3 className="text-[17px] font-bold text-[var(--color-brand-blue)]">
+        <h3 className={isMinimal ? "seclabel" : "text-[17px] font-bold text-[var(--color-brand-blue)]"}>
           Current rotary year ({rotaryYearLabel(thisRotaryYear)})
         </h3>
         {currentYearServiceHours.length === 0 ? (
@@ -569,7 +638,13 @@ export default function OrganisationDetail() {
 
       {isAdmin && (
         <section className="service-hours-form-section mt-6">
-          <h3 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
+          <h3
+            className={
+              isMinimal
+                ? "seclabel !mt-0"
+                : "text-[17px] font-bold text-[var(--color-brand-blue)] mb-3"
+            }
+          >
             {editingHoursId ? "Edit service hours" : "Add services"}
           </h3>
           <Card variant="default" className="!p-5 !rounded-2xl max-w-[700px]">
@@ -657,7 +732,7 @@ export default function OrganisationDetail() {
       )}
 
       <section className="service-hours-history-section mt-6">
-        <h3 className="text-[17px] font-bold text-[var(--color-brand-blue)]">
+        <h3 className={isMinimal ? "seclabel" : "text-[17px] font-bold text-[var(--color-brand-blue)]"}>
           Service hours history (past years)
         </h3>
         {pastServiceHours.length === 0 ? (

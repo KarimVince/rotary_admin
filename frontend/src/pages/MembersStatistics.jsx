@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -14,9 +15,13 @@ import {
 } from "recharts";
 import { fetchMemberStatistics, generateStatisticsReport } from "../api/memberStatistics";
 import { fetchCurrentPptTemplate } from "../api/pptTemplates";
+import Card from "../components/Card";
+import SectionLabel from "../components/SectionLabel";
+import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 
-const PIE_COLORS = ["#17458f", "#f7a81b", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
+const PIE_COLORS = ["var(--rotary-blue)", "var(--rotary-gold)", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
 
 // Story 8.23: "remembered per session (not persisted across logins)" —
 // sessionStorage survives navigating away and back within the same browser
@@ -25,6 +30,7 @@ const SESSION_KEY_REPORT_TYPE = "membersStats.reportType";
 const SESSION_KEY_USE_TEMPLATE = "membersStats.useTemplate";
 
 export default function MembersStatistics() {
+  const { isMinimal } = useTheme();
   const { canRead } = useAccess("members.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -112,96 +118,205 @@ export default function MembersStatistics() {
     );
   }
 
+  const STAT_ROWS = [
+    [
+      { key: "total_members", value: stats.total_members, label: "Total Members", tone: "stat-blue" },
+      { key: "honorary_members", value: stats.honorary_members, label: "Honorary Members", tone: "stat-blue" },
+      {
+        key: "new_members_this_rotary_year",
+        value: stats.new_members_this_rotary_year,
+        label: "New Members (this Rotary year)",
+        tone: "stat-lavender",
+      },
+      {
+        key: "countries_represented",
+        value: stats.countries_represented,
+        label: "Countries Represented",
+        tone: "stat-lavender",
+      },
+    ],
+    [
+      { key: "women_count", value: stats.women_count, label: "Number of Women", tone: "stat-teal" },
+      { key: "men_count", value: stats.men_count, label: "Number of Men", tone: "stat-teal" },
+      { key: "average_age", value: stats.average_age ?? "–", label: "Average Age", tone: "stat-amber" },
+      {
+        key: "average_tenure_as_rotarian",
+        value: stats.average_tenure_as_rotarian ?? "–",
+        label: "Average Tenure (as Rotarian)",
+        tone: "stat-amber",
+      },
+    ],
+  ];
+
   return (
     <div className="admin-page admin-page-wide">
       <h1>Member statistics</h1>
+      {isMinimal && (
+        <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+          Composition of the club membership.
+        </p>
+      )}
 
-      <div className="report-controls">
-        <label htmlFor="report-format">Generate report</label>
-        <select
-          id="report-format"
-          value={reportFormat}
-          onChange={(event) => setReportFormat(event.target.value)}
-          disabled={isGeneratingReport}
-        >
-          <option value="pdf">PDF</option>
-          <option value="pptx">PowerPoint (PPTX)</option>
-        </select>
+      {isMinimal ? (
+        <div className="mb-5 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Format
+            </span>
+            <SingleSelectDropdown
+              ariaLabel="Format"
+              minWidthClass="min-w-[170px]"
+              disabled={isGeneratingReport}
+              value={reportFormat}
+              options={[
+                { value: "pdf", label: "PDF" },
+                { value: "pptx", label: "PowerPoint (PPTX)" },
+              ]}
+              onSelect={setReportFormat}
+            />
+          </div>
 
-        <label htmlFor="report-type">Content</label>
-        <select
-          id="report-type"
-          value={reportType}
-          onChange={(event) => handleReportTypeChange(event.target.value)}
-          disabled={isGeneratingReport}
-        >
-          <option value="simplified">Simplified</option>
-          <option value="integral">Integral</option>
-        </select>
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Content
+            </span>
+            <SingleSelectDropdown
+              ariaLabel="Content"
+              minWidthClass="min-w-[130px]"
+              disabled={isGeneratingReport}
+              value={reportType}
+              options={[
+                { value: "simplified", label: "Simplified" },
+                { value: "integral", label: "Integral" },
+              ]}
+              onSelect={handleReportTypeChange}
+            />
+          </div>
 
-        <label
-          htmlFor="report-use-template"
-          title={
-            reportFormat !== "pptx"
-              ? "The annual club template only applies to PowerPoint (PPTX) reports"
-              : !hasTemplate
-                ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
-                : undefined
-          }
-        >
-          <input
-            id="report-use-template"
-            type="checkbox"
-            checked={useTemplate}
-            onChange={(event) => handleUseTemplateChange(event.target.checked)}
-            disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
-          />
-          Use annual club template
-        </label>
+          <label
+            htmlFor="report-use-template"
+            className="flex h-[38px] items-center gap-2 text-[13px] text-[var(--ink-2)]"
+            title={
+              reportFormat !== "pptx"
+                ? "The annual club template only applies to PowerPoint (PPTX) reports"
+                : !hasTemplate
+                  ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
+                  : undefined
+            }
+          >
+            <input
+              id="report-use-template"
+              type="checkbox"
+              checked={useTemplate}
+              onChange={(event) => handleUseTemplateChange(event.target.checked)}
+              disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
+            />
+            Use annual club template
+          </label>
 
-        <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
-          {isGeneratingReport ? "Generating…" : "Generate Report"}
-        </button>
-        {reportError && <p role="alert">{reportError}</p>}
-      </div>
+          <div className="ml-auto flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px]">&nbsp;</span>
+            <button
+              type="button"
+              onClick={handleGenerateReport}
+              disabled={isGeneratingReport}
+              className="inline-flex h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" aria-hidden="true" />
+              {isGeneratingReport ? "Generating…" : "Generate Report"}
+            </button>
+          </div>
+          {reportError && (
+            <p role="alert" className="w-full text-[13px] text-[var(--low)]">
+              {reportError}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="report-controls">
+          <label htmlFor="report-format">Generate report</label>
+          <select
+            id="report-format"
+            value={reportFormat}
+            onChange={(event) => setReportFormat(event.target.value)}
+            disabled={isGeneratingReport}
+          >
+            <option value="pdf">PDF</option>
+            <option value="pptx">PowerPoint (PPTX)</option>
+          </select>
 
-      <div className="stat-cards-row">
-        <div className="stat-card stat-card-blue">
-          <span className="stat-value">{stats.total_members}</span>
-          <span className="stat-label">Total Members</span>
-        </div>
-        <div className="stat-card stat-card-blue">
-          <span className="stat-value">{stats.honorary_members}</span>
-          <span className="stat-label">Honorary Members</span>
-        </div>
-        <div className="stat-card stat-card-lavender">
-          <span className="stat-value">{stats.new_members_this_rotary_year}</span>
-          <span className="stat-label">New Members (this Rotary year)</span>
-        </div>
-        <div className="stat-card stat-card-lavender">
-          <span className="stat-value">{stats.countries_represented}</span>
-          <span className="stat-label">Countries Represented</span>
-        </div>
-      </div>
+          <label htmlFor="report-type">Content</label>
+          <select
+            id="report-type"
+            value={reportType}
+            onChange={(event) => handleReportTypeChange(event.target.value)}
+            disabled={isGeneratingReport}
+          >
+            <option value="simplified">Simplified</option>
+            <option value="integral">Integral</option>
+          </select>
 
-      <div className="stat-cards-row">
-        <div className="stat-card stat-card-teal">
-          <span className="stat-value">{stats.women_count}</span>
-          <span className="stat-label">Number of Women</span>
+          <label
+            htmlFor="report-use-template"
+            title={
+              reportFormat !== "pptx"
+                ? "The annual club template only applies to PowerPoint (PPTX) reports"
+                : !hasTemplate
+                  ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
+                  : undefined
+            }
+          >
+            <input
+              id="report-use-template"
+              type="checkbox"
+              checked={useTemplate}
+              onChange={(event) => handleUseTemplateChange(event.target.checked)}
+              disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
+            />
+            Use annual club template
+          </label>
+
+          <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
+            {isGeneratingReport ? "Generating…" : "Generate Report"}
+          </button>
+          {reportError && <p role="alert">{reportError}</p>}
         </div>
-        <div className="stat-card stat-card-teal">
-          <span className="stat-value">{stats.men_count}</span>
-          <span className="stat-label">Number of Men</span>
-        </div>
-        <div className="stat-card stat-card-amber">
-          <span className="stat-value">{stats.average_age ?? "–"}</span>
-          <span className="stat-label">Average Age</span>
-        </div>
-        <div className="stat-card stat-card-amber">
-          <span className="stat-value">{stats.average_tenure_as_rotarian ?? "–"}</span>
-          <span className="stat-label">Average Tenure (as Rotarian)</span>
-        </div>
-      </div>
+      )}
+
+      {isMinimal
+        ? STAT_ROWS.map((row, rowIndex) => (
+            <div key={rowIndex} className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {row.map((card) => (
+                <Card key={card.key} variant={card.tone} className="flex flex-col">
+                  <span className="text-3xl font-bold">{card.value}</span>
+                  <span className="mt-2 text-sm">{card.label}</span>
+                </Card>
+              ))}
+            </div>
+          ))
+        : STAT_ROWS.map((row, rowIndex) => (
+            <div key={rowIndex} className="stat-cards-row">
+              {row.map((card) => (
+                <div
+                  key={card.key}
+                  className={`stat-card stat-card-${
+                    card.tone === "stat-blue"
+                      ? "blue"
+                      : card.tone === "stat-lavender"
+                        ? "lavender"
+                        : card.tone === "stat-teal"
+                          ? "teal"
+                          : "amber"
+                  }`}
+                >
+                  <span className="stat-value">{card.value}</span>
+                  <span className="stat-label">{card.label}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+
+      {isMinimal && <SectionLabel className="mt-2">Breakdowns</SectionLabel>}
 
       <div className="chart-grid">
         <div className="chart-card">
@@ -212,7 +327,7 @@ export default function MembersStatistics() {
               <XAxis dataKey="label" />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="value" name="Members" fill="#17458f" />
+              <Bar dataKey="value" name="Members" fill="var(--rotary-blue)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -226,7 +341,7 @@ export default function MembersStatistics() {
               <YAxis allowDecimals={false} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="joins" name="Joins" fill="#17458f" />
+              <Bar dataKey="joins" name="Joins" fill="var(--rotary-blue)" />
               <Bar dataKey="leaves" name="Leaves" fill="#b3261e" />
             </BarChart>
           </ResponsiveContainer>
@@ -261,7 +376,7 @@ export default function MembersStatistics() {
               <XAxis dataKey="label" />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="value" name="Members" fill="#17458f" />
+              <Bar dataKey="value" name="Members" fill="var(--rotary-blue)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -295,7 +410,7 @@ export default function MembersStatistics() {
               <XAxis dataKey="label" />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="value" name="Members" fill="#17458f" />
+              <Bar dataKey="value" name="Members" fill="var(--rotary-blue)" />
             </BarChart>
           </ResponsiveContainer>
         </div>

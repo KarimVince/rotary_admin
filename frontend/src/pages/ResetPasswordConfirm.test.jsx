@@ -4,18 +4,21 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import ResetPasswordConfirm from "./ResetPasswordConfirm";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
 function renderPage(token = "valid-token") {
   render(
-    <MemoryRouter initialEntries={[`/reset-password?token=${token}`]}>
-      <Routes>
-        <Route path="/reset-password" element={<ResetPasswordConfirm />} />
-        <Route path="/login" element={<div>Login page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[`/reset-password?token=${token}`]}>
+        <Routes>
+          <Route path="/reset-password" element={<ResetPasswordConfirm />} />
+          <Route path="/login" element={<div>Login page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

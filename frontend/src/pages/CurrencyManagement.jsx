@@ -211,7 +211,7 @@ export default function CurrencyManagement() {
             <tbody>
               {rates.map((rate) => (
                 <tr key={rate.id} className="border-t border-[var(--color-border-light)]">
-                  <td className="px-5 py-3 text-sm font-semibold text-[#0c2340]">{currencyLabel(rate.currency_code)}</td>
+                  <td className="px-5 py-3 text-sm font-semibold text-[var(--text-h)]">{currencyLabel(rate.currency_code)}</td>
                   <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{rate.rate_to_hkd}</td>
                   <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{rate.rate_to_usd}</td>
                   <td className="px-5 py-3 text-sm text-[var(--color-muted-text)]">{new Date(rate.updated_at).toLocaleString()}</td>

@@ -412,6 +412,16 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
    modal forms for data entry (2–3 cols). See Story 1.10 / 2b.3 for the pattern.
 8. **Confirm before irreversible/side-effectful actions** (sending email,
    generating invoices, deleting) — show a confirmation with counts first.
+9. **Don't open the browser preview / log in / click through the app to
+   "verify" a change unless I explicitly ask for it.** This app requires a
+   real login, and driving the browser (navigating panels, filling forms,
+   resetting passwords, adding/deleting test rows to check styling) burns a
+   lot of turns for a small UI tweak. Default to static verification instead:
+   read the changed code back, run lint/typecheck, and reason about whether
+   it satisfies the request. Only fire up the browser when I say "check it in
+   the browser," "show me a screenshot," or similar — and even then, don't
+   also reset user passwords or write/delete real data as a side effect
+   without asking first.
 
 ## CORS
 Allowed origins come from an **env var** (a list), never hardcoded — so new

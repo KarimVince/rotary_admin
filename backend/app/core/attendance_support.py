@@ -48,6 +48,25 @@ def member_status_as_of(member: Member, as_of_date: date) -> str:
     return "honorary" if member.is_honorary else "active"
 
 
+def started_event_ids(db: Session, event_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Which of these events have actually had attendance taken (at least
+    one AttendanceRecord seeded, via the create-with-attendance flow or
+    POST /attendance/events/{id}/start) — the same "started" signal
+    start_attendance_for_event itself checks before seeding. A Dinner
+    Forecast event can carry a past event_date without ever being started
+    (planned then never held, or just not started yet), so date alone
+    doesn't mean "this dinner happened"."""
+    if not event_ids:
+        return set()
+    rows = (
+        db.query(AttendanceRecord.event_id)
+        .filter(AttendanceRecord.event_id.in_(event_ids))
+        .distinct()
+        .all()
+    )
+    return {row[0] for row in rows}
+
+
 def compute_event_counts(db: Session, event_ids: list[uuid.UUID]) -> dict[uuid.UUID, dict[str, int]]:
     if not event_ids:
         return {}
@@ -113,8 +132,15 @@ def compute_attendance_stats(db: Session, rotary_year_value: int) -> AttendanceS
     report's stat tiles (dinner_forecast_report.py) so the two never
     disagree. Story 15.1 follow-up: future-dated, not-yet-started planning
     events are excluded so they don't drag the average down with a phantom
-    0% turnout."""
-    events = (
+    0% turnout.
+
+    Bug fix (2026-08-06): the date filter alone let a past-dated Dinner
+    Forecast event that was never actually started (no attendance taken —
+    see started_event_ids) inflate "Total events" and drag the average
+    down with a phantom 0% turnout, the same problem the future-dated
+    exclusion above was meant to prevent. Now excluded the same way.
+    """
+    candidate_events = (
         db.query(AttendanceEvent)
         .filter(
             AttendanceEvent.rotary_year == rotary_year_value,
@@ -122,6 +148,8 @@ def compute_attendance_stats(db: Session, rotary_year_value: int) -> AttendanceS
         )
         .all()
     )
+    started = started_event_ids(db, [event.id for event in candidate_events])
+    events = [event for event in candidate_events if event.id in started]
     counts = compute_event_counts(db, [event.id for event in events])
     eligible_member_count = (
         db.query(func.count(Member.id)).filter(Member.status == "active").scalar() or 0

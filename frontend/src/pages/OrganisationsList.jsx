@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { Building2, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_ORIGIN } from "../api/client";
@@ -10,10 +10,12 @@ import {
   uploadOrganisationLogo,
 } from "../api/organisations";
 import Card from "../components/Card";
+import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { COUNTRIES } from "../data/countries";
 import { SELECT_CLASS } from "../styles/formControls";
 import { useAccess } from "../hooks/useAccess";
 import { useRotaryYears } from "../hooks/useRotaryYears";
+import { useTheme } from "../context/ThemeContext";
 import { classificationColorClass } from "../utils/classificationColors";
 import { rotaryYearLabel } from "../utils/rotaryYear";
 
@@ -53,6 +55,7 @@ function resolveLogoUrl(logoUrl) {
 }
 
 export default function OrganisationsList() {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("ngos.organisations");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -259,8 +262,29 @@ export default function OrganisationsList() {
   return (
     <div className="admin-page admin-page-wide">
       <div className="page-header-row">
-        <h1>NGO &amp; Services Project</h1>
-        {canWrite && (
+        {isMinimal ? (
+          <div>
+            <h1>NGO &amp; Services Project</h1>
+            <p className="mt-1 mb-0 text-sm text-[var(--color-muted-text)]">
+              Partner organisations supported by the club.
+            </p>
+          </div>
+        ) : (
+          <h1>NGO &amp; Services Project</h1>
+        )}
+        {canWrite && isMinimal && (
+          <div className="page-header-actions">
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)]"
+            >
+              <Plus className="w-[15px] h-[15px]" aria-hidden="true" />
+              Add Organisation
+            </button>
+          </div>
+        )}
+        {canWrite && !isMinimal && (
           <button type="button" className="btn-add-member" onClick={openAddModal}>
             + Add Organisation
           </button>
@@ -268,12 +292,18 @@ export default function OrganisationsList() {
       </div>
 
       {isModalOpen && canWrite && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
+        <div
+          className={`modal-overlay ${isMinimal ? "ngo-modal-overlay" : ""}`}
+          onClick={closeModal}
+        >
+          <div
+            className={`modal-dialog ${isMinimal ? "ngo-modal-dialog" : ""}`}
+            onClick={(event) => event.stopPropagation()}
+          >
             <form onSubmit={handleSubmit}>
               <h2>{editingId ? "Edit organisation" : "Add organisation"}</h2>
 
-              <div className="member-form-grid">
+              <div className={`member-form-grid ${isMinimal ? "ngo-form-grid" : ""}`}>
                 <div className="field-full">
                   <label htmlFor="org-name">Name</label>
                   <input
@@ -405,64 +435,122 @@ export default function OrganisationsList() {
         </div>
       )}
 
-      <div className="member-filter-bar">
-        <input
-          id="filter-search"
-          className="member-filter-search"
-          type="text"
-          placeholder="Search by name or country…"
-          aria-label="Search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <select
-          id="filter-country"
-          aria-label="Country"
-          value={countryFilter}
-          onChange={(event) => setCountryFilter(event.target.value)}
-          className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
-        >
-          <option value="">All countries</option>
-          {countryOptions.map((country) => (
-            <option key={country} value={country}>
-              {country}
-            </option>
-          ))}
-        </select>
-        <select
-          id="filter-rotary-year"
-          aria-label="Rotary year"
-          value={yearFilter === null ? "all" : String(yearFilter)}
-          onChange={(event) =>
-            setYearFilter(event.target.value === "all" ? null : Number(event.target.value))
-          }
-          className={`${SELECT_CLASS} !w-auto min-w-[130px]`}
-        >
-          <option value="all">All years</option>
-          {yearOptions.map((year) => (
-            <option key={year} value={year}>
-              {rotaryYearLabel(year)}
-              {year === currentYear ? " (current)" : ""}
-            </option>
-          ))}
-        </select>
-        {classifications.length > 0 && (
+      {isMinimal ? (
+        <div className="mb-[22px] flex flex-wrap items-center gap-[10px]">
+          <div className="flex h-[38px] flex-1 min-w-[240px] items-center gap-[9px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px]">
+            <Search className="w-4 h-4 shrink-0 text-[var(--faint)]" aria-hidden="true" />
+            <input
+              id="filter-search"
+              type="text"
+              placeholder="Search by name or country…"
+              aria-label="Search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
+            />
+          </div>
+
+          {classifications.length > 0 && (
+            <SingleSelectDropdown
+              ariaLabel="Classification"
+              minWidthClass="min-w-[150px]"
+              value={classificationFilter || "all"}
+              options={[
+                { value: "all", label: "All classifications" },
+                ...classifications.map((classification) => ({
+                  value: classification.id,
+                  label: classification.name,
+                })),
+              ]}
+              onSelect={(value) => setClassificationFilter(value === "all" ? "" : value)}
+            />
+          )}
+
+          <SingleSelectDropdown
+            ariaLabel="Rotary year"
+            minWidthClass="min-w-[130px]"
+            value={yearFilter === null ? "all" : String(yearFilter)}
+            options={[
+              { value: "all", label: "All years" },
+              ...yearOptions.map((year) => ({
+                value: String(year),
+                label: `${rotaryYearLabel(year)}${year === currentYear ? " (current)" : ""}`,
+              })),
+            ]}
+            onSelect={(value) => setYearFilter(value === "all" ? null : Number(value))}
+          />
+
+          <SingleSelectDropdown
+            ariaLabel="Country"
+            minWidthClass="min-w-[150px]"
+            value={countryFilter || "all"}
+            options={[
+              { value: "all", label: "All countries" },
+              ...countryOptions.map((country) => ({ value: country, label: country })),
+            ]}
+            onSelect={(value) => setCountryFilter(value === "all" ? "" : value)}
+          />
+        </div>
+      ) : (
+        <div className="member-filter-bar">
+          <input
+            id="filter-search"
+            className="member-filter-search"
+            type="text"
+            placeholder="Search by name or country…"
+            aria-label="Search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
           <select
-            id="filter-classification"
-            aria-label="Classification"
-            value={classificationFilter}
-            onChange={(event) => setClassificationFilter(event.target.value)}
+            id="filter-country"
+            aria-label="Country"
+            value={countryFilter}
+            onChange={(event) => setCountryFilter(event.target.value)}
             className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
           >
-            <option value="">All classifications</option>
-            {classifications.map((classification) => (
-              <option key={classification.id} value={classification.id}>
-                {classification.name}
+            <option value="">All countries</option>
+            {countryOptions.map((country) => (
+              <option key={country} value={country}>
+                {country}
               </option>
             ))}
           </select>
-        )}
-      </div>
+          <select
+            id="filter-rotary-year"
+            aria-label="Rotary year"
+            value={yearFilter === null ? "all" : String(yearFilter)}
+            onChange={(event) =>
+              setYearFilter(event.target.value === "all" ? null : Number(event.target.value))
+            }
+            className={`${SELECT_CLASS} !w-auto min-w-[130px]`}
+          >
+            <option value="all">All years</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {rotaryYearLabel(year)}
+                {year === currentYear ? " (current)" : ""}
+              </option>
+            ))}
+          </select>
+          {classifications.length > 0 && (
+            <select
+              id="filter-classification"
+              aria-label="Classification"
+              value={classificationFilter}
+              onChange={(event) => setClassificationFilter(event.target.value)}
+              className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
+            >
+              <option value="">All classifications</option>
+              {classifications.map((classification) => (
+                <option key={classification.id} value={classification.id}>
+                  {classification.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -478,15 +566,29 @@ export default function OrganisationsList() {
       )}
 
       {!isLoading && !loadError && visibleOrganisations.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
+            isMinimal ? "member-card-grid lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"
+          }`}
+        >
           {visibleOrganisations.map((org) => (
             <Card
               key={org.id}
               variant="default"
-              className="flex flex-col items-center text-center gap-1 cursor-pointer hover:shadow-lg transition-shadow"
+              className={`flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow ${
+                isMinimal ? "!gap-[7px] !p-[20px_16px]" : "hover:shadow-lg"
+              }`}
               onClick={() => navigate(`/ngos/${org.id}`)}
             >
-              {org.logo_url ? (
+              {isMinimal ? (
+                <div className="ngo-avatar">
+                  {org.logo_url ? (
+                    <img src={resolveLogoUrl(org.logo_url)} alt="" />
+                  ) : (
+                    <Building2 className="w-6 h-6" aria-hidden="true" />
+                  )}
+                </div>
+              ) : org.logo_url ? (
                 <img className="org-detail-logo" src={resolveLogoUrl(org.logo_url)} alt="" />
               ) : (
                 <div className="org-detail-logo org-detail-logo-fallback">
@@ -494,19 +596,29 @@ export default function OrganisationsList() {
                 </div>
               )}
               <div className="min-w-0 w-full">
-                <span className="font-semibold text-[var(--color-brand-blue-dark)] truncate block">
+                <span
+                  className={`truncate block ${
+                    isMinimal
+                      ? "text-[14.5px] font-semibold text-[var(--ink)]"
+                      : "font-semibold text-[var(--color-brand-blue-dark)]"
+                  }`}
+                >
                   {org.name}
                 </span>
-                <div className="text-sm text-gray-500 truncate">
+                <div
+                  className={`truncate ${
+                    isMinimal ? "text-[12.5px] text-[var(--muted)]" : "text-sm text-gray-500"
+                  }`}
+                >
                   {[org.country, org.contact_name].filter(Boolean).join(" · ") || "—"}
                 </div>
               </div>
-              <div className="text-xs text-gray-400">
+              <div className={isMinimal ? "text-[11.5px] text-[var(--faint)] mt-1" : "text-xs text-gray-400"}>
                 {org.first_supported_year ? `Supported since ${org.first_supported_year}` : "—"}
               </div>
               {org.classification_id && classificationsById.has(org.classification_id) && (
                 <span
-                  className={`inline-badge ${classificationColorClass(
+                  className={`${isMinimal ? "ngo-pill" : "inline-badge"} ${classificationColorClass(
                     classificationsById.get(org.classification_id).name,
                   )}`}
                 >
@@ -521,7 +633,11 @@ export default function OrganisationsList() {
               {canWrite && (
                 <button
                   type="button"
-                  className="mt-1 px-3 py-1 text-xs font-semibold cursor-pointer"
+                  className={
+                    isMinimal
+                      ? "mt-1 bg-transparent border-none p-0 text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)] cursor-pointer"
+                      : "mt-1 px-3 py-1 text-xs font-semibold cursor-pointer"
+                  }
                   onClick={(event) => {
                     event.stopPropagation();
                     startEdit(org);

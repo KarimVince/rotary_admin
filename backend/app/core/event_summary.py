@@ -36,9 +36,13 @@ def compute_event_summary(db: Session, event_id: uuid.UUID) -> EventSummary:
     lucky_draw_total = lucky_draw_ticket_price * tickets_sold
     total_raised = auction_total + lucky_draw_total + other_donation
 
+    # "guest" status = complimentary/invited guests who aren't billed for a
+    # ticket — excluded here to match Guest List's own revenue tile
+    # (EventGuestList.jsx), which never counted them either.
     guests = db.query(EventGuest).filter(EventGuest.event_id == event_id).all()
-    early_bird_count = sum(1 for g in guests if g.early_bird)
-    normal_count = len(guests) - early_bird_count
+    billable_guests = [g for g in guests if g.payment_status != "guest"]
+    early_bird_count = sum(1 for g in billable_guests if g.early_bird)
+    normal_count = len(billable_guests) - early_bird_count
     ticket_revenue = ticket_price_normal * normal_count + ticket_price_early_bird * early_bird_count
 
     sponsors = db.query(EventSponsor).filter(EventSponsor.event_id == event_id).all()

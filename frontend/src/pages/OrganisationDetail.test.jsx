@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
 import { useAuth } from "../hooks/useAuth";
 import { server } from "../test/mocks/server";
 import { currentRotaryYear } from "../utils/rotaryYear";
@@ -89,11 +90,13 @@ const PAST_SERVICE_HOUR = {
 
 function renderDetail() {
   return render(
-    <MemoryRouter initialEntries={["/ngos/org-1"]}>
-      <Routes>
-        <Route path="/ngos/:organisationId" element={<OrganisationDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={["/ngos/org-1"]}>
+        <Routes>
+          <Route path="/ngos/:organisationId" element={<OrganisationDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

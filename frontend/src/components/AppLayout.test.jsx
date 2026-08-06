@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuth } from "../hooks/useAuth";
+import { ThemeProvider } from "../context/ThemeContext";
 import AppLayout from "./AppLayout";
 
 vi.mock("../hooks/useAuth");
@@ -25,17 +26,19 @@ function renderNav(role, initialPath = "/dashboard") {
   const logout = vi.fn();
   useAuth.mockReturnValue({ user: { role }, logout });
   render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<div>Dashboard</div>} />
-          <Route path="/members" element={<div>Members</div>} />
-          <Route path="/members/statistics" element={<div>Members statistics</div>} />
-          <Route path="/ngos" element={<div>NGOs</div>} />
-        </Route>
-        <Route path="/login" element={<div>Login page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<div>Dashboard</div>} />
+            <Route path="/members" element={<div>Members</div>} />
+            <Route path="/members/statistics" element={<div>Members statistics</div>} />
+            <Route path="/ngos" element={<div>NGOs</div>} />
+          </Route>
+          <Route path="/login" element={<div>Login page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
   return { logout };
 }

@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import DinnerEvents from "./DinnerEvents";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -77,12 +78,14 @@ const STATS = {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/dinners"]}>
-      <Routes>
-        <Route path="/dinners" element={<DinnerEvents />} />
-        <Route path="/dinners/:eventId" element={<div>Attendance sheet page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={["/dinners"]}>
+        <Routes>
+          <Route path="/dinners" element={<DinnerEvents />} />
+          <Route path="/dinners/:eventId" element={<div>Attendance sheet page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 
@@ -564,7 +567,7 @@ describe("DinnerEvents", () => {
       renderPage();
       await waitForLoaded();
 
-      await userEvent.click(screen.getByRole("button", { name: /add all upcoming to calendar/i }));
+      await userEvent.click(screen.getByRole("button", { name: /add all to calendar/i }));
 
       expect(URL.createObjectURL).toHaveBeenCalled();
       const text = await capturedBlob.text();
@@ -575,5 +578,219 @@ describe("DinnerEvents", () => {
       expect(text).toContain("SUMMARY:Future Fellowship");
       expect(text).not.toContain("SUMMARY:Welcome Dinner");
     });
+  });
+});
+
+// STEP-2 (design_handoff_minimal_restyle) — the "New design" toggle replaces
+// the row's text actions with an icon cluster, and the report controls with
+// a titled panel. Same handlers, different accessible labels — verify both.
+describe("DinnerEvents — Minimal design", () => {
+  beforeEach(() => {
+    localStorage.setItem("designTheme", "minimal");
+    mockCanRead = true;
+    mockCanWrite = true;
+    server.use(
+      http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(ROTARY_YEARS)),
+      http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])),
+      http.get(`${API_BASE_URL}/dinner-forecast/events`, () =>
+        HttpResponse.json([NOT_STARTED_EVENT, STARTED_EVENT]),
+      ),
+      http.get(`${API_BASE_URL}/attendance/stats`, () => HttpResponse.json(STATS)),
+      http.get(`${API_BASE_URL}/dinner-event-types`, () => HttpResponse.json(DINNER_EVENT_TYPES)),
+    );
+  });
+
+  afterEach(() => {
+    localStorage.removeItem("designTheme");
+  });
+
+  it("groups the report controls into a titled 'Generate attendance report' panel", async () => {
+    renderPage();
+    await waitForLoaded();
+
+    expect(screen.getByText("Generate attendance report")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /generate report/i })).toBeInTheDocument();
+  });
+
+  it("renders the event-type filter as a closed dropdown labeled 'All types'", async () => {
+    renderPage();
+    await waitForLoaded();
+
+    const trigger = screen.getByRole("button", { name: "Event type filter" });
+    expect(trigger).toHaveTextContent("All types");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("opens the event-type dropdown, selects options, updates the label, and keeps the menu open across picks", async () => {
+    let requestUrl;
+    server.use(
+      http.get(`${API_BASE_URL}/dinner-forecast/report`, ({ request }) => {
+        requestUrl = new URL(request.url);
+        return new HttpResponse("fake-pdf-bytes", {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": 'attachment; filename="dinner-forecast.pdf"',
+          },
+        });
+      }),
+    );
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    URL.revokeObjectURL = vi.fn();
+
+    renderPage();
+    await waitForLoaded();
+
+    const trigger = screen.getByRole("button", { name: "Event type filter" });
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    const listbox = screen.getByRole("listbox", { name: "Event type filter" });
+    await userEvent.click(within(listbox).getByRole("option", { name: "Dinner" }));
+    // Prototype behavior: the menu stays open after a pick, for further selection.
+    expect(screen.getByRole("listbox", { name: "Event type filter" })).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Dinner");
+
+    await userEvent.click(within(listbox).getByRole("option", { name: "Fellowship" }));
+    expect(trigger).toHaveTextContent("2 types");
+
+    await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    expect(requestUrl.searchParams.getAll("event_type")).toEqual(["Dinner", "Fellowship"]);
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  it("closes the event-type dropdown on outside click and resets via 'All types'", async () => {
+    renderPage();
+    await waitForLoaded();
+
+    const trigger = screen.getByRole("button", { name: "Event type filter" });
+    await userEvent.click(trigger);
+    const listbox = screen.getByRole("listbox", { name: "Event type filter" });
+    await userEvent.click(within(listbox).getByRole("option", { name: "Dinner" }));
+    expect(trigger).toHaveTextContent("Dinner");
+
+    await userEvent.click(document.body);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("option", { name: "All types" }));
+    expect(trigger).toHaveTextContent("All types");
+  });
+
+  it("switches the rotary year via the year dropdown (single-select, closes on pick)", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/rotary-years`, () =>
+        HttpResponse.json([
+          ...ROTARY_YEARS,
+          {
+            id: "year-2025",
+            year: 2025,
+            label: "2025–2026",
+            start_date: "2025-07-01",
+            end_date: "2026-06-30",
+            is_current: false,
+            created_at: new Date().toISOString(),
+          },
+        ]),
+      ),
+    );
+    renderPage();
+    await waitForLoaded();
+
+    const trigger = screen.getByRole("button", { name: "Switch rotary year" });
+    expect(trigger).toHaveTextContent("2026–2027");
+
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("option", { name: "2025–2026" }));
+
+    // Single-select closes immediately, unlike the multi-select type filter.
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Switch rotary year" })).toHaveTextContent(
+      "2025–2026",
+    );
+  });
+
+  it("switches the report format via the Format dropdown", async () => {
+    let requestUrl;
+    server.use(
+      http.get(`${API_BASE_URL}/dinner-forecast/report`, ({ request }) => {
+        requestUrl = new URL(request.url);
+        return new HttpResponse("fake-csv-bytes", {
+          headers: {
+            "Content-Type": "text/csv",
+            "Content-Disposition": 'attachment; filename="dinner-forecast.csv"',
+          },
+        });
+      }),
+    );
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    URL.revokeObjectURL = vi.fn();
+
+    renderPage();
+    await waitForLoaded();
+
+    const trigger = screen.getByRole("button", { name: "Format" });
+    expect(trigger).toHaveTextContent("PDF");
+
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("option", { name: "CSV" }));
+    expect(trigger).toHaveTextContent("CSV");
+
+    await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    expect(requestUrl.searchParams.get("format")).toBe("csv");
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  it("renders icon actions (attendance sheet / edit / delete) instead of text links on each row", async () => {
+    renderPage();
+    await waitForLoaded();
+
+    expect(screen.queryByText("Edit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Delete")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Edit event" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Delete event" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Attendance sheet" }).length).toBeGreaterThan(0);
+  });
+
+  it("still navigates to the attendance sheet via the icon button", async () => {
+    renderPage();
+    await waitForLoaded();
+
+    // STARTED_EVENT (already has attendance_started) navigates straight
+    // through, no POST /start round-trip to mock.
+    const attendanceButtons = screen.getAllByRole("button", { name: "Attendance sheet" });
+    await userEvent.click(attendanceButtons[attendanceButtons.length - 1]);
+
+    expect(await screen.findByText("Attendance sheet page")).toBeInTheDocument();
+  });
+
+  it("still opens the edit modal via the icon button", async () => {
+    renderPage();
+    await waitForLoaded();
+
+    const [firstEditButton] = screen.getAllByRole("button", { name: "Edit event" });
+    await userEvent.click(firstEditButton);
+
+    expect(await screen.findByText(/edit dinner event/i)).toBeInTheDocument();
+  });
+
+  it("hides edit/delete icons but keeps the attendance icon for a read-only user", async () => {
+    mockCanWrite = false;
+    renderPage();
+    await waitForLoaded();
+
+    expect(screen.queryByRole("button", { name: "Edit event" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete event" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Attendance sheet" }).length).toBeGreaterThan(0);
   });
 });

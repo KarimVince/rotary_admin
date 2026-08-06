@@ -32,7 +32,7 @@ export default function EmailDraftsPanel({ drafts, onEdit, onDelete }) {
                 (draft.member_ids?.length ?? 0) + (draft.friend_ids?.length ?? 0);
               return (
                 <tr key={draft.id} className="border-b border-[var(--color-border-light)] last:border-b-0">
-                  <td className="px-5 py-[14px] text-[14px] font-semibold text-[#0c2340]">
+                  <td className="px-5 py-[14px] text-[14px] font-semibold text-[var(--text-h)]">
                     {draft.subject || "(no subject)"}
                   </td>
                   <td className="px-5 py-[14px] text-[14px] text-[var(--color-muted-text)]">

@@ -293,9 +293,9 @@ def generate_statistics_report(
 def list_members(
     status_filter: str | None = Query(None, alias="status"),
     is_honorary: bool | None = Query(None, description="Story 8.14: honorary is now a flag"),
-    title_id: uuid.UUID | None = Query(None),
+    title_id: list[uuid.UUID] | None = Query(None),
     join_year: int | None = Query(None),
-    nationality: str | None = Query(None),
+    nationality: list[str] | None = Query(None),
     classification: str | None = Query(None),
     active_in_rotary_year: int | None = Query(
         None,
@@ -313,12 +313,12 @@ def list_members(
         query = query.filter(Member.status == status_filter)
     if is_honorary is not None:
         query = query.filter(Member.is_honorary == is_honorary)
-    if title_id is not None:
-        query = query.filter(Member.title_id == title_id)
+    if title_id:
+        query = query.filter(Member.title_id.in_(title_id))
     if join_year is not None:
         query = query.filter(extract("year", Member.join_date) == join_year)
-    if nationality is not None:
-        query = query.filter(Member.nationality == nationality)
+    if nationality:
+        query = query.filter(Member.nationality.in_(nationality))
     if classification is not None:
         query = query.filter(Member.classification == classification)
     if active_in_rotary_year is not None:

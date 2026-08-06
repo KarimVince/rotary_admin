@@ -12,12 +12,31 @@ import { currentRotaryYear } from "../utils/rotaryYear";
 // then corrects itself once to whatever year is actually flagged
 // `is_current` in the table (a no-op in the common case where they agree).
 // Once the caller changes the selection, this hook never overrides it again.
-export function useRotaryYears() {
+//
+// `persistKey` (optional): when given, the selected year is remembered in
+// sessionStorage under that key and restored on mount — used by the Finance
+// module so switching between Finance Summary/Donations/Fund Raising/
+// Operational keeps the same rotary year instead of resetting to "current"
+// each time. Omitted by every other caller, which keeps their original
+// always-defaults-to-current behavior unchanged.
+export function useRotaryYears(options = {}) {
+  const { persistKey } = options;
+  const storageKey = persistKey ? `rotaryYears.selectedYear.${persistKey}` : null;
+
   const [years, setYears] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(() => currentRotaryYear());
+  const storedYear = storageKey ? sessionStorage.getItem(storageKey) : null;
+  const [selectedYear, setSelectedYearState] = useState(() =>
+    storedYear ? Number(storedYear) : currentRotaryYear(),
+  );
   const hasAppliedDefault = useRef(false);
+  const hasRestoredFromStorage = useRef(storedYear !== null);
+
+  function setSelectedYear(year) {
+    setSelectedYearState(year);
+    if (storageKey) sessionStorage.setItem(storageKey, String(year));
+  }
 
   useEffect(() => {
     listRotaryYears()
@@ -35,7 +54,9 @@ export function useRotaryYears() {
   useEffect(() => {
     if (!isLoading && !hasAppliedDefault.current) {
       hasAppliedDefault.current = true;
-      setSelectedYear(currentYear);
+      if (!hasRestoredFromStorage.current) {
+        setSelectedYearState(currentYear);
+      }
     }
   }, [isLoading, currentYear]);
 

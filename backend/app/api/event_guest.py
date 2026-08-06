@@ -91,7 +91,7 @@ def generate_guest_list_report(
     }
 
     if report_format == "pdf":
-        content = build_pdf_report(event.name, event.date, guest_dicts, table_by_number)
+        content = build_pdf_report(event.name, event.date, event.theme, guest_dicts, table_by_number)
         media_type = "application/pdf"
         filename = generate_report_filename("event-guest-list", "pdf")
     else:

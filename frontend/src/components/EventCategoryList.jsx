@@ -68,7 +68,7 @@ export default function EventCategoryList({ label, listFn, createFn, updateFn, d
   return (
     <div className="rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)]">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[13px] font-bold uppercase tracking-[0.03em] text-[#0c2340]">{label}</span>
+        <span className="text-[13px] font-bold uppercase tracking-[0.03em] text-[var(--text-h)]">{label}</span>
       </div>
       {error && (
         <p role="alert" className="mb-2 text-[13px] text-[var(--color-tone-rose-text)]">
@@ -82,7 +82,7 @@ export default function EventCategoryList({ label, listFn, createFn, updateFn, d
           {categories.map((category) => (
             <div
               key={category.id}
-              className="flex items-center justify-between rounded-[10px] bg-[var(--color-border-light)] px-3 py-[9px] text-[13px] text-[#0c2340]"
+              className="flex items-center justify-between rounded-[10px] bg-[var(--color-border-light)] px-3 py-[9px] text-[13px] text-[var(--text-h)]"
             >
               {editingId === category.id ? (
                 <>

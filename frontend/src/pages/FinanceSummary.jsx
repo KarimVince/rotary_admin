@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { fetchFinanceSummary } from "../api/finance";
 import Card from "../components/Card";
+import { FinanceBlock, FinanceRow } from "../components/FinanceBlock";
+import RotaryYearField from "../components/RotaryYearField";
 import { useAccess } from "../hooks/useAccess";
 import { useRotaryYears } from "../hooks/useRotaryYears";
+import { useTheme } from "../context/ThemeContext";
 import { useWindowFocusRefetch } from "../hooks/useWindowFocusRefetch";
 import { SELECT_CLASS } from "../styles/formControls";
 import { rotaryYearLabel } from "../utils/rotaryYear";
@@ -29,8 +32,9 @@ function StatCard({ value, label, tone }) {
 // data entry here (see AppLayout.jsx for why this is a standalone nav
 // entry, not a tab).
 export default function FinanceSummary() {
+  const { isMinimal } = useTheme();
   const { canRead } = useAccess("finance.summary");
-  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
+  const { yearOptions, currentYear, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -99,23 +103,34 @@ export default function FinanceSummary() {
         </button>
       </div>
 
-      <div className="flex items-center gap-3 mb-4 mt-4 no-print">
-        <label htmlFor="finance-summary-year" className="text-sm font-semibold">
-          Rotary Year
-        </label>
-        <select
-          id="finance-summary-year"
-          className={SELECT_CLASS}
-          value={year}
-          onChange={(event) => setYear(Number(event.target.value))}
-        >
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>
-              {rotaryYearLabel(y)}
-            </option>
-          ))}
-        </select>
-      </div>
+      {isMinimal ? (
+        <div className="no-print">
+          <RotaryYearField
+            year={year}
+            yearOptions={yearOptions}
+            currentYear={currentYear}
+            onChange={setYear}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 mb-4 mt-4 no-print">
+          <label htmlFor="finance-summary-year" className="text-sm font-semibold">
+            Rotary Year
+          </label>
+          <select
+            id="finance-summary-year"
+            className={SELECT_CLASS}
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {rotaryYearLabel(y)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && (
@@ -124,7 +139,32 @@ export default function FinanceSummary() {
         </p>
       )}
 
-      {!isLoading && !loadError && summary && (
+      {!isLoading && !loadError && summary && isMinimal && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <FinanceBlock title="Charity & Donation Results">
+              <FinanceRow label="Total Fundraising" value={formatCurrency(summary.total_fundraising)} />
+              <FinanceRow label="Total Donations" value={formatCurrency(summary.total_donations)} />
+              <FinanceRow
+                label="Remaining for Donation"
+                value={formatCurrency(summary.remaining_for_donation)}
+                isTotal
+              />
+            </FinanceBlock>
+            <FinanceBlock title="Club Operational Results">
+              <FinanceRow label="Fees Collected" value={formatCurrency(summary.fees_collected)} />
+              <FinanceRow label="Total Revenue" value={formatCurrency(summary.total_revenue)} />
+              <FinanceRow label="Total Expenses" value={formatCurrency(summary.total_expenses)} />
+              <FinanceRow label="Net Balance" value={formatCurrency(summary.net_balance)} isTotal />
+            </FinanceBlock>
+          </div>
+          <p className="text-xs text-[var(--color-muted-text)] mt-3">
+            Fundraising and donations are separate flows, never added together.
+          </p>
+        </>
+      )}
+
+      {!isLoading && !loadError && summary && !isMinimal && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section>
             <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">

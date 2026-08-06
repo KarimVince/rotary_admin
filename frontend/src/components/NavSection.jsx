@@ -1,21 +1,27 @@
 import { ChevronDown } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useTheme } from "../context/ThemeContext";
 
 export default function NavSection({ icon: Icon, label, items, isOpen, onToggle, onNavigate }) {
+  const { isMinimal } = useTheme();
   return (
     <div data-nav-section={label}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-[var(--color-brand-blue-chip-strong)] text-[var(--color-brand-blue-dark)] hover:brightness-95 transition-colors"
+        className={
+          isMinimal
+            ? "w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-transparent text-white/85 [&>svg:first-child]:text-white/55 hover:bg-white/10 transition-colors"
+            : "w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-[var(--color-brand-blue-chip-strong)] text-[var(--color-brand-blue-dark)] hover:brightness-95 transition-colors"
+        }
       >
         {Icon && <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />}
         <span className="flex-1 text-left">{label}</span>
         <ChevronDown
           className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+            isMinimal ? "text-white/70" : ""
+          } ${isOpen ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
       </button>
@@ -38,11 +44,17 @@ export default function NavSection({ icon: Icon, label, items, isOpen, onToggle,
                 end={item.end}
                 onClick={onNavigate}
                 className={({ isActive }) =>
-                  `no-underline px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[var(--color-brand-blue)] text-white"
-                      : "bg-[var(--color-brand-blue-chip)] text-[var(--color-brand-blue-dark)] hover:brightness-95"
-                  }`
+                  isMinimal
+                    ? `no-underline px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-white/15 text-white font-semibold"
+                          : "text-white/60 hover:bg-white/10 hover:text-white"
+                      }`
+                    : `no-underline px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                        isActive
+                          ? "bg-[var(--color-brand-blue)] text-white"
+                          : "bg-[var(--color-brand-blue-chip)] text-[var(--color-brand-blue-dark)] hover:brightness-95"
+                      }`
                 }
               >
                 {item.label}

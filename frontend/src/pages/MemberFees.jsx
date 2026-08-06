@@ -32,6 +32,7 @@ import { listMembers } from "../api/members";
 import Card from "../components/Card";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS } from "../styles/formControls";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
@@ -43,7 +44,23 @@ const TABS = [
   { key: "settings", label: "Settings", permission: "fees.settings" },
 ];
 
-function StatCard({ value, valueClass, label, bg }) {
+// 2026-08-06: this page's stat cards had no Minimal branch at all (per the
+// original handoff README, its layout was left untouched — token refresh
+// only). Superseded for the cards specifically by an explicit app-wide
+// request to make every stat-card row match Dashboard's format exactly;
+// the rest of the page (tabs, forms, tables) stays untouched. `tone` picks
+// any stat-* Card variant — the actual color is irrelevant when the parent
+// carries `.stat-duo-grid`, which repaints by position (blue/gold).
+function StatCard({ value, valueClass, label, bg, tone = "stat-blue" }) {
+  const { isMinimal } = useTheme();
+  if (isMinimal) {
+    return (
+      <Card variant={tone} className="flex flex-col">
+        <span className="text-3xl font-bold">{value}</span>
+        <span className="mt-2 text-sm">{label}</span>
+      </Card>
+    );
+  }
   return (
     <Card
       variant="default"
@@ -95,8 +112,9 @@ const TIER_OPTIONS = [
 ];
 
 function TrackingTab() {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite: canManage } = useAccess("fees.tracking");
-  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [paidFilter, setPaidFilter] = useState("");
   const [search, setSearch] = useState("");
   const [members, setMembers] = useState([]);
@@ -351,16 +369,16 @@ function TrackingTab() {
 
       {!isLoading && !loadError && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5">
-            <StatCard label="Total due" value={`${stats.totalDue.toLocaleString()}`} valueClass="text-[var(--color-brand-blue-dark)]" />
-            <StatCard label="Collected" value={`${stats.totalPaid.toLocaleString()}`} valueClass="text-[var(--color-tone-teal-text)]" />
-            <StatCard label="Outstanding" value={`${stats.outstanding.toLocaleString()}`} valueClass="text-[var(--color-tone-rose-text)]" />
-            <StatCard label="Collection rate" value={`${stats.rate}%`} valueClass="text-[var(--color-brand-blue-dark)]" />
+          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5 ${isMinimal ? "stat-duo-grid" : ""}`}>
+            <StatCard label="Total due" value={`${stats.totalDue.toLocaleString()}`} valueClass="text-[var(--color-brand-blue-dark)]" tone="stat-blue" />
+            <StatCard label="Collected" value={`${stats.totalPaid.toLocaleString()}`} valueClass="text-[var(--color-tone-teal-text)]" tone="stat-lavender" />
+            <StatCard label="Outstanding" value={`${stats.outstanding.toLocaleString()}`} valueClass="text-[var(--color-tone-rose-text)]" tone="stat-blue" />
+            <StatCard label="Collection rate" value={`${stats.rate}%`} valueClass="text-[var(--color-brand-blue-dark)]" tone="stat-lavender" />
           </div>
 
           <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left" style={{ minWidth: 920 }}>
+              <table className="w-full border-collapse text-left" style={{ minWidth: 800 }}>
                 <thead>
                   <tr className="bg-[var(--color-border-light)]">
                     {["Member", "Tier", "Due", "Paid", "Status", "Paid date", "Invoice", "Channel", "Notes"].map(
@@ -378,14 +396,19 @@ function TrackingTab() {
                 <tbody>
                   {visibleFees.map((fee) => (
                     <tr key={fee.id} className="border-b border-[var(--color-border-light)]">
-                      <td className="px-3.5 py-2.5 whitespace-nowrap text-sm">{memberName(fee.member_id)}</td>
+                      <td
+                        className="px-3.5 py-2.5 max-w-[130px] truncate text-xs"
+                        title={memberName(fee.member_id)}
+                      >
+                        {memberName(fee.member_id)}
+                      </td>
                       <td className="px-3.5 py-2.5">
                         <select
                           aria-label={`Tier for ${memberName(fee.member_id)}`}
                           value={fee.price_type}
                           disabled={!canManage}
                           onChange={(event) => handleTierChange(fee, event.target.value)}
-                          className="border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                          className="w-[92px] border border-[var(--color-card-border)] rounded-md px-1.5 py-1 text-xs"
                         >
                           {TIER_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -403,7 +426,7 @@ function TrackingTab() {
                           defaultValue={fee.amount_due}
                           disabled={!canManage}
                           onBlur={(event) => handleAmountDueBlur(fee, event.target.value)}
-                          className="w-20 border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                          className="w-16 border border-[var(--color-card-border)] rounded-md px-1.5 py-1 text-xs"
                         />
                       </td>
                       <td className="px-3.5 py-2.5">
@@ -415,7 +438,7 @@ function TrackingTab() {
                           defaultValue={fee.amount_paid ?? ""}
                           disabled={!fee.is_paid || !canManage}
                           onBlur={(event) => handleAmountPaidBlur(fee, event.target.value)}
-                          className="w-20 border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                          className="w-16 border border-[var(--color-card-border)] rounded-md px-1.5 py-1 text-xs"
                         />
                       </td>
                       <td className="px-3.5 py-2.5">
@@ -486,7 +509,12 @@ function TrackingTab() {
                   ))}
                   {placeholderRows.map((row) => (
                     <tr key={`placeholder-${row.member_id}`} className="border-b border-[var(--color-border-light)]">
-                      <td className="px-3.5 py-2.5 text-sm">{memberName(row.member_id)}</td>
+                      <td
+                        className="px-3.5 py-2.5 max-w-[130px] truncate text-xs"
+                        title={memberName(row.member_id)}
+                      >
+                        {memberName(row.member_id)}
+                      </td>
                       <td colSpan={8} className="px-3.5 py-2.5 text-sm text-[var(--color-muted-text)]">
                         Not yet invoiced for {rotaryYearLabel(year)}
                       </td>
@@ -518,7 +546,7 @@ const PRICE_FIELD_BY_TIER = {
 
 function FeeRunTab() {
   const { canWrite: canManage } = useAccess("fees.run");
-  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [members, setMembers] = useState([]);
   const [feeSettings, setFeeSettings] = useState(null);
   const [memberFees, setMemberFees] = useState([]);
@@ -785,7 +813,14 @@ function FeeRunTab() {
               ].map(([label, amount]) => (
                 <div
                   key={label}
-                  className="bg-[var(--color-brand-blue-light)] rounded-full px-3.5 py-1.5 text-[13px] text-[var(--color-brand-blue-dark)] font-semibold"
+                  // 2026-08-06: was bg-[var(--color-brand-blue-light)] — that
+                  // token is a pale near-white tint in Classic but gets
+                  // repurposed to the Minimal theme's medium-blue nav-rail
+                  // fill (see theme-minimal.css), so this pill read as
+                  // dark-blue-on-medium-blue there. `--tone-blue-bg` is the
+                  // same pale-blue pastel used for stat cards/badges on every
+                  // other page and isn't touched by either theme.
+                  className="bg-[var(--tone-blue-bg)] rounded-full px-3.5 py-1.5 text-[13px] text-[var(--color-brand-blue-dark)] font-semibold"
                 >
                   {label} · {amount} {feeSettings.currency}
                 </div>
@@ -831,17 +866,17 @@ function FeeRunTab() {
               )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left" style={{ minWidth: 480 }}>
+              <table className="w-full border-collapse text-left" style={{ minWidth: 400 }}>
                 <thead>
                   <tr className="bg-[var(--color-border-light)]">
-                    <th className="px-3.5 py-2.5 border-b border-[var(--color-card-border)] w-8" />
-                    <th className="text-left px-3.5 py-2.5 text-xs font-bold text-[var(--color-muted-text)] border-b border-[var(--color-card-border)]">
+                    <th className="px-3 py-2 border-b border-[var(--color-card-border)] w-8" />
+                    <th className="text-left px-3 py-2 text-xs font-bold text-[var(--color-muted-text)] border-b border-[var(--color-card-border)]">
                       Member
                     </th>
-                    <th className="text-left px-3.5 py-2.5 text-xs font-bold text-[var(--color-muted-text)] border-b border-[var(--color-card-border)]">
+                    <th className="text-left px-2 py-2 text-xs font-bold text-[var(--color-muted-text)] border-b border-[var(--color-card-border)]">
                       Tier
                     </th>
-                    <th className="text-left px-3.5 py-2.5 text-xs font-bold text-[var(--color-muted-text)] border-b border-[var(--color-card-border)]">
+                    <th className="text-left px-2 py-2 text-xs font-bold text-[var(--color-muted-text)] border-b border-[var(--color-card-border)]">
                       Amount
                     </th>
                   </tr>
@@ -849,7 +884,7 @@ function FeeRunTab() {
                 <tbody>
                   {unpaidMembers.map((member) => (
                     <tr key={member.id} className="border-b border-[var(--color-border-light)]">
-                      <td className="px-3.5 py-2">
+                      <td className="px-3 py-2">
                         <input
                           type="checkbox"
                           aria-label={`Select ${member.first_name} ${member.last_name}`}
@@ -857,20 +892,23 @@ function FeeRunTab() {
                           onChange={() => toggleMemberSelected(member.id)}
                         />
                       </td>
-                      <td className="px-3.5 py-2 text-sm">
+                      <td className="px-3 py-2 text-xs">
                         {member.first_name} {member.last_name}
                         {member.is_couple && (
-                          <span className="ml-2 rounded-full bg-[var(--color-brand-blue-light)] text-[var(--color-brand-blue)] text-[11px] font-bold px-2 py-0.5">
+                          // Same fix as the price-tier pills above —
+                          // --color-brand-blue-light isn't a pale tint under
+                          // the Minimal theme, so this read as blue-on-blue.
+                          <span className="ml-2 rounded-full bg-[var(--tone-blue-bg)] text-[var(--color-brand-blue-dark)] text-[11px] font-bold px-2 py-0.5">
                             Couple
                           </span>
                         )}
                       </td>
-                      <td className="px-3.5 py-2">
+                      <td className="px-2 py-2">
                         <select
                           aria-label={`Tier for ${member.first_name} ${member.last_name}`}
                           value={tierFor(member.id)}
                           onChange={(event) => setMemberTier(member.id, event.target.value)}
-                          className="border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                          className="w-[92px] border border-[var(--color-card-border)] rounded-md px-1.5 py-1 text-xs"
                         >
                           {TIER_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -879,8 +917,8 @@ function FeeRunTab() {
                           ))}
                         </select>
                       </td>
-                      <td className="px-3.5 py-2">
-                        <div className="flex items-center gap-1.5">
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1">
                           <input
                             type="number"
                             step="0.01"
@@ -889,9 +927,9 @@ function FeeRunTab() {
                             placeholder={tierFor(member.id) === "sponsored" ? "Custom price" : undefined}
                             value={dueValueFor(member)}
                             onChange={(event) => setMemberDueOverride(member.id, event.target.value)}
-                            className="w-24 border border-[var(--color-card-border)] rounded-md px-2 py-1 text-sm"
+                            className="w-16 border border-[var(--color-card-border)] rounded-md px-1.5 py-1 text-xs"
                           />
-                          <span className="text-sm text-[var(--color-muted-text)]">{feeSettings.currency}</span>
+                          <span className="text-xs text-[var(--color-muted-text)]">{feeSettings.currency}</span>
                         </div>
                       </td>
                     </tr>
@@ -1056,8 +1094,9 @@ function formatCurrency(value, currency) {
 }
 
 function StatisticsTab() {
+  const { isMinimal } = useTheme();
   const { canRead } = useAccess("fees.statistics");
-  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
+  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -1184,24 +1223,27 @@ function StatisticsTab() {
 
       {!isLoading && !loadError && stats && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5">
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5 ${isMinimal ? "stat-duo-grid" : ""}`}>
             <StatCard
               label={`Average fee per active member — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.average_fee_per_active_member, stats.currency)}
               valueClass="text-[var(--color-brand-blue-dark)]"
               bg="var(--tone-blue-bg)"
+              tone="stat-blue"
             />
             <StatCard
               label={`Total collected — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.total_collected, stats.currency)}
               valueClass="text-[var(--color-tone-teal-text)]"
               bg="var(--tone-teal-bg)"
+              tone="stat-lavender"
             />
             <StatCard
               label={`Total outstanding — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.total_outstanding, stats.currency)}
               valueClass="text-[var(--color-tone-rose-text)]"
               bg="var(--tone-rose-bg)"
+              tone="stat-blue"
             />
           </div>
 
@@ -1224,7 +1266,7 @@ function StatisticsTab() {
                     <XAxis dataKey="year" />
                     <YAxis />
                     <Tooltip formatter={(value) => formatCurrency(value, stats.currency)} />
-                    <Bar dataKey="total" fill="#17458f" name="Total collected" />
+                    <Bar dataKey="total" fill="var(--rotary-blue)" name="Total collected" />
                   </BarChart>
                 </ResponsiveContainer>
               </Card>
@@ -1240,8 +1282,8 @@ function StatisticsTab() {
                     <YAxis allowDecimals={false} />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="paid" name="Paid" fill="#17458f" />
-                    <Bar dataKey="zero" name="Zero payment" fill="#f7a81b" />
+                    <Bar dataKey="paid" name="Paid" fill="var(--rotary-blue)" />
+                    <Bar dataKey="zero" name="Zero payment" fill="var(--rotary-gold)" />
                   </BarChart>
                 </ResponsiveContainer>
               </Card>

@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import EventManageProject from "./EventManageProject";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -12,8 +13,22 @@ vi.mock("../hooks/useAccess", () => ({
   useAccess: () => ({ canRead: true, canWrite: true }),
 }));
 
-const EVENT_1 = { id: "event-1", name: "Annual Ball", date: "2026-08-15", created_at: "2026-01-01T00:00:00Z" };
-const EVENT_2 = { id: "event-2", name: "Fellowship Night", date: "2026-09-01", created_at: "2026-02-01T00:00:00Z" };
+const EVENT_1 = {
+  id: "event-1",
+  name: "Annual Ball",
+  date: "2026-08-15",
+  created_at: "2026-01-01T00:00:00Z",
+  rotary_year: 2026,
+};
+const EVENT_2 = {
+  id: "event-2",
+  name: "Fellowship Night",
+  date: "2026-09-01",
+  created_at: "2026-02-01T00:00:00Z",
+  rotary_year: 2026,
+};
+
+const ROTARY_YEARS = [{ id: "ry-1", year: 2026, is_current: true }];
 
 const SUMMARY = {
   total_raised: 0,
@@ -33,11 +48,13 @@ const SUMMARY = {
 
 function renderManageProject(initialPath = "/events/manage?event=event-1") {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/events/manage" element={<EventManageProject />} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/events/manage" element={<EventManageProject />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 
@@ -46,6 +63,7 @@ describe("EventManageProject", () => {
     sessionStorage.clear();
     server.use(
       http.get(`${API_BASE_URL}/events`, () => HttpResponse.json([EVENT_1, EVENT_2])),
+      http.get(`${API_BASE_URL}/rotary-years`, () => HttpResponse.json(ROTARY_YEARS)),
       http.get(`${API_BASE_URL}/members`, () => HttpResponse.json([])),
       http.get(`${API_BASE_URL}/events/:eventId/summary`, () => HttpResponse.json(SUMMARY)),
       http.get(`${API_BASE_URL}/events/:eventId/setup`, () => HttpResponse.json({})),

@@ -14,11 +14,13 @@ import EmailLogTable from "../components/EmailLogTable";
 import RecipientPicker from "../components/RecipientPicker";
 import RichTextEditor from "../components/RichTextEditor";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import { getInitials } from "../utils/avatar";
 
 const SOURCE_MODULE = "members";
 
 export default function MembersEmail() {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("members.email");
   const [members, setMembers] = useState([]);
   const [emailLog, setEmailLog] = useState([]);
@@ -241,11 +243,119 @@ export default function MembersEmail() {
   return (
     <div className="admin-page admin-page-wide" style={{ maxWidth: 1600 }}>
       <h1>Email members</h1>
+      {isMinimal && (
+        <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+          Compose a message to the membership.
+        </p>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
-      {!isLoading && !loadError && canWrite && (
+      {!isLoading && !loadError && canWrite && isMinimal && (
+        <>
+          <form onSubmit={handleReview} className="max-w-[760px] flex flex-col gap-5 pb-24">
+            <div className="border border-[var(--border)] rounded-[14px] bg-[var(--surface)] p-[22px_24px] flex flex-col gap-4">
+              <RecipientPicker
+                label="To · Members"
+                people={recipientPeople}
+                selectedIds={selectedMemberIds}
+                onChange={setSelectedMemberIds}
+              />
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="members-email-subject"
+                  className="text-[12px] font-semibold uppercase tracking-[.04em] text-[var(--ink-2)]"
+                >
+                  Subject
+                </label>
+                <input
+                  id="members-email-subject"
+                  type="text"
+                  value={subject}
+                  onChange={(event) => setSubject(event.target.value)}
+                  placeholder="Subject"
+                  className="w-full rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px] py-[10px] text-[13.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-semibold uppercase tracking-[.04em] text-[var(--ink-2)]">
+                  Message
+                </span>
+                <RichTextEditor
+                  ref={editorRef}
+                  onChange={(html) => {
+                    bodyRef.current = html;
+                  }}
+                  onEmptyChange={setBodyEmpty}
+                  extraButtons={[
+                    { key: "attach", label: "Attach", onClick: () => attachmentsCardRef.current?.openPicker() },
+                    { key: "image", label: "Image", onClick: () => imageInputRef.current?.click() },
+                  ]}
+                />
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleInsertImage}
+                />
+              </div>
+
+              <EmailAttachmentsCard
+                ref={attachmentsCardRef}
+                attachments={attachments}
+                isUploading={isUploadingAttachment}
+                error={attachmentError}
+                onFilesSelected={handleFilesSelected}
+                onRemove={removeAttachment}
+                bare
+              />
+
+              {sendError && (
+                <p role="alert" className="text-[13px] text-[var(--low)]">
+                  {sendError}
+                </p>
+              )}
+              {draftError && (
+                <p role="alert" className="text-[13px] text-[var(--low)]">
+                  {draftError}
+                </p>
+              )}
+              {lastResult && (
+                <p className="text-[13px] text-[var(--ink-2)]">
+                  Last send: {lastResult.status} — {lastResult.success_count} succeeded,{" "}
+                  {lastResult.failure_count} failed (of {lastResult.recipient_count}).
+                </p>
+              )}
+
+              <div className="flex justify-end gap-[9px]">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={!canSaveDraft || isSavingDraft}
+                  className="inline-flex h-[38px] items-center rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isSavingDraft ? "Saving…" : "Save Draft"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  className="inline-flex h-[38px] items-center rounded-[8px] border-none bg-[var(--accent)] px-4 text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Review send ({recipientCount} recipient{recipientCount === 1 ? "" : "s"})
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <EmailDraftsPanel drafts={drafts} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />
+        </>
+      )}
+
+      {!isLoading && !loadError && canWrite && !isMinimal && (
         <>
           <form onSubmit={handleReview} className="max-w-[760px] flex flex-col gap-5 pb-24">
             <Card variant="default" className="!p-5 !rounded-2xl relative">
@@ -264,7 +374,7 @@ export default function MembersEmail() {
                   value={subject}
                   onChange={(event) => setSubject(event.target.value)}
                   placeholder="Subject"
-                  className="w-full border-none border-b border-[var(--color-card-border)] py-4 text-[19px] font-semibold text-[var(--color-brand-blue-dark)] outline-none"
+                  className="w-full border-none border-b border-[var(--color-card-border)] py-4 text-[19px] font-semibold outline-none text-[var(--color-brand-blue-dark)]"
                 />
                 <RichTextEditor
                   ref={editorRef}
@@ -325,45 +435,64 @@ export default function MembersEmail() {
           </form>
 
           <EmailDraftsPanel drafts={drafts} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />
-
-          {isConfirming && (
-            <div className="modal-overlay" onClick={cancelConfirm}>
-              <div
-                className="modal-dialog !rounded-2xl !max-w-[420px] !text-[15px]"
-                role="alertdialog"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <h2 className="text-[19px] font-semibold text-[var(--color-brand-blue-dark)]">Confirm send</h2>
-                <p className="text-[var(--color-muted-text-strong)]">
-                  This will email <strong>{recipientCount}</strong> recipient
-                  {recipientCount === 1 ? "" : "s"}
-                  {attachments.length > 0
-                    ? ` with ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
-                    : ""}
-                  . This cannot be undone.
-                </p>
-                <div className="flex justify-end gap-3 mt-5">
-                  <button
-                    type="button"
-                    onClick={cancelConfirm}
-                    disabled={isSending}
-                    className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmSend}
-                    disabled={isSending}
-                    className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {isSending ? "Sending…" : "Confirm send"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </>
+      )}
+
+      {isConfirming && (
+        <div
+          className={`modal-overlay ${isMinimal ? "members-modal-overlay" : ""}`}
+          onClick={cancelConfirm}
+        >
+          <div
+            className={`modal-dialog !rounded-2xl !max-w-[420px] !text-[15px] ${
+              isMinimal ? "members-modal-dialog members-modal-dialog--narrow !p-6" : ""
+            }`}
+            role="alertdialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2
+              className={`text-[19px] font-semibold ${
+                isMinimal ? "text-[var(--text-h)]" : "text-[var(--color-brand-blue-dark)]"
+              }`}
+            >
+              Confirm send
+            </h2>
+            <p className="text-[var(--color-muted-text-strong)]">
+              This will email <strong>{recipientCount}</strong> recipient
+              {recipientCount === 1 ? "" : "s"}
+              {attachments.length > 0
+                ? ` with ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+                : ""}
+              . This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                type="button"
+                onClick={cancelConfirm}
+                disabled={isSending}
+                className={
+                  isMinimal
+                    ? "inline-flex h-[38px] items-center rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    : "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                }
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSend}
+                disabled={isSending}
+                className={
+                  isMinimal
+                    ? "inline-flex h-[38px] items-center rounded-[8px] border-none bg-[var(--accent)] px-4 text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    : "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                }
+              >
+                {isSending ? "Sending…" : "Confirm send"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {!isLoading && !loadError && canRead && <EmailLogTable entries={emailLog} />}

@@ -16,7 +16,7 @@ function fileExtensionBadge(filename) {
 // message body's toolbar "Attach" button can trigger the same hidden file
 // input as the dropzone itself.
 const EmailAttachmentsCard = forwardRef(function EmailAttachmentsCard(
-  { attachments, isUploading, error, onFilesSelected, onRemove },
+  { attachments, isUploading, error, onFilesSelected, onRemove, bare = false },
   ref,
 ) {
   const fileInputRef = useRef(null);
@@ -32,9 +32,20 @@ const EmailAttachmentsCard = forwardRef(function EmailAttachmentsCard(
     onFilesSelected(event.dataTransfer.files);
   }
 
+  const Wrapper = bare ? "div" : Card;
+  const wrapperProps = bare ? {} : { variant: "default", className: "!p-5 !rounded-2xl" };
+
   return (
-    <Card variant="default" className="!p-5 !rounded-2xl">
-      <div className="text-[13px] font-semibold text-[var(--color-muted-text)] mb-3">Attachments</div>
+    <Wrapper {...wrapperProps}>
+      <div
+        className={
+          bare
+            ? "text-[12px] font-semibold uppercase tracking-[.04em] text-[var(--ink-2)] mb-1.5"
+            : "text-[13px] font-semibold text-[var(--color-muted-text)] mb-3"
+        }
+      >
+        Attachments
+      </div>
       <input
         ref={fileInputRef}
         type="file"
@@ -88,7 +99,7 @@ const EmailAttachmentsCard = forwardRef(function EmailAttachmentsCard(
           ))}
         </div>
       )}
-    </Card>
+    </Wrapper>
   );
 });
 

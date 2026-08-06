@@ -15,9 +15,22 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../context/ThemeContext";
+import { getInitials } from "../utils/avatar";
 import BrandHeader from "./BrandHeader";
 import Footer from "./Footer";
 import NavSection from "./NavSection";
+
+// Header-only helper (round 2 of the redesign, user avatar block): `user`
+// only carries a single `full_name`, unlike the Members module's separate
+// first/last name fields that `getInitials` was written for — split on
+// whitespace to get the same "first + last initial" shape from one string.
+function initialsFromFullName(fullName) {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return getInitials(parts[0], parts[parts.length - 1]);
+}
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -201,6 +214,7 @@ function sectionForPath(pathname, sections) {
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const { isMinimal, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const { canRead: canViewFinance } = useAccess("finance");
@@ -352,9 +366,36 @@ export default function AppLayout() {
           </button>
           <BrandHeader size="small" />
         </div>
-        <button type="button" onClick={handleLogout}>
-          Log out
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="!bg-transparent !text-[var(--text)] border border-[var(--border)] !px-3 !py-1.5 text-xs font-medium rounded-full hover:!bg-[var(--bg)]"
+            aria-pressed={isMinimal}
+          >
+            {isMinimal ? "New design" : "Classic design"}
+          </button>
+          {isMinimal && (
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-[var(--accent-soft)] text-[var(--accent-ink)]">
+                {initialsFromFullName(user?.full_name)}
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm font-semibold text-[var(--text-h)]">
+                  {user?.full_name}
+                </span>
+                <span className="text-xs text-[var(--faint)] capitalize">{user?.role}</span>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={isMinimal ? "!bg-transparent !text-[var(--text)] !p-0 font-medium hover:!text-[var(--accent)] hover:underline" : ""}
+          >
+            Log out
+          </button>
+        </div>
       </header>
       <div className="app-body relative bg-white gap-5 !p-0 md:p-5">
         {isMobileNavOpen && (
@@ -364,13 +405,20 @@ export default function AppLayout() {
             aria-hidden="true"
           />
         )}
-        {/* Detached vertical nav card: no border, own rounded corners +
-            shadow, lighter blue fill, margin from the header/main/edges
-            instead of a flush full-height sidebar with a divider line. */}
+        {/* Classic: detached vertical nav card — no border, own rounded
+            corners + shadow, lighter blue fill, margin from the header/main/
+            edges. Minimal: flush full-height sidebar, no margin/radius/
+            shadow, matching the reference design. */}
         <nav
-          className={`fixed inset-y-5 left-5 z-40 w-64 overflow-y-auto bg-[var(--color-brand-blue-light)] rounded-2xl shadow-[var(--shadow-nav-card)] p-3 flex flex-col gap-1 transform transition-transform duration-200 ease-out md:static md:z-auto md:inset-auto md:self-start md:max-h-full md:translate-x-0 ${
-            isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          className={
+            isMinimal
+              ? `fixed inset-y-0 left-0 z-40 w-56 overflow-y-auto bg-[var(--color-brand-blue-light)] p-3 flex flex-col gap-1 transform transition-transform duration-200 ease-out md:static md:z-auto md:inset-auto md:self-stretch md:h-auto md:translate-x-0 ${
+                  isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
+                }`
+              : `fixed inset-y-5 left-5 z-40 w-64 overflow-y-auto bg-[var(--color-brand-blue-light)] rounded-2xl shadow-[var(--shadow-nav-card)] p-3 flex flex-col gap-1 transform transition-transform duration-200 ease-out md:static md:z-auto md:inset-auto md:self-start md:max-h-full md:translate-x-0 ${
+                  isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
+                }`
+          }
         >
           {visibleSections.map((item) =>
             item.children ? (
@@ -396,11 +444,17 @@ export default function AppLayout() {
                 to={item.to}
                 onClick={closeMobileNav}
                 className={({ isActive }) =>
-                  `no-underline flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[var(--color-brand-blue)] text-white"
-                      : "bg-[var(--color-brand-blue-chip)] text-[var(--color-brand-blue-dark)] hover:brightness-95"
-                  }`
+                  isMinimal
+                    ? `no-underline flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                        isActive
+                          ? "bg-[var(--menu-active)] text-[var(--menu-active-ink)] [&_svg]:text-[var(--menu-active-ink)]"
+                          : "text-white/85 [&_svg]:text-white/55 hover:bg-white/10"
+                      }`
+                    : `no-underline flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                        isActive
+                          ? "bg-[var(--color-brand-blue)] text-white"
+                          : "bg-[var(--color-brand-blue-chip)] text-[var(--color-brand-blue-dark)] hover:brightness-95"
+                      }`
                 }
               >
                 {item.icon && <item.icon className="w-4 h-4 shrink-0" aria-hidden="true" />}

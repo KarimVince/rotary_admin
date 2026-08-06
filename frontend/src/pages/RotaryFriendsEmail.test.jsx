@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import RotaryFriendsEmail from "./RotaryFriendsEmail";
 
 let mockCanRead = true;
@@ -10,6 +11,14 @@ let mockCanWrite = true;
 vi.mock("../hooks/useAccess", () => ({
   useAccess: () => ({ canRead: mockCanRead, canWrite: mockCanWrite }),
 }));
+
+function renderPage() {
+  return render(
+    <ThemeProvider>
+      <RotaryFriendsEmail />
+    </ThemeProvider>,
+  );
+}
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -71,7 +80,7 @@ describe("RotaryFriendsEmail", () => {
   it("shows the email log; the picker excludes whatsapp-only contacts", async () => {
     mockLoadHandlers();
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     expect(screen.getByText("Old newsletter")).toBeInTheDocument();
@@ -91,7 +100,7 @@ describe("RotaryFriendsEmail", () => {
   it("bulk-selects recipients by tag via a quick-filter chip", async () => {
     mockLoadHandlers();
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: /add recipients/i }));
@@ -123,7 +132,7 @@ describe("RotaryFriendsEmail", () => {
       }),
     );
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hi");
@@ -155,7 +164,7 @@ describe("RotaryFriendsEmail", () => {
       ),
     );
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -195,7 +204,7 @@ describe("RotaryFriendsEmail", () => {
       }),
     );
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -230,7 +239,7 @@ describe("RotaryFriendsEmail", () => {
       ),
     );
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
@@ -250,7 +259,7 @@ describe("RotaryFriendsEmail", () => {
     mockCanRead = false;
     mockCanWrite = false;
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent(/do not have permission/i);
   });
@@ -260,7 +269,7 @@ describe("RotaryFriendsEmail", () => {
     mockCanWrite = false;
     mockLoadHandlers();
 
-    render(<RotaryFriendsEmail />);
+    renderPage();
     await waitForLoaded();
 
     expect(screen.getByText("Old newsletter")).toBeInTheDocument();
@@ -296,7 +305,7 @@ describe("RotaryFriendsEmail", () => {
         }),
       );
 
-      render(<RotaryFriendsEmail />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hi");
@@ -322,7 +331,7 @@ describe("RotaryFriendsEmail", () => {
       mockCanWrite = true;
       mockLoadHandlers([LOG_ENTRY], [DRAFT]);
 
-      render(<RotaryFriendsEmail />);
+      renderPage();
       await waitForLoaded();
 
       expect(screen.getByText("Saved subject")).toBeInTheDocument();
@@ -349,7 +358,7 @@ describe("RotaryFriendsEmail", () => {
       );
       vi.spyOn(window, "confirm").mockReturnValue(true);
 
-      render(<RotaryFriendsEmail />);
+      renderPage();
       await waitForLoaded();
 
       await userEvent.click(screen.getByRole("button", { name: "Delete" }));

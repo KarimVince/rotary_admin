@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { ThemeProvider } from "../context/ThemeContext";
 import EmailLogTable from "./EmailLogTable";
+
+function renderWithTheme(ui) {
+  return render(<ThemeProvider>{ui}</ThemeProvider>);
+}
 
 const ENTRY = {
   id: "log-1",
@@ -14,7 +19,7 @@ const ENTRY = {
 
 describe("EmailLogTable (Story 16.24)", () => {
   it("renders the log entry on one row with a full-width, non-capped table", () => {
-    const { container } = render(<EmailLogTable entries={[ENTRY]} />);
+    const { container } = renderWithTheme(<EmailLogTable entries={[ENTRY]} />);
 
     const cardWrapper = container.querySelector(".w-full");
     expect(cardWrapper).toBeInTheDocument();
@@ -30,7 +35,7 @@ describe("EmailLogTable (Story 16.24)", () => {
   });
 
   it("keeps every non-subject column on a single line via whitespace-nowrap", () => {
-    render(<EmailLogTable entries={[ENTRY]} />);
+    renderWithTheme(<EmailLogTable entries={[ENTRY]} />);
 
     const recipientCountCell = screen.getByText("12");
     expect(recipientCountCell.className).toMatch(/whitespace-nowrap/);
@@ -40,13 +45,13 @@ describe("EmailLogTable (Story 16.24)", () => {
   });
 
   it("shows an empty state when nothing has been sent yet", () => {
-    render(<EmailLogTable entries={[]} />);
+    renderWithTheme(<EmailLogTable entries={[]} />);
 
     expect(screen.getByText(/no emails sent yet/i)).toBeInTheDocument();
   });
 
   it("gives every non-subject column an explicit fixed width via colgroup, so columns can't overlap under table-fixed", () => {
-    const { container } = render(<EmailLogTable entries={[ENTRY]} />);
+    const { container } = renderWithTheme(<EmailLogTable entries={[ENTRY]} />);
 
     const cols = container.querySelectorAll("colgroup col");
     expect(cols).toHaveLength(6);

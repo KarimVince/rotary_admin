@@ -103,7 +103,7 @@ export default function EventRundown({ event: selectedEvent }) {
   return (
     <div className="admin-page admin-page-wide event-rundown-page">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="m-0 text-2xl font-semibold text-[#0c2340]">Rundown</h1>
+        <h1 className="m-0 text-2xl font-semibold text-[var(--text-h)]">Rundown</h1>
         {canWrite && selectedEvent && (
           <button
             type="button"
@@ -162,14 +162,14 @@ export default function EventRundown({ event: selectedEvent }) {
                   value={row.time}
                   onChange={(e) => handleFieldChange(row, "time", e.target.value)}
                   disabled={!canWrite}
-                  className="w-[70px] shrink-0 rounded-[8px] border border-transparent bg-transparent px-1 text-[13px] font-semibold text-[#0c2340] focus:border-[var(--color-border-medium)]"
+                  className="w-[70px] shrink-0 rounded-[8px] border border-transparent bg-transparent px-1 text-[13px] font-semibold text-[var(--text-h)] focus:border-[var(--color-border-medium)]"
                 />
                 <input
                   aria-label={`Activity for row ${index + 1}`}
                   value={row.activity}
                   onChange={(e) => handleFieldChange(row, "activity", e.target.value)}
                   disabled={!canWrite}
-                  className="flex-1 rounded-[8px] border border-transparent bg-transparent px-1 text-[13px] text-[#0c2340] focus:border-[var(--color-border-medium)]"
+                  className="flex-1 rounded-[8px] border border-transparent bg-transparent px-1 text-[13px] text-[var(--text-h)] focus:border-[var(--color-border-medium)]"
                 />
                 <label className="flex items-center gap-1 text-[12px] text-[var(--color-muted-text)]">
                   <input

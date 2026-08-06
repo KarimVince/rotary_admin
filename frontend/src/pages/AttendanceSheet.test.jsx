@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
+import { ThemeProvider } from "../context/ThemeContext";
 import AttendanceSheet from "./AttendanceSheet";
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
@@ -60,11 +61,13 @@ function buildSheet({ active = [activeMember()], past = [] } = {}) {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={["/dinners/event-1"]}>
-      <Routes>
-        <Route path="/dinners/:eventId" element={<AttendanceSheet />} />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={["/dinners/event-1"]}>
+        <Routes>
+          <Route path="/dinners/:eventId" element={<AttendanceSheet />} />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

@@ -1,9 +1,10 @@
 import { formatDate } from "../utils/formatters";
 
 // Story 14.13: pill/segmented event switcher shown atop the Manage Project
-// page, replacing EventSelector's <select> dropdown. Still built on
-// useSelectedEvent — this component only renders the pills and reports the
-// clicked event id back via onSelect.
+// page (Classic theme only — Minimal replaced this with the Rotary
+// Year + Project dropdown row in EventManageProject.jsx, per the redesign
+// reference). Still built on useSelectedEvent — this component only renders
+// the pills and reports the clicked event id back via onSelect.
 export default function EventSwitcher({ events, selectedEvent, onSelect }) {
   if (events.length === 0) {
     return (
@@ -31,7 +32,7 @@ export default function EventSwitcher({ events, selectedEvent, onSelect }) {
             className={
               isActive
                 ? "rounded-[9px] bg-[var(--color-brand-blue)] px-4 py-2 text-[13px] font-semibold text-white"
-                : "rounded-[9px] bg-transparent px-4 py-2 text-[13px] font-semibold text-[#3c4655]"
+                : "rounded-[9px] bg-transparent px-4 py-2 text-[13px] font-semibold text-[var(--text)]"
             }
           >
             {event.name} — {formatDate(event.date)}

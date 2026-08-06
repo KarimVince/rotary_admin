@@ -291,6 +291,42 @@ def test_stats_ignore_future_dinner_forecast_events(secretary_client, make_membe
     assert stats["total_events"] == 1
 
 
+def test_stats_ignore_past_but_unstarted_dinner_forecast_events(secretary_client, make_member):
+    """Bug fix (2026-08-06): a Dinner Forecast event with a past event_date
+    that was never actually started (POST .../start, no AttendanceRecord
+    rows) must not inflate "Total events" or drag the average down with a
+    phantom 0% turnout — same rule as the future-dated exclusion above,
+    just for events on the other side of "not yet held"."""
+    from datetime import timedelta
+
+    make_member(status="active")
+
+    secretary_client.post(
+        "/api/v1/attendance/events",
+        json={"name": "Weekly Dinner", "event_date": str(date.today()), "event_type": "Dinner"},
+    )
+
+    past = date.today() - timedelta(days=7)
+    secretary_client.post(
+        "/api/v1/dinner-forecast/events",
+        json={
+            "name": "Planned But Never Held",
+            "event_date": str(past),
+            "event_type": "Dinner",
+            "location": "Club House",
+        },
+    )
+
+    stats = secretary_client.get(
+        f"/api/v1/attendance/stats?rotary_year={rotary_year(date.today())}"
+    ).json()
+    # Only the started "Weekly Dinner" counts — the past-dated but never-
+    # started forecast event must not appear or dilute the average.
+    assert stats["total_events"] == 1
+    assert stats["average_attendance"] == 0.0
+    assert stats["average_attendance_percentage"] == 0.0
+
+
 def test_stats_zero_state_when_no_events(user_client):
     response = user_client.get("/api/v1/attendance/stats?rotary_year=1999")
     assert response.status_code == 200

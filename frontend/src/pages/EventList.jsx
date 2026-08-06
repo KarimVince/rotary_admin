@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { deleteEvent, listEvents } from "../api/events";
 import { listMembers } from "../api/members";
 import { useAccess } from "../hooks/useAccess";
 import { formatCurrency, formatDate } from "../utils/formatters";
 import EventFormModal from "../components/EventFormModal";
 import Card from "../components/Card";
+import { useTheme } from "../context/ThemeContext";
 
 function countdownLabel(dateStr) {
   const today = new Date();
@@ -19,16 +21,27 @@ function countdownLabel(dateStr) {
 }
 
 function SectionHeader({ children }) {
+  const { isMinimal } = useTheme();
+  if (isMinimal) {
+    return <h2 className="seclabel">{children}</h2>;
+  }
   return (
-    <h2 className="mb-3 text-[15px] font-bold uppercase tracking-[0.04em] text-[#0c2340]">{children}</h2>
+    <h2 className="mb-3 text-[15px] font-bold uppercase tracking-[0.04em] text-[var(--text-h)]">{children}</h2>
   );
 }
 
 function UpcomingEventCard({ event, canWrite, onEdit, onDelete }) {
+  const { isMinimal } = useTheme();
   return (
     <Card variant="default" className="flex flex-col gap-[10px] p-5">
       <div className="flex items-center justify-between">
-        <span className="inline-block self-start rounded-full bg-[var(--tone-blue-bg)] px-[10px] py-[3px] text-[11px] font-bold text-[var(--color-brand-blue)]">
+        <span
+          className={
+            isMinimal
+              ? "inline-block self-start rounded-full bg-[var(--accent-soft)] px-[10px] py-[3px] text-[11px] font-bold text-[var(--accent-ink)]"
+              : "inline-block self-start rounded-full bg-[var(--tone-blue-bg)] px-[10px] py-[3px] text-[11px] font-bold text-[var(--color-brand-blue)]"
+          }
+        >
           {countdownLabel(event.date)}
         </span>
         {canWrite && (
@@ -51,23 +64,29 @@ function UpcomingEventCard({ event, canWrite, onEdit, onDelete }) {
         )}
       </div>
 
-      <span className="text-[17px] font-bold text-[#0c2340]">{event.name}</span>
+      <span className={isMinimal ? "text-[17px] font-normal text-[var(--text-h)]" : "text-[17px] font-bold text-[var(--text-h)]"}>
+        {event.name}
+      </span>
       <span className="text-[13px] text-[var(--color-muted-text)]">
         {formatDate(event.date)} · {event.venue}
       </span>
 
-      <div className="mt-1 flex gap-4 text-[13px] text-[#3c4655]">
+      <div className="mt-1 flex gap-4 text-[13px] text-[var(--text)]">
         <span>
-          <strong className="text-[#0c2340]">{event.guest_count}</strong> guests
+          <strong className="text-[var(--text-h)]">{event.guest_count}</strong> guests
         </span>
         <span>
-          <strong className="text-[#0c2340]">{event.sponsor_count}</strong> sponsors
+          <strong className="text-[var(--text-h)]">{event.sponsor_count}</strong> sponsors
         </span>
       </div>
 
       <Link
         to={`/events/manage?event=${event.id}`}
-        className="mt-[6px] rounded-lg bg-[var(--color-brand-blue-light)] p-2 text-center text-[13px] font-semibold text-[var(--color-brand-blue)]"
+        className={
+          isMinimal
+            ? "mt-[6px] rounded-lg bg-[var(--accent-soft)] p-2 text-center text-[13px] font-semibold text-[var(--accent-ink)] no-underline hover:bg-[var(--accent-softer)]"
+            : "mt-[6px] rounded-lg bg-[var(--color-brand-blue-light)] p-2 text-center text-[13px] font-semibold text-[var(--color-brand-blue)] no-underline"
+        }
       >
         Manage project →
       </Link>
@@ -94,7 +113,7 @@ function PastEventsTable({ events }) {
         <tbody>
           {events.map((event) => (
             <tr key={event.id} className="border-b border-[var(--color-border-light)] last:border-b-0">
-              <td className="px-5 py-[14px] text-[14px] font-semibold text-[#0c2340]">{event.name}</td>
+              <td className="px-5 py-[14px] text-[14px] font-semibold text-[var(--text-h)]">{event.name}</td>
               <td className="px-5 py-[14px] text-[14px] text-[var(--color-muted-text)]">
                 {formatDate(event.date)}
               </td>
@@ -105,7 +124,7 @@ function PastEventsTable({ events }) {
               <td className="px-5 py-[14px]">
                 <Link
                   to={`/events/manage?event=${event.id}`}
-                  className="text-[13px] font-semibold text-[var(--color-brand-blue)]"
+                  className="text-[13px] font-semibold text-[var(--color-brand-blue)] no-underline"
                 >
                   View →
                 </Link>
@@ -119,6 +138,7 @@ function PastEventsTable({ events }) {
 }
 
 export default function EventList() {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("event.list");
 
   const [events, setEvents] = useState([]);
@@ -198,8 +218,23 @@ export default function EventList() {
   return (
     <div className="admin-page event-list-page">
       <div className="page-header-row">
-        <h1>Events</h1>
-        {canWrite && (
+        <div>
+          <h1>Events</h1>
+          {isMinimal && (
+            <p className="mt-1 text-[13.5px] text-[var(--muted)]">Upcoming and past club events.</p>
+          )}
+        </div>
+        {canWrite && isMinimal && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)]"
+          >
+            <Plus className="w-[15px] h-[15px]" aria-hidden="true" />
+            New Event
+          </button>
+        )}
+        {canWrite && !isMinimal && (
           <button type="button" className="btn-add-member" onClick={openCreate}>
             New Event
           </button>
@@ -215,7 +250,7 @@ export default function EventList() {
           {upcomingEvents.length === 0 ? (
             <p className="member-empty-state">No upcoming events.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${isMinimal ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
               {upcomingEvents.map((event) => (
                 <UpcomingEventCard
                   key={event.id}

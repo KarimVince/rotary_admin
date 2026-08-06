@@ -164,7 +164,7 @@ function MemberTitlesCard() {
               key={title.id}
               className="flex items-center gap-2 px-2.5 py-2 bg-[var(--color-border-light)] rounded-lg text-[13px]"
             >
-              <span className="font-semibold text-[#0c2340] w-14 shrink-0">{title.code}</span>
+              <span className="font-semibold text-[var(--text-h)] w-14 shrink-0">{title.code}</span>
               <span className="flex-1 text-[var(--color-muted-text)] truncate">{title.label}</span>
               <StatusChip active={title.is_active} />
               {canWrite && (
@@ -334,7 +334,7 @@ function HonorificsCard() {
               key={honorific.id}
               className="flex items-center gap-2 px-2.5 py-2 bg-[var(--color-border-light)] rounded-lg text-[13px]"
             >
-              <span className="font-semibold text-[#0c2340] w-14 shrink-0">{honorific.code}</span>
+              <span className="font-semibold text-[var(--text-h)] w-14 shrink-0">{honorific.code}</span>
               <span className="flex-1 text-[var(--color-muted-text)] truncate">{honorific.label}</span>
               <StatusChip active={honorific.is_active} />
               {canWrite && (
@@ -535,7 +535,7 @@ function NgoClassificationsCard() {
                   </button>
                 </div>
               )}
-              <span className="flex-1 text-[#0c2340] truncate">{classification.name}</span>
+              <span className="flex-1 text-[var(--text-h)] truncate">{classification.name}</span>
               <span className="text-xs text-[var(--color-muted-text)] shrink-0">
                 {classification.organisation_count}
               </span>
@@ -744,7 +744,7 @@ function DinnerEventTypesCard() {
                   {type.name}
                 </span>
               ) : (
-                <span className="flex-1 text-[#0c2340] truncate">{type.name}</span>
+                <span className="flex-1 text-[var(--text-h)] truncate">{type.name}</span>
               )}
               <span className="flex-1" />
               <span className="text-xs text-[var(--color-muted-text)] shrink-0">{type.event_count}</span>
@@ -935,7 +935,7 @@ function FinanceCategoriesCard() {
               key={category.id}
               className="flex items-center gap-2 px-2.5 py-2 bg-[var(--color-border-light)] rounded-lg text-[13px]"
             >
-              <span className="font-semibold text-[#0c2340] w-20 shrink-0 capitalize">
+              <span className="font-semibold text-[var(--text-h)] w-20 shrink-0 capitalize">
                 {category.type}
               </span>
               <span className="flex-1 text-[var(--color-muted-text)] truncate">
@@ -1111,7 +1111,7 @@ function RotaryYearsCard() {
               key={year.id}
               className="flex items-center gap-2 px-2.5 py-2 bg-[var(--color-border-light)] rounded-lg text-[13px]"
             >
-              <span className="font-semibold text-[#0c2340] flex-1">{year.label}</span>
+              <span className="font-semibold text-[var(--text-h)] flex-1">{year.label}</span>
               {year.is_current ? (
                 <StatusChip active />
               ) : (

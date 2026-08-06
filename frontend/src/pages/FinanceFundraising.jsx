@@ -7,7 +7,10 @@ import {
   updateAdhocDonation,
 } from "../api/finance";
 import Card from "../components/Card";
+import RotaryYearField from "../components/RotaryYearField";
+import { SectionHeading, TableWrap } from "../components/SectionHeading";
 import { useAccess } from "../hooks/useAccess";
+import { useTheme } from "../context/ThemeContext";
 import { useRotaryYears } from "../hooks/useRotaryYears";
 import { useWindowFocusRefetch } from "../hooks/useWindowFocusRefetch";
 import { INPUT_CLASS, SELECT_CLASS } from "../styles/formControls";
@@ -21,7 +24,19 @@ function formatCurrency(value) {
   })} HKD`;
 }
 
-function StatCard({ value, label }) {
+// 2026-08-06: minimal branch matches Dashboard's stat-card shape exactly
+// (value-first <span>, then label <span>, inside a .stat-duo-grid parent
+// for the blue/gold alternation + compact type-scale) — Classic keeps its
+// original label-first div layout untouched.
+function StatCard({ value, label, isMinimal }) {
+  if (isMinimal) {
+    return (
+      <Card variant="stat-teal" className="flex flex-col">
+        <span className="text-3xl font-bold">{value}</span>
+        <span className="mt-2 text-sm">{label}</span>
+      </Card>
+    );
+  }
   return (
     <Card variant="stat-teal" className="flex min-h-[104px] flex-col justify-center">
       <div className="text-xs font-semibold text-[var(--color-muted-text)]">{label}</div>
@@ -41,8 +56,9 @@ const EMPTY_FORM = { donation_date: "", description: "", amount: "" };
 // under Finance (see Story 17.2 follow-up in AppLayout.jsx — every Finance
 // page is its own matrix submenu key, not a shared tabbed page).
 export default function FinanceFundraising() {
+  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("finance.fundraising");
-  const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears();
+  const { yearOptions, currentYear, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [summary, setSummary] = useState(null);
   const [adhocDonations, setAdhocDonations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -156,23 +172,32 @@ export default function FinanceFundraising() {
         </p>
       </div>
 
-      <div className="flex items-center gap-3 mb-4 mt-4">
-        <label htmlFor="fundraising-year" className="text-sm font-semibold">
-          Rotary Year
-        </label>
-        <select
-          id="fundraising-year"
-          className={SELECT_CLASS}
-          value={year}
-          onChange={(event) => setYear(Number(event.target.value))}
-        >
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>
-              {rotaryYearLabel(y)}
-            </option>
-          ))}
-        </select>
-      </div>
+      {isMinimal ? (
+        <RotaryYearField
+          year={year}
+          yearOptions={yearOptions}
+          currentYear={currentYear}
+          onChange={setYear}
+        />
+      ) : (
+        <div className="flex items-center gap-3 mb-4 mt-4">
+          <label htmlFor="fundraising-year" className="text-sm font-semibold">
+            Rotary Year
+          </label>
+          <select
+            id="fundraising-year"
+            className={SELECT_CLASS}
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {rotaryYearLabel(y)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isLoading && <p>Loading…</p>}
       {loadError && (
@@ -183,28 +208,32 @@ export default function FinanceFundraising() {
 
       {!isLoading && !loadError && summary && (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className={`grid grid-cols-3 gap-4 mb-6 ${isMinimal ? "stat-duo-grid" : ""}`}>
             <StatCard
               value={formatCurrency(summary.event_fundraising_total)}
               label="Event fundraising"
+              isMinimal={isMinimal}
             />
             <StatCard
               value={formatCurrency(summary.adhoc_donations_total)}
               label="Ad hoc donations"
+              isMinimal={isMinimal}
             />
-            <StatCard value={formatCurrency(summary.combined_total)} label="Combined total" />
+            <StatCard
+              value={formatCurrency(summary.combined_total)}
+              label="Combined total"
+              isMinimal={isMinimal}
+            />
           </div>
 
           <section className="mb-6">
-            <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
-              Event fundraising
-            </h2>
+            <SectionHeading isMinimal={isMinimal}>Event fundraising</SectionHeading>
             {summary.events.length === 0 ? (
               <p className="text-sm text-[var(--color-muted-text)]">
                 No event fundraising income recorded for this rotary year.
               </p>
             ) : (
-              <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden">
+              <TableWrap isMinimal={isMinimal}>
                 <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-[var(--color-border-faint)]">
@@ -241,20 +270,18 @@ export default function FinanceFundraising() {
                     ))}
                   </tbody>
                 </table>
-              </Card>
+              </TableWrap>
             )}
           </section>
 
           <section className="mb-6">
-            <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
-              Ad hoc donations
-            </h2>
+            <SectionHeading isMinimal={isMinimal}>Ad hoc donations</SectionHeading>
             {adhocDonations.length === 0 ? (
               <p className="text-sm text-[var(--color-muted-text)]">
                 No ad hoc donations recorded for this rotary year.
               </p>
             ) : (
-              <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden">
+              <TableWrap isMinimal={isMinimal}>
                 <table className="w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-[var(--color-border-faint)]">
@@ -303,15 +330,15 @@ export default function FinanceFundraising() {
                     ))}
                   </tbody>
                 </table>
-              </Card>
+              </TableWrap>
             )}
           </section>
 
           {canWrite && (
             <section className="mt-6">
-              <h2 className="text-[17px] font-bold text-[var(--color-brand-blue)] mb-3">
+              <SectionHeading isMinimal={isMinimal}>
                 {editingId ? "Edit ad hoc donation" : "Add ad hoc donation"}
-              </h2>
+              </SectionHeading>
               <Card variant="default" className="!p-5 !rounded-2xl max-w-[700px]">
                 <form onSubmit={handleSubmit} className="donation-form">
                   <div>
