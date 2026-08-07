@@ -117,7 +117,7 @@ describe("EventLuckyDraw", () => {
     );
     await waitForLoaded();
 
-    expect(screen.queryByText("+ Add Item")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Item")).not.toBeInTheDocument();
     expect(screen.queryByText("Edit")).not.toBeInTheDocument();
   });
 
@@ -137,15 +137,18 @@ describe("EventLuckyDraw", () => {
     );
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Add Item" }));
-    expect(screen.getByLabelText("Type")).toHaveValue("auction");
-    expect(screen.getByLabelText("Value Sold")).toBeInTheDocument();
-
-    await userEvent.selectOptions(screen.getByLabelText("Type"), "lucky_draw");
-    expect(screen.queryByLabelText("Value Sold")).not.toBeInTheDocument();
-
-    await userEvent.type(screen.getByLabelText("Name"), "Gift Basket");
+    await userEvent.click(screen.getByRole("button", { name: "Add Item" }));
+    // Scoped to the modal — the page's own Type filter dropdown (Minimal
+    // theme) also has an accessible name of "Type", so an unscoped
+    // getByLabelText("Type") matches both ambiguously.
     const modal = screen.getByRole("heading", { name: "New item" }).closest(".modal-dialog");
+    expect(within(modal).getByLabelText("Type")).toHaveValue("auction");
+    expect(within(modal).getByLabelText("Value Sold")).toBeInTheDocument();
+
+    await userEvent.selectOptions(within(modal).getByLabelText("Type"), "lucky_draw");
+    expect(within(modal).queryByLabelText("Value Sold")).not.toBeInTheDocument();
+
+    await userEvent.type(within(modal).getByLabelText("Name"), "Gift Basket");
     await userEvent.click(within(modal).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(createdBody).toBeDefined());
@@ -172,9 +175,9 @@ describe("EventLuckyDraw", () => {
     await waitForLoaded();
 
     const row = screen.getByText("Painting").closest("tr");
-    await userEvent.click(
-      Array.from(row.querySelectorAll("button")).find((b) => b.textContent === "Delete"),
-    );
+    // Row actions are icon-only (Minimal restyle) — no visible "Delete"
+    // text, just a Trash icon with a `title="Delete"` attribute.
+    await userEvent.click(within(row).getByTitle("Delete"));
     await waitFor(() => expect(deleteCalled).toBe(true));
 
     window.confirm.mockRestore();

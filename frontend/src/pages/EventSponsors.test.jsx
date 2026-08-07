@@ -81,7 +81,7 @@ describe("EventSponsors", () => {
     );
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Add Item" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Item" }));
     await userEvent.type(screen.getByLabelText("Name"), "Beta Ltd");
     await userEvent.type(screen.getByLabelText("Unit Price"), "1000");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));

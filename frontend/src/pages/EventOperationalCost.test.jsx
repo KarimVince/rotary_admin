@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -95,7 +95,7 @@ describe("EventOperationalCost", () => {
     );
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Add Item" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Item" }));
     await userEvent.type(screen.getByLabelText("Name"), "Printing");
     await userEvent.clear(screen.getByLabelText("Quantity"));
     await userEvent.type(screen.getByLabelText("Quantity"), "3");
@@ -128,9 +128,9 @@ describe("EventOperationalCost", () => {
     await waitForLoaded();
 
     const row = screen.getByText("Flowers").closest("tr");
-    await userEvent.click(
-      Array.from(row.querySelectorAll("button")).find((b) => b.textContent === "Delete"),
-    );
+    // Row actions are icon-only (Minimal restyle) — no visible "Delete"
+    // text, just a Trash icon with a `title="Delete"` attribute.
+    await userEvent.click(within(row).getByTitle("Delete"));
     await waitFor(() => expect(deleteCalled).toBe(true));
 
     window.confirm.mockRestore();
@@ -145,7 +145,7 @@ describe("EventOperationalCost", () => {
     );
     await waitForLoaded();
 
-    expect(screen.queryByText("+ Add Item")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Item")).not.toBeInTheDocument();
     expect(screen.queryByText("Edit")).not.toBeInTheDocument();
   });
 
