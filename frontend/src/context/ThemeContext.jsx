@@ -1,27 +1,17 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
 
-const THEME_STORAGE_KEY = "designTheme";
+// The app now ships a single design ("Minimal") — the old Classic/Minimal
+// toggle was removed. This context and its `isMinimal` flag are kept
+// (hardcoded true) purely so components mid-cleanup that still branch on
+// `isMinimal` keep working without churn; new code shouldn't rely on it.
 const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
-  const [designTheme, setDesignTheme] = useState(
-    () => localStorage.getItem(THEME_STORAGE_KEY) || "classic",
-  );
-
   useEffect(() => {
-    document.documentElement.dataset.theme = designTheme;
-    localStorage.setItem(THEME_STORAGE_KEY, designTheme);
-  }, [designTheme]);
+    document.documentElement.dataset.theme = "minimal";
+  }, []);
 
-  function toggleTheme() {
-    setDesignTheme((current) => (current === "classic" ? "minimal" : "classic"));
-  }
-
-  return (
-    <ThemeContext.Provider value={{ designTheme, isMinimal: designTheme === "minimal", toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ isMinimal: true }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

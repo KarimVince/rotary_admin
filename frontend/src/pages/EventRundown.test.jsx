@@ -77,7 +77,7 @@ describe("EventRundown", () => {
     render(<EventRundown event={EVENT} />);
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Add Row" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Row" }));
     await waitFor(() => expect(createCalled).toBe(true));
   });
 
@@ -97,7 +97,7 @@ describe("EventRundown", () => {
     await userEvent.type(screen.getByLabelText("Activity for row 1"), "Updated activity");
 
     const row1 = screen.getByLabelText("Time for row 1").closest("div.flex");
-    await userEvent.click(within(row1).getByRole("button", { name: "Save" }));
+    await userEvent.click(within(row1).getByTitle("Save"));
 
     await waitFor(() => expect(updatedBody).toBeDefined());
     expect(updatedBody.activity).toBe("Updated activity");
@@ -136,7 +136,7 @@ describe("EventRundown", () => {
     await waitForLoaded();
 
     const row1 = screen.getByLabelText("Time for row 1").closest("div.flex");
-    await userEvent.click(within(row1).getByRole("button", { name: "Delete" }));
+    await userEvent.click(within(row1).getByTitle("Delete"));
     await waitFor(() => expect(deleteCalled).toBe(true));
 
     window.confirm.mockRestore();

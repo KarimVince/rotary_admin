@@ -2,9 +2,9 @@ import { Calendar } from "lucide-react";
 import SingleSelectDropdown from "./SingleSelectDropdown";
 import { rotaryYearLabel } from "../utils/rotaryYear";
 
-// "Minimal" design theme's Rotary Year selector (matches the prototype's
-// yearField() — a labelled dropdown with a calendar glyph), shared by every
-// Finance page's isMinimal branch instead of each page's own plain <select>.
+// Rotary Year selector (matches the prototype's yearField() — a labelled
+// dropdown with a calendar glyph), shared by every Finance page instead of
+// each page's own plain <select>.
 export default function RotaryYearField({
   year,
   yearOptions,

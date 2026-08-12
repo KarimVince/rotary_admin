@@ -6,7 +6,6 @@ import { fetchCurrentPptTemplate } from "../api/pptTemplates";
 import Card from "../components/Card";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 
 const PIE_COLORS = ["var(--rotary-blue)", "var(--rotary-gold)", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
 
@@ -14,7 +13,6 @@ const SESSION_KEY_REPORT_TYPE = "friendsStats.reportType";
 const SESSION_KEY_USE_TEMPLATE = "friendsStats.useTemplate";
 
 export default function RotaryFriendsStatistics() {
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("friends.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -104,14 +102,11 @@ export default function RotaryFriendsStatistics() {
   return (
     <div className="admin-page admin-page-wide">
       <h1>Rotary Friends statistics</h1>
-      {isMinimal && (
-        <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
-          Sources, tags and contactability of friends.
-        </p>
-      )}
+      <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+        Sources, tags and contactability of friends.
+      </p>
 
-      {isMinimal ? (
-        <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Format
@@ -185,69 +180,13 @@ export default function RotaryFriendsStatistics() {
             </p>
           )}
         </div>
-      ) : (
-        <div className="report-controls">
-          <label htmlFor="report-format">Generate report</label>
-          <select
-            id="report-format"
-            value={reportFormat}
-            onChange={(event) => setReportFormat(event.target.value)}
-            disabled={isGeneratingReport}
-          >
-            <option value="pdf">PDF</option>
-            <option value="pptx">PowerPoint (PPTX)</option>
-          </select>
-          <label htmlFor="report-type">Content</label>
-          <select
-            id="report-type"
-            value={reportType}
-            onChange={(event) => handleReportTypeChange(event.target.value)}
-            disabled={isGeneratingReport}
-          >
-            <option value="simplified">Simplified</option>
-            <option value="integral">Integral</option>
-          </select>
-          <label
-            htmlFor="report-use-template"
-            title={
-              reportFormat !== "pptx"
-                ? "The annual club template only applies to PowerPoint (PPTX) reports"
-                : !hasTemplate
-                  ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
-                  : undefined
-            }
-          >
-            <input
-              id="report-use-template"
-              type="checkbox"
-              checked={useTemplate}
-              onChange={(event) => handleUseTemplateChange(event.target.checked)}
-              disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
-            />
-            Use annual club template
-          </label>
-          <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
-            {isGeneratingReport ? "Generating…" : "Generate Report"}
-          </button>
-          {reportError && <p role="alert">{reportError}</p>}
-        </div>
-      )}
 
-      {isMinimal ? (
-        <div className="mb-4 grid grid-cols-1 sm:max-w-[280px] stat-duo-grid">
-          <Card variant="stat-blue" className="flex flex-col">
-            <span className="text-3xl font-bold">{stats.total_friends}</span>
-            <span className="mt-2 text-sm">Total Friends</span>
-          </Card>
-        </div>
-      ) : (
-        <div className="stat-cards-row-3">
-          <div className="stat-card stat-card-blue">
-            <span className="stat-value">{stats.total_friends}</span>
-            <span className="stat-label">Total Friends</span>
-          </div>
-        </div>
-      )}
+      <div className="mb-4 grid grid-cols-1 sm:max-w-[280px] stat-duo-grid">
+        <Card variant="stat-blue" className="flex flex-col">
+          <span className="text-3xl font-bold">{stats.total_friends}</span>
+          <span className="mt-2 text-sm">Total Friends</span>
+        </Card>
+      </div>
 
       {stats.total_friends === 0 ? (
         <p className="member-empty-state">No Rotary Friends recorded yet.</p>

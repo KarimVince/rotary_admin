@@ -21,9 +21,7 @@ import { listMembers } from "../api/members";
 import { useAccess } from "../hooks/useAccess";
 import { formatCurrency } from "../utils/formatters";
 import EventGuestFormModal from "../components/EventGuestFormModal";
-import Card from "../components/Card";
 import MultiSelectDropdown from "../components/MultiSelectDropdown";
-import { useTheme } from "../context/ThemeContext";
 
 const SORTABLE_COLUMNS = [
   { key: "title", label: "Title" },
@@ -53,29 +51,18 @@ function guestSortValue(guest, key, tableByNumber) {
   }
 }
 
-function StatTile({ bg, color, value, label, isMinimal }) {
+function StatCard({ bg, color, value, label }) {
   return (
-    <div
-      className={isMinimal ? "rounded-[var(--r)] p-[14px_18px]" : "rounded-2xl p-[14px_18px]"}
-      style={{ background: bg }}
-    >
+    <div className="rounded-2xl p-[14px_18px]" style={{ background: bg }}>
       <span className="block text-[20px] font-bold" style={{ color }}>
         {value}
       </span>
-      <span className={isMinimal ? "text-[12px] text-[var(--muted)]" : "text-[12px] text-[var(--text)]"}>
-        {label}
-      </span>
+      <span className="text-[12px] text-[var(--text)]">{label}</span>
     </div>
   );
 }
 
 const PAYMENT_STATUS_CYCLE = { paid: "not_paid", not_paid: "guest", guest: "paid" };
-
-const PAYMENT_CHIP_STYLES = {
-  paid: "bg-[var(--tone-teal-bg)] text-[var(--color-tone-teal-text)]",
-  not_paid: "bg-[var(--tone-rose-bg)] text-[var(--color-tone-rose-text)]",
-  guest: "bg-[var(--tone-blue-bg)] text-[var(--color-brand-blue)]",
-};
 
 const PAYMENT_CHIP_STYLES_MINIMAL = {
   paid: "bg-[var(--ok-bg)] text-[var(--ok)]",
@@ -83,23 +70,91 @@ const PAYMENT_CHIP_STYLES_MINIMAL = {
   guest: "bg-[var(--accent-soft)] text-[var(--accent-ink)]",
 };
 
-const PAYMENT_CHIP_LABELS = { paid: "Paid", not_paid: "Not Paid", guest: "Guest" };
+const PAYMENT_CHIP_LABELS = { paid: "Paid", not_paid: "Not Paid", guest: "Invited" };
 
-function PaymentChip({ status, onClick, isMinimal }) {
-  const styles = isMinimal ? PAYMENT_CHIP_STYLES_MINIMAL : PAYMENT_CHIP_STYLES;
+function PaymentChip({ status, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-fit rounded-full px-[10px] py-[3px] text-[11px] font-bold ${styles[status]}`}
+      className={`w-fit rounded-full px-[10px] py-[3px] text-[11px] font-bold ${PAYMENT_CHIP_STYLES_MINIMAL[status]}`}
     >
       {PAYMENT_CHIP_LABELS[status]}
     </button>
   );
 }
 
+// 2026-08-06: Early Bird's own pill — same shape/size as PaymentChip above
+// ("same design as payment status"), and now click-to-toggle the same way
+// (Yes <-> No) instead of being a plain read-only label.
+const EARLY_BIRD_CHIP_STYLES_MINIMAL = {
+  yes: "bg-[var(--ok-bg)] text-[var(--ok)]",
+  no: "bg-[var(--bg-alt)] text-[var(--muted)]",
+};
+
+function EarlyBirdChip({ earlyBird, onClick }) {
+  const key = earlyBird ? "yes" : "no";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-fit rounded-full px-[10px] py-[3px] text-[11px] font-bold ${EARLY_BIRD_CHIP_STYLES_MINIMAL[key]}`}
+    >
+      {earlyBird ? "Yes" : "No"}
+    </button>
+  );
+}
+
+// 2026-08-06: Table Number/Theme Name/Rotary Name all share one color per
+// table (cycled across the same 6-tone palette used elsewhere, e.g.
+// Dashboard/MembersStatistics), so the three columns read as one visually
+// grouped "Table" identity per explicit request — same chip style, a
+// different color per distinct table.
+const TABLE_TONES_MINIMAL = [
+  { bg: "var(--accent-soft)", text: "var(--accent-ink)" },
+  { bg: "var(--gold-soft)", text: "var(--gold-ink)" },
+  { bg: "var(--ok-bg)", text: "var(--ok)" },
+  { bg: "var(--warn-bg)", text: "var(--warn)" },
+  { bg: "var(--low-bg)", text: "var(--low)" },
+];
+
+// Read-only display chip — used for Theme Name/Rotary Name (the table's own
+// fields) and the per-table breakdown aside.
+function TableChip({ children, tone, small }) {
+  const className = `inline-block w-fit rounded-full font-bold ${
+    small ? "px-[8px] py-[2px] text-[11px]" : "px-[10px] py-[3px] text-[11px] font-semibold"
+  }`;
+  if (!tone) return <span className="text-[var(--color-muted-text)]">{children}</span>;
+  return (
+    <span className={className} style={{ background: tone.bg, color: tone.text }}>
+      {children}
+    </span>
+  );
+}
+
+// 2026-08-06: Table Number is edited by typing a new value, not by
+// clicking to cycle (cycling was slow/awkward with more than a couple of
+// tables, and refetched on every single click — see handleTableNumberBlur).
+// Uncontrolled (defaultValue), validated on blur, same pattern as the
+// amount-due/amount-paid inputs elsewhere in this app (e.g. MemberFees.jsx).
+function TableNumberField({ guest, onBlurValue, error }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <input
+        type="number"
+        defaultValue={guest.table_number ?? ""}
+        onBlur={(event) => onBlurValue(event.target.value)}
+        aria-label={`Table number for ${guest.first_name} ${guest.surname}`}
+        className={`w-14 rounded-md border px-1.5 py-1 text-center text-xs ${
+          error ? "border-[var(--color-tone-rose-text)]" : "border-[var(--color-card-border)]"
+        }`}
+      />
+      {error && <span className="max-w-[110px] text-[10px] leading-tight text-[var(--color-tone-rose-text)]">{error}</span>}
+    </div>
+  );
+}
+
 export default function EventGuestList({ event: selectedEvent }) {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("event.guests");
 
   const [members, setMembers] = useState([]);
@@ -116,6 +171,8 @@ export default function EventGuestList({ event: selectedEvent }) {
   const [reportFormat, setReportFormat] = useState("pdf");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
+
+  const [tableNumberErrors, setTableNumberErrors] = useState({});
 
   const [search, setSearch] = useState("");
   const [paymentFilters, setPaymentFilters] = useState([]);
@@ -142,13 +199,19 @@ export default function EventGuestList({ event: selectedEvent }) {
       .finally(() => setIsLoading(false));
   }, [canRead]);
 
-  async function loadGuestData() {
+  async function loadGuestData({ silent = false } = {}) {
     // No early "not loading" reset here when selectedEvent is briefly null
     // (events fetched but useSelectedEvent hasn't picked a default yet) —
     // that would flip isLoadingGuestData false-then-true-then-false again,
     // a flash the summary cards would render zeros during.
     if (!selectedEvent) return;
-    setIsLoadingGuestData(true);
+    // 2026-08-06: `silent` skips the isLoadingGuestData flip — flipping it
+    // unmounts the whole summary+table block in favor of a single "Loading
+    // guest data…" line, which collapses the page height and forces the
+    // browser to scroll back to top. Row-level edits (payment/early bird/
+    // table number) use silent so the page stays put at the edited row;
+    // the initial load on mount/event-switch still shows the loading state.
+    if (!silent) setIsLoadingGuestData(true);
     const [guestsData, tableData, setupData] = await Promise.all([
       listEventGuests(selectedEvent.id),
       listTableMapping(selectedEvent.id),
@@ -157,7 +220,7 @@ export default function EventGuestList({ event: selectedEvent }) {
     setGuests(guestsData);
     setTableMapping(tableData);
     setSetup(setupData);
-    setIsLoadingGuestData(false);
+    if (!silent) setIsLoadingGuestData(false);
   }
 
   useEffect(() => {
@@ -170,6 +233,23 @@ export default function EventGuestList({ event: selectedEvent }) {
     tableMapping.forEach((table) => map.set(table.table_number, table));
     return map;
   }, [tableMapping]);
+
+  // 2026-08-06: stable color index per distinct table number (assigned in
+  // table-number order so it doesn't reshuffle as guests load/filter) —
+  // used by TableChip so Table Number/Theme Name/Rotary Name all get the
+  // same color per table.
+  const tableColorIndexByNumber = useMemo(() => {
+    const map = new Map();
+    [...tableMapping]
+      .sort((a, b) => a.table_number - b.table_number)
+      .forEach((table, index) => map.set(table.table_number, index));
+    return map;
+  }, [tableMapping]);
+
+  function tableToneFor(tableNumber) {
+    if (tableNumber == null || !tableColorIndexByNumber.has(tableNumber)) return null;
+    return TABLE_TONES_MINIMAL[tableColorIndexByNumber.get(tableNumber) % TABLE_TONES_MINIMAL.length];
+  }
 
   const summary = useMemo(() => {
     const registered = guests.length;
@@ -186,6 +266,43 @@ export default function EventGuestList({ event: selectedEvent }) {
     return { registered, paid, invitedGuests, totalAmount };
   }, [guests, setup]);
 
+  // 2026-08-06: per-table breakdown shown below the summary cards — guest
+  // count + paid/guest/pending split for each table, so an admin can see
+  // at a glance which tables still have outstanding payments.
+  const tableBreakdown = useMemo(() => {
+    const byTable = new Map();
+    guests.forEach((guest) => {
+      const key = guest.table_number ?? null;
+      if (!byTable.has(key)) {
+        byTable.set(key, { tableNumber: key, total: 0, paid: 0, guestCount: 0, pending: 0 });
+      }
+      const row = byTable.get(key);
+      row.total += 1;
+      if (guest.payment_status === "paid") row.paid += 1;
+      else if (guest.payment_status === "guest") row.guestCount += 1;
+      else row.pending += 1;
+    });
+    return [...byTable.values()].sort((a, b) => (a.tableNumber ?? -1) - (b.tableNumber ?? -1));
+  }, [guests]);
+
+  // 2026-08-06: same breakdown, grouped by Contact Rotarian instead of
+  // table — sits next to the per-table one.
+  const contactRotarianBreakdown = useMemo(() => {
+    const byContact = new Map();
+    guests.forEach((guest) => {
+      const key = guest.contact_rotarian_name || "";
+      if (!byContact.has(key)) {
+        byContact.set(key, { contactRotarianName: key, total: 0, paid: 0, guestCount: 0, pending: 0 });
+      }
+      const row = byContact.get(key);
+      row.total += 1;
+      if (guest.payment_status === "paid") row.paid += 1;
+      else if (guest.payment_status === "guest") row.guestCount += 1;
+      else row.pending += 1;
+    });
+    return [...byContact.values()].sort((a, b) => a.contactRotarianName.localeCompare(b.contactRotarianName));
+  }, [guests]);
+
   const tableNumberOptions = useMemo(
     () =>
       [...tableMapping]
@@ -196,6 +313,13 @@ export default function EventGuestList({ event: selectedEvent }) {
             ? `Table ${table.table_number} — ${table.theme_name}`
             : `Table ${table.table_number}`,
         })),
+    [tableMapping],
+  );
+
+  // 2026-08-06: used to click-to-cycle a guest's Table Number, same
+  // interaction as PaymentChip/EarlyBirdChip.
+  const sortedTableNumbers = useMemo(
+    () => [...tableMapping].sort((a, b) => a.table_number - b.table_number).map((t) => t.table_number),
     [tableMapping],
   );
 
@@ -287,7 +411,38 @@ export default function EventGuestList({ event: selectedEvent }) {
     await updateEventGuest(selectedEvent.id, guest.id, {
       payment_status: PAYMENT_STATUS_CYCLE[guest.payment_status],
     });
-    loadGuestData();
+    loadGuestData({ silent: true });
+  }
+
+  // 2026-08-06: click-to-toggle Early Bird, same pattern as
+  // handleTogglePaid above.
+  async function handleToggleEarlyBird(guest) {
+    await updateEventGuest(selectedEvent.id, guest.id, { early_bird: !guest.early_bird });
+    loadGuestData({ silent: true });
+  }
+
+  // 2026-08-06: Table Number is a type-in field, not click-to-cycle
+  // (cycling was awkward with more than a couple of tables — every click
+  // refetched and jumped the page too, per user feedback). Validated
+  // against the event's actual configured table numbers on blur; invalid
+  // entries show an inline error and are never sent to the API.
+  async function handleTableNumberBlur(guest, rawValue) {
+    const trimmed = rawValue.trim();
+    if (trimmed === "" || Number(trimmed) === guest.table_number) {
+      setTableNumberErrors((current) => ({ ...current, [guest.id]: null }));
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || !sortedTableNumbers.includes(parsed)) {
+      setTableNumberErrors((current) => ({
+        ...current,
+        [guest.id]: `Not a table at this event (valid: ${sortedTableNumbers.join(", ") || "none configured"})`,
+      }));
+      return;
+    }
+    setTableNumberErrors((current) => ({ ...current, [guest.id]: null }));
+    await updateEventGuest(selectedEvent.id, guest.id, { table_number: parsed });
+    loadGuestData({ silent: true });
   }
 
   async function handleDelete(guest) {
@@ -328,21 +483,6 @@ export default function EventGuestList({ event: selectedEvent }) {
 
   return (
     <div className="admin-page admin-page-wide event-guest-list-page">
-      {!isMinimal && (
-        <div className="mb-5 flex items-center justify-between">
-          <h1 className="m-0 text-2xl font-semibold text-[var(--text-h)]">Guest List</h1>
-          {canWrite && selectedEvent && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
-            >
-              + Add Guest
-            </button>
-          )}
-        </div>
-      )}
-
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
@@ -352,59 +492,37 @@ export default function EventGuestList({ event: selectedEvent }) {
 
           {selectedEvent && !isLoadingGuestData && (
             <>
-              <div className={`mb-4 flex ${isMinimal ? "items-end justify-between" : "items-center"} gap-3`}>
-                <div className={isMinimal ? "flex items-end gap-3" : "flex items-center gap-3"}>
-                  {isMinimal ? (
-                    <div className="flex flex-col gap-1.5">
-                      <label
-                        htmlFor="guest-report-format"
-                        className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
-                      >
-                        Format
-                      </label>
-                      <select
-                        id="guest-report-format"
-                        value={reportFormat}
-                        onChange={(e) => setReportFormat(e.target.value)}
-                        disabled={isGeneratingReport}
-                        className="h-[38px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
-                      >
-                        <option value="pdf">PDF</option>
-                        <option value="csv">CSV</option>
-                      </select>
-                    </div>
-                  ) : (
-                    <>
-                      <label htmlFor="guest-report-format" className="sr-only">
-                        Format
-                      </label>
-                      <select
-                        id="guest-report-format"
-                        value={reportFormat}
-                        onChange={(e) => setReportFormat(e.target.value)}
-                        disabled={isGeneratingReport}
-                        className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[13px]"
-                      >
-                        <option value="pdf">PDF</option>
-                        <option value="csv">CSV</option>
-                      </select>
-                    </>
-                  )}
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <div className="flex items-end gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="guest-report-format"
+                      className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+                    >
+                      Format
+                    </label>
+                    <select
+                      id="guest-report-format"
+                      value={reportFormat}
+                      onChange={(e) => setReportFormat(e.target.value)}
+                      disabled={isGeneratingReport}
+                      className="h-[38px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
+                    >
+                      <option value="pdf">PDF</option>
+                      <option value="csv">CSV</option>
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={handleGenerateReport}
                     disabled={isGeneratingReport}
-                    className={
-                      isMinimal
-                        ? "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)]"
-                        : "rounded-[10px] bg-[var(--color-brand-blue-light)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]"
-                    }
+                    className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)]"
                   >
-                    {isMinimal && <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />}
+                    <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />
                     {isGeneratingReport ? "Generating…" : "Generate Report"}
                   </button>
                 </div>
-                {isMinimal && canWrite && (
+                {canWrite && (
                   <button
                     type="button"
                     onClick={openCreate}
@@ -417,40 +535,142 @@ export default function EventGuestList({ event: selectedEvent }) {
               </div>
               {reportError && <p role="alert">{reportError}</p>}
 
-              <div className="mb-4 flex gap-3">
-                <StatTile
-                  isMinimal={isMinimal}
-                  bg={isMinimal ? "var(--accent-soft)" : "var(--tone-blue-bg)"}
-                  color={isMinimal ? "var(--accent-ink)" : "var(--color-brand-blue)"}
+              {/* 2026-08-06: standard 2-color blue/gold duo (was 3 colors:
+                  blue/green/gold) via `.stat-duo-grid`, same as every other
+                  stat-card row — grid instead of flex so the cards stretch
+                  to fill the row (a bit longer than the old content-sized
+                  tiles) instead of shrinking to their text. */}
+              <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 stat-duo-grid">
+                <StatCard
+                  bg="var(--tone-blue-bg)"
+                  color="var(--color-brand-blue)"
                   value={summary.registered}
                   label="Guests Registered"
                 />
-                <StatTile
-                  isMinimal={isMinimal}
-                  bg={isMinimal ? "var(--ok-bg)" : "var(--tone-teal-bg)"}
-                  color={isMinimal ? "var(--ok)" : "var(--color-tone-teal-text)"}
+                <StatCard
+                  bg="var(--tone-teal-bg)"
+                  color="var(--color-tone-teal-text)"
                   value={summary.paid}
                   label="Payments Received"
                 />
-                <StatTile
-                  isMinimal={isMinimal}
-                  bg={isMinimal ? "var(--gold-soft)" : "var(--tone-amber-bg)"}
-                  color={isMinimal ? "var(--gold-ink)" : "var(--color-tone-amber-text)"}
+                <StatCard
+                  bg="var(--tone-amber-bg)"
+                  color="var(--color-tone-amber-text)"
                   value={formatCurrency(summary.totalAmount)}
                   label="Total Amount Collected"
                 />
-                <StatTile
-                  isMinimal={isMinimal}
-                  bg={isMinimal ? "var(--accent-soft)" : "var(--tone-blue-bg)"}
-                  color={isMinimal ? "var(--accent-ink)" : "var(--color-brand-blue)"}
+                <StatCard
+                  bg="var(--tone-blue-bg)"
+                  color="var(--color-brand-blue)"
                   value={summary.invitedGuests}
                   label="Guests (invited)"
                 />
               </div>
 
+              {/* 2026-08-06: compact per-table + per-contact-rotarian
+                  breakdowns (guest count + paid/invited/pending split) —
+                  kept deliberately small: 11px text, tight padding, no card
+                  shadow/elevation, just a hairline border, side by side so
+                  they read as a lightweight aside under the summary cards
+                  rather than another big block. */}
+              {(tableBreakdown.length > 0 || contactRotarianBreakdown.length > 0) && (
+                <div className="mb-4 flex flex-wrap items-start gap-6">
+                  {tableBreakdown.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.05em] text-[var(--color-muted-text)]">
+                        Guests per table
+                      </div>
+                      <div className="inline-block overflow-x-auto rounded-lg border border-[var(--color-border-light)]">
+                        <table className="border-collapse text-left text-[11.5px]">
+                          <thead>
+                            <tr className="border-b border-[var(--color-border-light)]">
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-muted-text)]">Table</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-muted-text)]">Theme Name</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-muted-text)]">Rotary Name</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-muted-text)]">Guests</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-tone-teal-text)]">Paid</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-brand-blue)]">Invited</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-tone-rose-text)]">Pending</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tableBreakdown.map((row) => {
+                              const table = tableByNumber.get(row.tableNumber);
+                              return (
+                                <tr
+                                  key={row.tableNumber ?? "unassigned"}
+                                  className="border-b border-[var(--color-border-light)] last:border-0"
+                                >
+                                  <td className="px-2.5 py-1">
+                                    <TableChip tone={tableToneFor(row.tableNumber)} small>
+                                      {row.tableNumber ?? "—"}
+                                    </TableChip>
+                                  </td>
+                                  <td className="px-2.5 py-1">
+                                    <TableChip tone={tableToneFor(row.tableNumber)}>
+                                      {table?.theme_name || "—"}
+                                    </TableChip>
+                                  </td>
+                                  <td className="px-2.5 py-1">
+                                    <TableChip tone={tableToneFor(row.tableNumber)}>
+                                      {table?.rotary_name || "—"}
+                                    </TableChip>
+                                  </td>
+                                  <td className="px-2.5 py-1">{row.total}</td>
+                                  <td className="px-2.5 py-1">{row.paid}</td>
+                                  <td className="px-2.5 py-1">{row.guestCount}</td>
+                                  <td className="px-2.5 py-1">{row.pending}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {contactRotarianBreakdown.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.05em] text-[var(--color-muted-text)]">
+                        Guests per contact Rotarian
+                      </div>
+                      <div className="inline-block overflow-x-auto rounded-lg border border-[var(--color-border-light)]">
+                        <table className="border-collapse text-left text-[11.5px]">
+                          <thead>
+                            <tr className="border-b border-[var(--color-border-light)]">
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-muted-text)]">
+                                Contact Rotarian
+                              </th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-muted-text)]">Guests</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-tone-teal-text)]">Paid</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-brand-blue)]">Invited</th>
+                              <th className="px-2.5 py-1.5 font-bold text-[var(--color-tone-rose-text)]">Pending</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {contactRotarianBreakdown.map((row) => (
+                              <tr
+                                key={row.contactRotarianName || "unassigned"}
+                                className="border-b border-[var(--color-border-light)] last:border-0"
+                              >
+                                <td className="px-2.5 py-1">{row.contactRotarianName || "—"}</td>
+                                <td className="px-2.5 py-1">{row.total}</td>
+                                <td className="px-2.5 py-1">{row.paid}</td>
+                                <td className="px-2.5 py-1">{row.guestCount}</td>
+                                <td className="px-2.5 py-1">{row.pending}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {guests.length === 0 ? (
                 <p className="member-empty-state">No guests registered for this event yet.</p>
-              ) : isMinimal ? (
+              ) : (
                 <>
                   <div className="mb-3 pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
                     Guest List
@@ -475,7 +695,7 @@ export default function EventGuestList({ event: selectedEvent }) {
                       options={[
                         { value: "paid", label: "Paid" },
                         { value: "not_paid", label: "Not Paid" },
-                        { value: "guest", label: "Guest" },
+                        { value: "guest", label: "Invited" },
                       ]}
                       selected={paymentFilters}
                       onToggleOption={(value) => toggleFilter(setPaymentFilters, value)}
@@ -523,7 +743,7 @@ export default function EventGuestList({ event: selectedEvent }) {
                             {SORTABLE_COLUMNS.map(({ key, label }) => (
                               <th
                                 key={key}
-                                className="px-4 py-3 text-[12px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]"
+                                className={`${key === "table_number" ? "px-2 w-14" : "px-4"} py-3 text-[12px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]`}
                               >
                                 <button
                                   type="button"
@@ -566,16 +786,30 @@ export default function EventGuestList({ event: selectedEvent }) {
                                   <PaymentChip
                                     status={guest.payment_status}
                                     onClick={() => handleTogglePaid(guest)}
-                                    isMinimal={isMinimal}
                                   />
                                 </td>
-                                <td className="px-4 py-[13px]">{guest.early_bird ? "Yes" : "No"}</td>
-                                <td className="px-4 py-[13px]">{guest.table_number ?? "—"}</td>
-                                <td className="px-4 py-[13px] text-[var(--color-muted-text)]">
-                                  {table?.theme_name || "—"}
+                                <td className="px-4 py-[13px]">
+                                  <EarlyBirdChip
+                                    earlyBird={guest.early_bird}
+                                    onClick={() => handleToggleEarlyBird(guest)}
+                                  />
                                 </td>
-                                <td className="px-4 py-[13px] text-[var(--color-muted-text)]">
-                                  {table?.rotary_name || "—"}
+                                <td className="px-2 py-[13px] text-center">
+                                  <TableNumberField
+                                    guest={guest}
+                                    onBlurValue={(value) => handleTableNumberBlur(guest, value)}
+                                    error={tableNumberErrors[guest.id]}
+                                  />
+                                </td>
+                                <td className="px-4 py-[13px]">
+                                  <TableChip tone={tableToneFor(guest.table_number)}>
+                                    {table?.theme_name || "—"}
+                                  </TableChip>
+                                </td>
+                                <td className="px-4 py-[13px]">
+                                  <TableChip tone={tableToneFor(guest.table_number)}>
+                                    {table?.rotary_name || "—"}
+                                  </TableChip>
                                 </td>
                                 <td className="px-4 py-[13px]">
                                   {canWrite && (
@@ -607,87 +841,6 @@ export default function EventGuestList({ event: selectedEvent }) {
                     </div>
                   )}
                 </>
-              ) : (
-                <Card variant="default" className="p-0 overflow-hidden">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="border-b border-[var(--color-border-faint)]">
-                        {[
-                          "Title",
-                          "Surname",
-                          "First Name",
-                          "Contact Rotarian",
-                          "Payment Status",
-                          "Early Bird",
-                          "Table Number",
-                          "Theme Name",
-                          "Rotary Name",
-                          "Actions",
-                        ].map((label) => (
-                          <th
-                            key={label}
-                            className="px-4 py-3 text-[12px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]"
-                          >
-                            {label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {guests.map((guest) => {
-                        const table = tableByNumber.get(guest.table_number);
-                        return (
-                          <tr
-                            key={guest.id}
-                            className="border-b border-[var(--color-border-light)] text-[13px] text-[var(--text-h)] last:border-b-0"
-                          >
-                            <td className="px-4 py-[13px]">{guest.title || "—"}</td>
-                            <td className="px-4 py-[13px] font-semibold">{guest.surname}</td>
-                            <td className="px-4 py-[13px]">{guest.first_name}</td>
-                            <td className="px-4 py-[13px] text-[var(--color-muted-text)]">
-                              {guest.contact_rotarian_name || "—"}
-                            </td>
-                            <td className="px-4 py-[13px]">
-                              <PaymentChip
-                                status={guest.payment_status}
-                                onClick={() => handleTogglePaid(guest)}
-                                isMinimal={isMinimal}
-                              />
-                            </td>
-                            <td className="px-4 py-[13px]">{guest.early_bird ? "Yes" : "No"}</td>
-                            <td className="px-4 py-[13px]">{guest.table_number ?? "—"}</td>
-                            <td className="px-4 py-[13px] text-[var(--color-muted-text)]">
-                              {table?.theme_name || "—"}
-                            </td>
-                            <td className="px-4 py-[13px] text-[var(--color-muted-text)]">
-                              {table?.rotary_name || "—"}
-                            </td>
-                            <td className="px-4 py-[13px]">
-                              {canWrite && (
-                                <div className="flex gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEdit(guest)}
-                                    className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-brand-blue)]"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDelete(guest)}
-                                    className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-tone-rose-text)]"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </Card>
               )}
             </>
           )}

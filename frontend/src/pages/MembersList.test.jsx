@@ -187,7 +187,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/first name/i), "New");
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       expect(await screen.findByText("New Member")).toBeInTheDocument();
     });
@@ -210,7 +210,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
       await userEvent.selectOptions(screen.getByLabelText(/gender/i), "Female");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       await waitFor(() => expect(capturedBody?.gender).toBe("Female"));
     });
@@ -355,7 +355,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
       await userEvent.click(screen.getByLabelText(/honorary member/i));
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       await waitFor(() => expect(capturedBody?.status).toBe("active"));
       expect(capturedBody?.is_honorary).toBe(true);
@@ -408,7 +408,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
       const addModal = screen.getByRole("heading", { name: /add member/i }).closest(".modal-dialog");
       await userEvent.type(within(addModal).getByLabelText(/nationality/i), "Japan");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       await waitFor(() => expect(capturedBody?.nationality).toBe("Japan"));
     });
@@ -432,7 +432,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
       const addModal = screen.getByRole("heading", { name: /add member/i }).closest(".modal-dialog");
       await userEvent.type(within(addModal).getByLabelText(/nationality/i), "Not A Country");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /nationality must be selected from the list of countries/i,
@@ -458,7 +458,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
       await userEvent.type(screen.getByLabelText(/rotarian id/i), "RI-9009");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       await waitFor(() => expect(capturedBody?.rotarian_id).toBe("RI-9009"));
     });
@@ -482,7 +482,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
       await userEvent.type(screen.getByLabelText(/rotarian id/i), "RI-9009");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /rotarian id already registered to another member/i,
@@ -529,7 +529,7 @@ describe("MembersList", () => {
       await userEvent.upload(screen.getByLabelText(/^photo$/i), file);
       await screen.findByAltText("Preview");
 
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       await waitFor(() => expect(capturedBody?.photo_url).toBe("/static/members/abc123.png"));
     });
@@ -552,7 +552,7 @@ describe("MembersList", () => {
       await userEvent.type(screen.getByLabelText(/first name/i), "New");
       await userEvent.type(screen.getByLabelText(/last name/i), "Member");
       await userEvent.type(screen.getByLabelText(/join date/i), "2024-05-01");
-      await userEvent.click(screen.getByRole("button", { name: /^save member$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^submit$/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /email already registered to another member/i,

@@ -15,6 +15,9 @@ export default function EventSponsors({ event }) {
       title="Sponsors"
       accessKey="event.sponsors"
       totalFieldLabel="Total Amount"
+      // 2026-08-08: report generation hidden for now, per explicit request
+      // — Costs (the other page sharing this component) keeps it.
+      showReport={false}
       listCategoriesFn={listEventSponsorCategories}
       listEntriesFn={listEventSponsors}
       createEntryFn={createEventSponsor}

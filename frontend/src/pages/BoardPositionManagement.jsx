@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   createBoardPosition,
@@ -233,7 +233,7 @@ export default function BoardPositionManagement() {
                     <span
                       className={`inline-block rounded-full px-2.5 py-1 text-xs font-bold ${
                         position.at_the_board
-                          ? "bg-[var(--color-brand-blue-light)] text-[var(--color-brand-blue)]"
+                          ? "bg-[var(--accent-soft)] text-[var(--accent-ink)]"
                           : "bg-[var(--color-border-light)] text-[var(--color-muted-text)]"
                       }`}
                     >
@@ -255,10 +255,12 @@ export default function BoardPositionManagement() {
                     {canWrite && (
                       <button
                         type="button"
+                        aria-label={`Edit ${position.name}`}
+                        title="Edit"
                         onClick={() => startEdit(position)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] cursor-pointer mr-2"
+                        className="border-none bg-transparent text-[var(--color-brand-blue)] cursor-pointer hover:opacity-75 align-middle mr-2"
                       >
-                        Edit
+                        <Pencil className="w-4 h-4" aria-hidden="true" />
                       </button>
                     )}
                     {canWrite && (

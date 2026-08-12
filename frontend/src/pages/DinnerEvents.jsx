@@ -10,7 +10,6 @@ import { fetchAttendanceStats, startAttendanceForEvent } from "../api/attendance
 import { listDinnerEventTypes } from "../api/dinnerEventTypes";
 import { listMembers } from "../api/members";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import { useRotaryYears } from "../hooks/useRotaryYears";
 import { rotaryYearLabel } from "../utils/rotaryYear";
 import { todayInHongKong } from "../utils/eventDate";
@@ -30,67 +29,19 @@ function rotaryYearMonthKeys(year) {
   return keys;
 }
 
-function YearPillSwitcher({ years, selected, onSelect }) {
+// 2026-08-06: stat-card shape matches Dashboard's exactly (value-first
+// <span>, label <span>, inside a `.stat-duo-grid` parent for the
+// position-based blue/gold alternation + compact type-scale).
+function StatCard({ value, label, tone }) {
   return (
-    <div
-      className="flex items-center gap-1 rounded-xl bg-white p-[6px] shadow-[var(--shadow-card-lg)]"
-      role="tablist"
-      aria-label="Switch rotary year"
-    >
-      {years.map((year) => {
-        const isActive = year === selected;
-        return (
-          <button
-            key={year}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onSelect(year)}
-            className={
-              isActive
-                ? "rounded-[9px] bg-[var(--color-brand-blue)] px-4 py-2 text-[13px] font-semibold text-white"
-                : "rounded-[9px] bg-transparent px-4 py-2 text-[13px] font-semibold text-[var(--text)]"
-            }
-          >
-            {rotaryYearLabel(year)}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// 2026-08-06: minimal branch now matches Dashboard's stat-card shape
-// exactly (value-first <span>, label <span>, inside a `.stat-duo-grid`
-// parent for the position-based blue/gold alternation + compact
-// type-scale) — previously kept its own semantic per-tone coloring/sizing,
-// deliberately excluded from `.stat-duo-grid`; superseded by an explicit
-// app-wide request to make every stat-card row match Dashboard's format.
-function StatCard({ bg, color, value, label, tone }) {
-  const { isMinimal } = useTheme();
-  if (isMinimal && tone) {
-    return (
-      <Card variant={tone} className="flex flex-col">
-        <span className="text-3xl font-bold">{value}</span>
-        <span className="mt-2 text-sm">{label}</span>
-      </Card>
-    );
-  }
-  return (
-    <div
-      className="rounded-2xl p-[18px_20px] shadow-[var(--shadow-card-lg)]"
-      style={{ background: bg }}
-    >
-      <span className="block text-[28px] font-bold" style={{ color }}>
-        {value}
-      </span>
-      <span className="text-[13px] text-[var(--text-h)]">{label}</span>
-    </div>
+    <Card variant={tone} className="flex flex-col">
+      <span className="text-3xl font-bold">{value}</span>
+      <span className="mt-2 text-sm">{label}</span>
+    </Card>
   );
 }
 
 export default function DinnerEvents() {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("attendance.forecast");
   const navigate = useNavigate();
 
@@ -275,159 +226,64 @@ export default function DinnerEvents() {
         </div>
       </div>
 
-      {isMinimal ? (
-        <>
-          <div className="mb-4">
-            <SingleSelectDropdown
-              icon={CalendarDays}
-              ariaLabel="Switch rotary year"
-              minWidthClass="min-w-[150px]"
-              value={year}
-              options={yearOptions.map((y) => ({ value: y, label: rotaryYearLabel(y) }))}
-              onSelect={setYear}
+      <div className="mb-4">
+        <SingleSelectDropdown
+          icon={CalendarDays}
+          ariaLabel="Switch rotary year"
+          minWidthClass="min-w-[150px]"
+          value={year}
+          options={yearOptions.map((y) => ({ value: y, label: rotaryYearLabel(y) }))}
+          onSelect={setYear}
+        />
+      </div>
+
+      <section className="mb-6 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[16px_18px]">
+        <div className="mb-3.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-[var(--faint)]">
+          <FileBarChart2 className="w-[15px] h-[15px] text-[var(--accent)]" aria-hidden="true" />
+          <span>Generate attendance report</span>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Event type
+            </span>
+            <MultiSelectDropdown
+              icon={Filter}
+              ariaLabel="Event type filter"
+              allLabel="All types"
+              disabled={isGeneratingReport}
+              options={eventTypes.map((type) => ({ value: type.name, label: type.name }))}
+              selected={reportEventTypes}
+              onToggleOption={toggleReportEventType}
+              onClear={() => setReportEventTypes([])}
             />
           </div>
 
-          <section className="mb-6 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-[16px_18px]">
-            <div className="mb-3.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-[var(--faint)]">
-              <FileBarChart2 className="w-[15px] h-[15px] text-[var(--accent)]" aria-hidden="true" />
-              <span>Generate attendance report</span>
-            </div>
-
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                  Event type
-                </span>
-                <MultiSelectDropdown
-                  icon={Filter}
-                  ariaLabel="Event type filter"
-                  allLabel="All types"
-                  disabled={isGeneratingReport}
-                  options={eventTypes.map((type) => ({ value: type.name, label: type.name }))}
-                  selected={reportEventTypes}
-                  onToggleOption={toggleReportEventType}
-                  onClear={() => setReportEventTypes([])}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                  Format
-                </span>
-                <SingleSelectDropdown
-                  ariaLabel="Format"
-                  minWidthClass="min-w-[110px]"
-                  disabled={isGeneratingReport}
-                  value={reportFormat}
-                  options={[
-                    { value: "pdf", label: "PDF" },
-                    { value: "csv", label: "CSV" },
-                  ]}
-                  onSelect={setReportFormat}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                  Scope
-                </span>
-                <label
-                  htmlFor="dinner-report-forecast"
-                  className="flex h-[38px] items-center gap-2 text-[13px] text-[var(--ink-2)]"
-                  title="Checked: upcoming events only. Unchecked: all events, with a participation rate for past ones."
-                >
-                  <input
-                    id="dinner-report-forecast"
-                    type="checkbox"
-                    checked={reportForecast}
-                    onChange={(event) => setReportForecast(event.target.checked)}
-                    disabled={isGeneratingReport}
-                  />
-                  Forecast only (upcoming)
-                </label>
-              </div>
-
-              <div className="ml-auto flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px]">&nbsp;</span>
-                <button
-                  type="button"
-                  onClick={handleGenerateReport}
-                  disabled={isGeneratingReport}
-                  className="inline-flex h-[38px] items-center gap-2 rounded-[8px] bg-[var(--accent)] px-4 text-[13px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50"
-                >
-                  <Download className="w-4 h-4" aria-hidden="true" />
-                  {isGeneratingReport ? "Generating…" : "Generate Report"}
-                </button>
-              </div>
-            </div>
-          </section>
-          {reportError && (
-            <p role="alert" className="mb-3 text-[13px] text-[var(--low)]">
-              {reportError}
-            </p>
-          )}
-        </>
-      ) : (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <YearPillSwitcher years={yearOptions} selected={year} onSelect={setYear} />
-
-          <div className="flex items-center gap-3">
-            {/* Story 16.17: multi-select pill toggles (was a single-select
-                dropdown) — "All" clears the filter, each type toggles
-                independently, several can be active at once. */}
-            <div className="flex items-center gap-1.5" role="group" aria-label="Event filter">
-              <button
-                type="button"
-                onClick={() => setReportEventTypes([])}
-                disabled={isGeneratingReport}
-                aria-pressed={reportEventTypes.length === 0}
-                className={`rounded-full border px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  reportEventTypes.length === 0
-                    ? "border-[var(--color-brand-blue)] bg-[var(--color-brand-blue)] text-white"
-                    : "border-[var(--color-border-medium)] bg-white text-[var(--color-muted-text)]"
-                }`}
-              >
-                All
-              </button>
-              {eventTypes.map((type) => {
-                const active = reportEventTypes.includes(type.name);
-                return (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() => toggleReportEventType(type.name)}
-                    disabled={isGeneratingReport}
-                    aria-pressed={active}
-                    className={`rounded-full border px-3 py-1.5 text-[12.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      active
-                        ? "border-[var(--color-brand-blue)] bg-[var(--color-brand-blue)] text-white"
-                        : "border-[var(--color-border-medium)] bg-white text-[var(--color-muted-text)]"
-                    }`}
-                  >
-                    {type.name}
-                  </button>
-                );
-              })}
-            </div>
-
-            <label htmlFor="dinner-report-format" className="sr-only">
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Format
-            </label>
-            <select
-              id="dinner-report-format"
-              value={reportFormat}
-              onChange={(event) => setReportFormat(event.target.value)}
+            </span>
+            <SingleSelectDropdown
+              ariaLabel="Format"
+              minWidthClass="min-w-[110px]"
               disabled={isGeneratingReport}
-              className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[13px]"
-            >
-              <option value="pdf">PDF</option>
-              <option value="csv">CSV</option>
-            </select>
+              value={reportFormat}
+              options={[
+                { value: "pdf", label: "PDF" },
+                { value: "csv", label: "CSV" },
+              ]}
+              onSelect={setReportFormat}
+            />
+          </div>
 
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Scope
+            </span>
             <label
               htmlFor="dinner-report-forecast"
-              className="flex items-center gap-1.5 text-[13px] text-[var(--color-muted-text)] whitespace-nowrap"
+              className="flex h-[38px] items-center gap-2 text-[13px] text-[var(--ink-2)]"
               title="Checked: upcoming events only. Unchecked: all events, with a participation rate for past ones."
             >
               <input
@@ -437,38 +293,42 @@ export default function DinnerEvents() {
                 onChange={(event) => setReportForecast(event.target.checked)}
                 disabled={isGeneratingReport}
               />
-              Forecast
+              Forecast only (upcoming)
             </label>
+          </div>
 
+          <div className="ml-auto flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px]">&nbsp;</span>
             <button
               type="button"
               onClick={handleGenerateReport}
               disabled={isGeneratingReport}
-              className="rounded-[10px] bg-[var(--color-brand-blue-light)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]"
+              className="inline-flex h-[38px] items-center gap-2 rounded-[8px] bg-[var(--accent)] px-4 text-[13px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50"
             >
+              <Download className="w-4 h-4" aria-hidden="true" />
               {isGeneratingReport ? "Generating…" : "Generate Report"}
             </button>
           </div>
         </div>
+      </section>
+      {reportError && (
+        <p role="alert" className="mb-3 text-[13px] text-[var(--low)]">
+          {reportError}
+        </p>
       )}
-      {!isMinimal && reportError && <p role="alert">{reportError}</p>}
       {rowError && <p role="alert">{rowError}</p>}
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
       {!isLoading && !loadError && stats && (
-        <div className={`mb-[22px] grid grid-cols-1 gap-4 md:grid-cols-3 ${isMinimal ? "stat-duo-grid" : ""}`}>
+        <div className="mb-[22px] grid grid-cols-1 gap-4 md:grid-cols-3 stat-duo-grid">
           <StatCard
-            bg="var(--tone-blue-bg)"
-            color="var(--color-brand-blue)"
             tone="stat-blue"
             value={stats.total_events}
             label={`Total events — ${rotaryYearLabel(year)}`}
           />
           <StatCard
-            bg="var(--tone-teal-bg)"
-            color="var(--color-tone-teal-text)"
             tone="stat-teal"
             value={stats.average_attendance ?? "—"}
             label={
@@ -478,8 +338,6 @@ export default function DinnerEvents() {
             }
           />
           <StatCard
-            bg="var(--tone-amber-bg)"
-            color="var(--color-tone-amber-text)"
             tone="stat-amber"
             value={
               stats.average_attendance_percentage === null

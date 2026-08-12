@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   createMemberTitle,
   deactivateMemberTitle,
@@ -46,6 +47,10 @@ const SECONDARY_BUTTON_CLASS =
   "rounded-full px-4 py-2 text-[13px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] cursor-pointer";
 const INPUT_CLASS = "border border-[var(--color-card-border)] rounded-md px-2.5 py-1.5 text-[13px]";
 const STATUS_CHIP_CLASS = "inline-block rounded-full px-2.5 py-1 text-xs font-bold";
+const EDIT_ICON_BUTTON_CLASS =
+  "border-none bg-transparent text-[var(--color-brand-blue)] cursor-pointer hover:opacity-75 align-middle";
+const DELETE_ICON_BUTTON_CLASS =
+  "border-none bg-transparent text-[#b23b3b] cursor-pointer hover:opacity-75 align-middle";
 
 function StatusChip({ active }) {
   return (
@@ -169,8 +174,14 @@ function MemberTitlesCard() {
               <StatusChip active={title.is_active} />
               {canWrite && (
                 <>
-                  <button type="button" onClick={() => startEdit(title)} className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer">
-                    Edit
+                  <button
+                    type="button"
+                    onClick={() => startEdit(title)}
+                    aria-label={`Edit ${title.label}`}
+                    title="Edit"
+                    className={EDIT_ICON_BUTTON_CLASS}
+                  >
+                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -339,8 +350,14 @@ function HonorificsCard() {
               <StatusChip active={honorific.is_active} />
               {canWrite && (
                 <>
-                  <button type="button" onClick={() => startEdit(honorific)} className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer">
-                    Edit
+                  <button
+                    type="button"
+                    onClick={() => startEdit(honorific)}
+                    aria-label={`Edit ${honorific.label}`}
+                    title="Edit"
+                    className={EDIT_ICON_BUTTON_CLASS}
+                  >
+                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -541,15 +558,23 @@ function NgoClassificationsCard() {
               </span>
               {canWrite && (
                 <>
-                  <button type="button" onClick={() => startEdit(classification)} className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer">
-                    Edit
+                  <button
+                    type="button"
+                    onClick={() => startEdit(classification)}
+                    aria-label={`Edit ${classification.name}`}
+                    title="Edit"
+                    className={EDIT_ICON_BUTTON_CLASS}
+                  >
+                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(classification)}
-                    className="text-xs font-semibold text-[#b23b3b] bg-transparent border-none cursor-pointer"
+                    aria-label={`Delete ${classification.name}`}
+                    title="Delete"
+                    className={DELETE_ICON_BUTTON_CLASS}
                   >
-                    Delete
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </>
               )}
@@ -750,15 +775,23 @@ function DinnerEventTypesCard() {
               <span className="text-xs text-[var(--color-muted-text)] shrink-0">{type.event_count}</span>
               {canWrite && (
                 <>
-                  <button type="button" onClick={() => startEdit(type)} className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer">
-                    Edit
+                  <button
+                    type="button"
+                    onClick={() => startEdit(type)}
+                    aria-label={`Edit ${type.name}`}
+                    title="Edit"
+                    className={EDIT_ICON_BUTTON_CLASS}
+                  >
+                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(type)}
-                    className="text-xs font-semibold text-[#b23b3b] bg-transparent border-none cursor-pointer"
+                    aria-label={`Delete ${type.name}`}
+                    title="Delete"
+                    className={DELETE_ICON_BUTTON_CLASS}
                   >
-                    Delete
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </>
               )}
@@ -946,16 +979,20 @@ function FinanceCategoriesCard() {
                   <button
                     type="button"
                     onClick={() => startEdit(category)}
-                    className="text-xs font-semibold text-[var(--color-brand-blue)] bg-transparent border-none cursor-pointer"
+                    aria-label={`Edit ${category.name}`}
+                    title="Edit"
+                    className={EDIT_ICON_BUTTON_CLASS}
                   >
-                    Edit
+                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(category)}
-                    className="text-xs font-semibold text-[var(--color-muted-text-strong)] bg-transparent border-none cursor-pointer"
+                    aria-label={`Delete ${category.name}`}
+                    title="Delete"
+                    className={DELETE_ICON_BUTTON_CLASS}
                   >
-                    Delete
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </>
               )}
@@ -1129,9 +1166,11 @@ function RotaryYearsCard() {
                 <button
                   type="button"
                   onClick={() => handleDelete(year)}
-                  className="text-xs font-semibold text-[var(--color-muted-text-strong)] bg-transparent border-none cursor-pointer"
+                  aria-label={`Delete rotary year ${year.label}`}
+                  title="Delete"
+                  className={DELETE_ICON_BUTTON_CLASS}
                 >
-                  Delete
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>

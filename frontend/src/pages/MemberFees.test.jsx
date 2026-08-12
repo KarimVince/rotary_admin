@@ -233,7 +233,7 @@ describe("MemberFees", () => {
       await userEvent.tab();
 
       await waitFor(() => expect(screen.getByLabelText(/due amount for jane doe/i)).toHaveValue(350));
-      expect(screen.getByText("Total due").nextSibling).toHaveTextContent("350");
+      expect(screen.getByText("Total due").previousSibling).toHaveTextContent("350");
     });
 
     it("shows an error when marking paid fails", async () => {
@@ -716,7 +716,7 @@ describe("MemberFees", () => {
       expect(screen.getByText("500 HKD")).toBeInTheDocument();
     });
 
-    it("gives each summary card a distinct background color and a minimum height (Story 16.15)", async () => {
+    it("gives each summary card a distinct tone (Story 16.15)", async () => {
       allTabsAllowed();
       server.use(
         http.get(`${API_BASE_URL}/member-fees/statistics`, () => HttpResponse.json(STATS)),
@@ -727,16 +727,13 @@ describe("MemberFees", () => {
       renderFees("/fees?tab=statistics");
       await waitForLoaded();
 
-      const averageCard = screen.getByText("275 HKD").closest("div.flex");
-      const collectedCard = screen.getByText("1,100 HKD").closest("div.flex");
-      const outstandingCard = screen.getByText("500 HKD").closest("div.flex");
+      const averageCard = screen.getByText("275 HKD").closest("[data-variant]");
+      const collectedCard = screen.getByText("1,100 HKD").closest("[data-variant]");
+      const outstandingCard = screen.getByText("500 HKD").closest("[data-variant]");
 
-      expect(averageCard).toHaveStyle({ background: "var(--tone-blue-bg)" });
-      expect(collectedCard).toHaveStyle({ background: "var(--tone-teal-bg)" });
-      expect(outstandingCard).toHaveStyle({ background: "var(--tone-rose-bg)" });
-      [averageCard, collectedCard, outstandingCard].forEach((card) => {
-        expect(card.className).toMatch(/min-h-\[104px\]/);
-      });
+      expect(averageCard).toHaveAttribute("data-variant", "stat-blue");
+      expect(collectedCard).toHaveAttribute("data-variant", "stat-lavender");
+      expect(outstandingCard).toHaveAttribute("data-variant", "stat-blue");
     });
 
     it("renders the chart section headings from history", async () => {

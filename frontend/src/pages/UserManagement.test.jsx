@@ -151,7 +151,7 @@ describe("UserManagement", () => {
       render(<UserManagement />);
       await screen.findByText("user1@example.com");
 
-      await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^edit /i }));
       const dialog = screen.getByRole("dialog", { name: /edit user/i });
 
       expect(within(dialog).getByLabelText(/full name/i)).toHaveValue("User One");
@@ -180,7 +180,7 @@ describe("UserManagement", () => {
       render(<UserManagement />);
       await screen.findByText("user1@example.com");
 
-      await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^edit /i }));
       const dialog = screen.getByRole("dialog", { name: /edit user/i });
       await userEvent.click(within(dialog).getByRole("button", { name: /update user/i }));
 
@@ -199,12 +199,12 @@ describe("UserManagement", () => {
 
       expect(screen.getByLabelText(new RegExp(`role for ${SELF_ADMIN.email}`, "i"))).toBeDisabled();
 
-      await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^edit /i }));
       const dialog = screen.getByRole("dialog", { name: /edit user/i });
 
       expect(within(dialog).getByLabelText(/^role$/i)).toBeDisabled();
       expect(within(dialog).getByLabelText(/active/i)).toBeDisabled();
-      expect(screen.getByRole("button", { name: /^delete$/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /^delete /i })).toBeDisabled();
     });
   });
 
@@ -269,7 +269,7 @@ describe("UserManagement", () => {
       render(<UserManagement />);
       await screen.findByText("user1@example.com");
 
-      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^delete /i }));
 
       expect(screen.getByRole("alertdialog")).toHaveTextContent("User One");
       expect(screen.getByRole("alertdialog")).toHaveTextContent(/cannot be undone/i);
@@ -291,7 +291,7 @@ describe("UserManagement", () => {
       render(<UserManagement />);
       await screen.findByText("user1@example.com");
 
-      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^delete /i }));
       await userEvent.click(screen.getByRole("button", { name: /confirm delete/i }));
 
       await waitFor(() => expect(deleteCalled).toBe(true));
@@ -307,7 +307,7 @@ describe("UserManagement", () => {
       render(<UserManagement />);
       await screen.findByText("user1@example.com");
 
-      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^delete /i }));
       await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -329,7 +329,7 @@ describe("UserManagement", () => {
       render(<UserManagement />);
       await screen.findByText("user1@example.com");
 
-      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      await userEvent.click(screen.getByRole("button", { name: /^delete /i }));
       await userEvent.click(screen.getByRole("button", { name: /confirm delete/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/cannot be deleted/i);

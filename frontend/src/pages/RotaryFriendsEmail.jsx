@@ -8,21 +8,18 @@ import {
   listEmailDrafts,
   updateEmailDraft,
 } from "../api/emailDrafts";
-import Card from "../components/Card";
 import EmailAttachmentsCard from "../components/EmailAttachmentsCard";
 import EmailDraftsPanel from "../components/EmailDraftsPanel";
 import EmailLogTable from "../components/EmailLogTable";
 import RecipientPicker from "../components/RecipientPicker";
 import RichTextEditor from "../components/RichTextEditor";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import { getInitials } from "../utils/avatar";
 import { splitTags } from "../utils/tags";
 
 const SOURCE_MODULE = "rotary_friends";
 
 export default function RotaryFriendsEmail() {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite: canSendEmail } = useAccess("friends.send_message");
   const [friends, setFriends] = useState([]);
   const [emailLog, setEmailLog] = useState([]);
@@ -262,16 +259,14 @@ export default function RotaryFriendsEmail() {
   return (
     <div className="admin-page admin-page-wide" style={{ maxWidth: 1600 }}>
       <h1>Email Rotary Friends</h1>
-      {isMinimal && (
-        <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
-          Reach the friends of Rotary.
-        </p>
-      )}
+      <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+        Reach the friends of Rotary.
+      </p>
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
-      {!isLoading && !loadError && isMinimal && (
+      {!isLoading && !loadError && (
         <>
           <form onSubmit={handleReview} className="max-w-[760px] flex flex-col gap-5 pb-24">
             <div className="border border-[var(--border)] rounded-[14px] bg-[var(--surface)] p-[22px_24px] flex flex-col gap-4">
@@ -381,112 +376,14 @@ export default function RotaryFriendsEmail() {
         </>
       )}
 
-      {!isLoading && !loadError && !isMinimal && (
-        <>
-          <form onSubmit={handleReview} className="max-w-[760px] flex flex-col gap-5 pb-24">
-            <Card variant="default" className="!p-5 !rounded-2xl relative">
-              <RecipientPicker
-                label="To · Friends of Rotary"
-                people={recipientPeople}
-                selectedIds={selectedFriendIds}
-                onChange={setSelectedFriendIds}
-                quickFilters={quickFilters}
-              />
-            </Card>
-
-            <Card variant="default" className="!p-0 !rounded-2xl">
-              <div className="px-6 pt-1 pb-6">
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(event) => setSubject(event.target.value)}
-                  placeholder="Subject"
-                  className="w-full border-none border-b border-[var(--color-card-border)] py-4 text-[19px] font-semibold text-[var(--color-brand-blue-dark)] outline-none"
-                />
-                <RichTextEditor
-                  ref={editorRef}
-                  onChange={(html) => {
-                    bodyRef.current = html;
-                  }}
-                  onEmptyChange={setBodyEmpty}
-                  extraButtons={[
-                    { key: "attach", label: "Attach", onClick: () => attachmentsCardRef.current?.openPicker() },
-                    { key: "image", label: "Image", onClick: () => imageInputRef.current?.click() },
-                  ]}
-                />
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleInsertImage}
-                />
-              </div>
-            </Card>
-
-            <EmailAttachmentsCard
-              ref={attachmentsCardRef}
-              attachments={attachments}
-              isUploading={isUploadingAttachment}
-              error={attachmentError}
-              onFilesSelected={handleFilesSelected}
-              onRemove={removeAttachment}
-            />
-
-            {sendError && <p role="alert">{sendError}</p>}
-            {draftError && <p role="alert">{draftError}</p>}
-            {lastResult && (
-              <p>
-                Last send: {lastResult.status} — {lastResult.success_count} succeeded,{" "}
-                {lastResult.failure_count} failed (of {lastResult.recipient_count}
-                {lastResult.skipped_no_email_count > 0
-                  ? `, ${lastResult.skipped_no_email_count} skipped — no email on file`
-                  : ""}
-                ).
-              </p>
-            )}
-
-            <div className="sticky bottom-0 bg-white border-t border-[var(--color-card-border)] py-4 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={!canSaveDraft}
-                title={!canSendEmail ? "You do not have permission to send emails" : undefined}
-                className="rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isSavingDraft ? "Saving…" : "Save Draft"}
-              </button>
-              <button
-                type="submit"
-                disabled={!canSend}
-                title={!canSendEmail ? "You do not have permission to send emails" : undefined}
-                className="border-none rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Review send ({recipientCount} recipient{recipientCount === 1 ? "" : "s"})
-              </button>
-            </div>
-          </form>
-
-          <EmailDraftsPanel drafts={drafts} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />
-        </>
-      )}
-
       {isConfirming && (
-        <div className={`modal-overlay ${isMinimal ? "members-modal-overlay" : ""}`} onClick={cancelConfirm}>
+        <div className="modal-overlay members-modal-overlay" onClick={cancelConfirm}>
           <div
-            className={`modal-dialog !rounded-2xl !max-w-[420px] !text-[15px] ${
-              isMinimal ? "members-modal-dialog members-modal-dialog--narrow !p-6" : ""
-            }`}
+            className="modal-dialog !rounded-2xl !max-w-[420px] !text-[15px] members-modal-dialog members-modal-dialog--narrow !p-6"
             role="alertdialog"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2
-              className={`text-[19px] font-semibold ${
-                isMinimal ? "text-[var(--text-h)]" : "text-[var(--color-brand-blue-dark)]"
-              }`}
-            >
-              Confirm send
-            </h2>
+            <h2 className="text-[19px] font-semibold text-[var(--text-h)]">Confirm send</h2>
             <p className="text-[var(--color-muted-text-strong)]">
               This will email <strong>{recipientCount}</strong> recipient
               {recipientCount === 1 ? "" : "s"}
@@ -500,11 +397,7 @@ export default function RotaryFriendsEmail() {
                 type="button"
                 onClick={cancelConfirm}
                 disabled={isSending}
-                className={
-                  isMinimal
-                    ? "inline-flex h-[38px] items-center rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    : "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                }
+                className="inline-flex h-[38px] items-center rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 Cancel
               </button>
@@ -512,11 +405,7 @@ export default function RotaryFriendsEmail() {
                 type="button"
                 onClick={handleConfirmSend}
                 disabled={isSending}
-                className={
-                  isMinimal
-                    ? "inline-flex h-[38px] items-center rounded-[8px] border-none bg-[var(--accent)] px-4 text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    : "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                }
+                className="inline-flex h-[38px] items-center rounded-[8px] border-none bg-[var(--accent)] px-4 text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSending ? "Sending…" : "Confirm send"}
               </button>

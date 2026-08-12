@@ -8,7 +8,172 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-07-15)
+## Current status / resume from here (2026-08-11)
+- **UNRESOLVED — Event Lucky Draw `lot_ref` bug, mid-investigation, resume
+  here first.** The Lucky Draw & Auction item list (Manage Project →
+  Lucky Draw) has a reworked lot-ref numbering system (details below) that
+  is fully correct and tested in isolation — 13 backend tests passing,
+  including a chained Auction→LS→L→Auction round-trip that explicitly
+  checks every group stays gapless at every step. But the user reports
+  that in the real running app (`localhost:5173` frontend →
+  `localhost:8000` backend, confirmed with them), changing an item's Type
+  still leaves the *old* group with a missing number, and a full page
+  reload does not fix it. Several rounds of fixes were applied (delete not
+  recomputing — real bug, fixed; frontend uncontrolled-input staleness —
+  real bug, fixed; a per-item pending-lock to stop double-click races —
+  added) and the dev DB was manually re-normalized twice, but the report
+  persisted after each fix. **The last thing done**: queried the dev DB
+  directly (`SELECT item_type, count(*) FROM event_items GROUP BY
+  item_type`) right before asking the user to reproduce live, planning to
+  query again immediately after to catch the actual change in the act —
+  but the user ended the session before that comparison happened. Baseline
+  at that point: `auction=6, lucky_draw_on_stage=4, lucky_draw=51`
+  (one event only). **Next session: ask the user to repeat the Auction →
+  Lucky Draw On Stage move, then immediately run that same count query
+  (and `SELECT item_type, lot_ref FROM event_items ORDER BY item_type,
+  lot_ref` for detail) against
+  `postgresql+psycopg2://admin:Axelle1970!@localhost:5432/rotary_admin`
+  to see whether the counts actually change.** Twice now the counts were
+  checked before/after a reported "it worked" and had not moved at all —
+  worth seriously considering that the user's browser session isn't
+  actually reaching this backend/DB (stale Vite build, wrong port, some
+  caching layer) rather than this being a real numbering bug; that
+  possibility was raised but never confirmed or ruled out. If the dev DB
+  needs re-normalizing again (gaps reappear at the exact same historical
+  spot — LS starting at 2, L starting at 2 — that's a strong tell it's
+  not being freshly broken, just never actually changed), this is safe to
+  re-run:
+  ```python
+  from sqlalchemy import create_engine
+  from sqlalchemy.orm import Session
+  from app.models import EventItem
+  from app.api.event_item import _recompute_group
+  engine = create_engine("postgresql+psycopg2://admin:Axelle1970!@localhost:5432/rotary_admin")
+  with Session(engine) as db:
+      event_ids = {row[0] for row in db.query(EventItem.event_id).distinct().all()}
+      for event_id in event_ids:
+          for group_key in ("auction", "lucky_draw_on_stage", "lucky_draw"):
+              _recompute_group(db, event_id, group_key)
+      db.commit()
+  ```
+
+- **Event Lucky Draw `lot_ref` fully reworked this session** (was:
+  assigned once at creation via an insertion-order counter, 3 item types
+  sharing only 2 letter sequences). Now, in `backend/app/api/event_item.py`:
+  - Three fully independent sequences, one per `item_type`: `auction`→A,
+    `lucky_draw_on_stage`→LS, `lucky_draw`→L (was L shared between the two
+    lucky-draw types) — see `_GROUP_PREFIX`.
+  - Defaults to value_hkd-descending position within its own sequence
+    (highest value = #1), recomputed fresh on every create
+    (`_recompute_group`).
+  - Manually editable per item — typing a new number inserts the item
+    there and shifts the rest of that sequence up by one
+    (`_insert_and_shift`), marks `lot_ref_overridden=True` on just that
+    item (new `EventItem.lot_ref_overridden` boolean column, migration
+    `f3a9c7d2b5e1`, **run against dev DB, confirmed present**).
+  - Any value_hkd change, item_type move, new item, or item deletion in a
+    sequence fully re-syncs that whole sequence back to value order,
+    clearing every override in it — confirmed this exact behavior with the
+    user first (they explicitly chose "re-syncs to value order" over
+    "stays pinned permanently" when asked).
+  - List/report display order (`_sorted_items`) now follows the *current
+    lot number*, not raw value_hkd — matters after an override, so the
+    on-screen row order never contradicts the lot ref label next to it.
+  - Frontend (`frontend/src/pages/EventLuckyDraw.jsx`): Lot Ref renders as
+    a colored letter bubble (same color as the Type chip) + an editable
+    number input next to it. The number input is `key={item.lot_ref}` so
+    it remounts (and re-applies `defaultValue`) whenever the value changes
+    for any reason — fixes a real bug where sibling rows renumbered
+    server-side kept showing their stale number until a full page reload,
+    because React doesn't re-apply `defaultValue` to an already-mounted
+    uncontrolled input.
+  - Type/Status/Ad Page went from plain text to click-to-cycle pills
+    (`ToggleChip`), matching Payment Status's chip design, each with its
+    own color set. Added a `withItemPending`/`pendingItemIds` guard so a
+    fast double-click can't fire two overlapping PATCH requests for the
+    same item (each PATCH recomputes a whole sequence from current DB
+    state, so overlapping requests could in theory race).
+  - **Real bug found and fixed**: `delete_item` never called
+    `_recompute_group` at all — deleting an item permanently left a gap in
+    its sequence. Now recomputes the item's group right after delete.
+  - Tests: `backend/tests/integration/test_event_items.py`, 13 passing.
+    **A `git checkout --` mistake reverted this file mid-session**,
+    wiping that session's test additions — recovered by rewriting from
+    conversation history. Worth a sanity read if anything there looks off.
+  - **Not committed or pushed.** Spans `backend/app/api/event_item.py`,
+    `app/models/event_item.py`, `app/schemas/event_item.py`, migration
+    `f3a9c7d2b5e1` (**applied to dev DB**),
+    `tests/integration/test_event_items.py`, and
+    `frontend/src/pages/EventLuckyDraw.jsx`.
+
+- **Minimal-theme card-format standardization pass, earlier this same
+  session**: made every stat-card row across the app match Dashboard's
+  "Club overview" card exactly — compact size, alternating blue/gold via
+  a `.stat-duo-grid` CSS marker class (or `.stat-compact` where a card's
+  tone needs to stay fixed/named instead of alternating by position, e.g.
+  FinanceOperational's Revenue/Cost). New hooks added to
+  `frontend/src/theme-minimal.css`. Touched: MembersStatistics,
+  DonationsStatistics, OrganisationDetail, FinanceDonations,
+  FinanceFundraising, FinanceOperational (also added a 3rd "Result" card =
+  Revenue−Cost, and moved "Add entry" below the columns), EventSummary,
+  DinnerEvents, MemberFees, RotaryFriendsStatistics, EventLuckyDraw,
+  EventGuestList.
+  - Fixed a real backend bug in passing: dinner attendance stats
+    (`compute_attendance_stats` in `attendance_support.py`) counted
+    past-dated Dinner Forecast events that were never actually *started*
+    (no attendance taken), inflating "Total events" on the Dinner page's
+    stat cards. Now only counts started events (has an `AttendanceRecord`
+    row) — same check `start_attendance_for_event` itself uses, factored
+    into a shared `started_event_ids()` helper (also deduped an identical
+    private copy of this logic out of `dinner_forecast.py`).
+  - Fixed a real CSS bug: `.app-content { flex: 1 }` had no `min-width: 0`,
+    so a wide table (Member Fees Tracking's, 920px) could force the whole
+    layout wider than the viewport and overlap the nav sidebar. Fixed
+    app-wide in `App.css`, not page-specific.
+  - Fixed a real contrast bug: `--color-brand-blue-light` is a pale tint
+    in Classic but gets repurposed to a medium blue (the nav-rail fill
+    color) under Minimal — two spots (Fee Run's price-tier pills, the
+    "Couple" badge) still used it as a "light" background, reading as
+    blue-on-blue under Minimal. Switched both to `--tone-blue-bg`
+    (unaffected by either theme, same as every other badge in the app).
+  - This batch (101 files) **was committed and pushed** to `origin/main`
+    mid-session (commits `95c4ff3`, `16ae0a1` — check `git log` for the
+    full message). Everything under "Event Lucky Draw" above, and
+    everything below this bullet, is **still uncommitted**.
+
+- **Event Guest List** (`frontend/src/pages/EventGuestList.jsx`), same
+  session: summary cards reduced to the standard 2-color duo (was 3), a
+  compact "Guests per table" + "Guests per contact Rotarian" breakdown
+  table added below the cards (small text, hairline border, deliberately
+  lightweight — not a big block). Payment Status/Early Bird/Table Number
+  are all click-to-change (Table Number is a type-in field validated
+  against the event's actual configured tables, not click-to-cycle —
+  cycling was reported as bad UX with more than a couple of tables).
+  Payment status's "Guest" label renamed to "Invited" everywhere (chip,
+  filter, breakdown header) — the underlying value stays `"guest"`
+  internally, only the display text changed. Fixed the same
+  loadGuestData()-always-shows-a-loading-state issue as the App.css bug
+  above, scoped to this page (added a `{ silent: true }` option), so row
+  edits don't jump the page back to top. A "Set all to Early Bird" bulk
+  button was added then removed the same session — the user clarified it
+  was meant as a one-time action on the then-current list, not a
+  permanent feature.
+
+- **Manage Project → Sponsors**: report generation (format select +
+  "Generate Report" button) hidden for now via a new `showReport` prop on
+  the shared `EventCategoryEntryPage` component (default `true`) — Costs,
+  which shares that component, keeps its report button unaffected. The
+  Category filter is now the leftmost control since the report controls
+  that used to precede it are gone.
+
+- **Process note for next session**: mid-session the user corrected the
+  default test-running behavior — stop re-running the full frontend suite
+  after every small follow-up edit; lint + reasoning (or at most a scoped
+  single-file test) while iterating, save a full-suite run for
+  immediately before a push. Already reflected in the
+  `feedback-test-scope` memory.
+
+## Previous status (2026-07-15)
 - **WhatsApp integration deferred, placeholder UI removed (2026-07-15).**
   User asked to pick up Epic 8's WhatsApp block (Stories 8.4/8.5/8.6). Story
   8.5 requires an actual provider decision (Twilio vs Meta WhatsApp Business

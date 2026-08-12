@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, FileDown, GripVertical, Plus, Trash2 } from "lucide-react";
 import {
   createEventRundownRow,
   deleteEventRundownRow,
@@ -104,43 +104,52 @@ export default function EventRundown({ event: selectedEvent }) {
     <div className="admin-page admin-page-wide event-rundown-page">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="m-0 text-2xl font-semibold text-[var(--text-h)]">Rundown</h1>
-        {canWrite && selectedEvent && (
-          <button
-            type="button"
-            onClick={handleAddRow}
-            className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
-          >
-            + Add Row
-          </button>
-        )}
       </div>
 
       {selectedEvent && isLoadingRows && <p>Loading rundown…</p>}
 
       {selectedEvent && !isLoadingRows && (
         <>
-          <div className="mb-4 flex items-center gap-3">
-            <label htmlFor="rundown-report-format" className="sr-only">
-              Format
-            </label>
-            <select
-              id="rundown-report-format"
-              value={reportFormat}
-              onChange={(e) => setReportFormat(e.target.value)}
-              disabled={isGeneratingReport}
-              className="rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[13px]"
-            >
-              <option value="pdf">PDF</option>
-              <option value="csv">CSV</option>
-            </select>
-            <button
-              type="button"
-              onClick={handleGenerateReport}
-              disabled={isGeneratingReport}
-              className="rounded-[10px] bg-[var(--color-brand-blue-light)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]"
-            >
-              {isGeneratingReport ? "Generating…" : "Generate Report"}
-            </button>
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div className="flex items-end gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="rundown-report-format"
+                  className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+                >
+                  Format
+                </label>
+                <select
+                  id="rundown-report-format"
+                  value={reportFormat}
+                  onChange={(e) => setReportFormat(e.target.value)}
+                  disabled={isGeneratingReport}
+                  className="h-[38px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
+                >
+                  <option value="pdf">PDF</option>
+                  <option value="csv">CSV</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleGenerateReport}
+                disabled={isGeneratingReport}
+                className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)]"
+              >
+                <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />
+                {isGeneratingReport ? "Generating…" : "Generate Report"}
+              </button>
+            </div>
+            {canWrite && selectedEvent && (
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)]"
+              >
+                <Plus className="w-[15px] h-[15px]" aria-hidden="true" />
+                Add Row
+              </button>
+            )}
           </div>
           {reportError && <p role="alert">{reportError}</p>}
 
@@ -182,38 +191,44 @@ export default function EventRundown({ event: selectedEvent }) {
                   Highlight
                 </label>
                 {canWrite && (
-                  <div className="flex shrink-0 gap-3 text-[12px] font-semibold">
+                  <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
                       onClick={() => handleSaveRow(row)}
-                      className="bg-transparent p-0 text-[var(--color-brand-blue)]"
+                      title="Save"
+                      aria-label={`Save row ${index + 1}`}
+                      className="event-iact"
                     >
-                      Save
+                      <Check className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleMove(index, -1)}
                       disabled={index === 0}
+                      title="Move up"
                       aria-label={`Move row ${index + 1} up`}
-                      className="bg-transparent p-0 text-[var(--color-muted-text)] disabled:opacity-40"
+                      className="event-iact"
                     >
-                      Up
+                      <ArrowUp className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleMove(index, 1)}
                       disabled={index === rows.length - 1}
+                      title="Move down"
                       aria-label={`Move row ${index + 1} down`}
-                      className="bg-transparent p-0 text-[var(--color-muted-text)] disabled:opacity-40"
+                      className="event-iact"
                     >
-                      Down
+                      <ArrowDown className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(row)}
-                      className="bg-transparent p-0 text-[var(--color-tone-rose-text)]"
+                      title="Delete"
+                      aria-label={`Delete row ${index + 1}`}
+                      className="event-iact event-iact-danger"
                     >
-                      Delete
+                      <Trash2 className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                   </div>
                 )}

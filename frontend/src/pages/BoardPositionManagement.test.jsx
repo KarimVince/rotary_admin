@@ -87,7 +87,7 @@ describe("BoardPositionManagement", () => {
     render(<BoardPositionManagement />);
     await screen.findByText("President");
 
-    await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^edit president$/i }));
     expect(screen.getByRole("heading", { name: /edit position/i })).toBeInTheDocument();
 
     const nameInput = screen.getByLabelText(/name/i);

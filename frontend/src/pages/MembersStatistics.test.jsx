@@ -89,7 +89,7 @@ describe("MembersStatistics", () => {
     const { container } = renderPage();
 
     await screen.findByText("Total Members");
-    const values = Array.from(container.querySelectorAll(".stat-value")).map(
+    const values = Array.from(container.querySelectorAll(".text-3xl.font-bold")).map(
       (node) => node.textContent,
     );
     expect(values).toEqual(["14", "2", "3", "5", "6", "8", "47.3", "9.8"]);
@@ -121,12 +121,12 @@ describe("MembersStatistics", () => {
 
     renderPage();
 
-    const totalCard = (await screen.findByText("Total Members")).closest(".stat-card");
-    const honoraryCard = screen.getByText("Honorary Members").closest(".stat-card");
-    const womenCard = screen.getByText("Number of Women").closest(".stat-card");
-    const menCard = screen.getByText("Number of Men").closest(".stat-card");
-    const ageCard = screen.getByText("Average Age").closest(".stat-card");
-    const tenureCard = screen.getByText(/average tenure/i).closest(".stat-card");
+    const totalCard = (await screen.findByText("Total Members")).closest("[data-variant]");
+    const honoraryCard = screen.getByText("Honorary Members").closest("[data-variant]");
+    const womenCard = screen.getByText("Number of Women").closest("[data-variant]");
+    const menCard = screen.getByText("Number of Men").closest("[data-variant]");
+    const ageCard = screen.getByText("Average Age").closest("[data-variant]");
+    const tenureCard = screen.getByText(/average tenure/i).closest("[data-variant]");
 
     expect(totalCard.className).toBe(honoraryCard.className);
     expect(womenCard.className).toBe(menCard.className);
@@ -225,7 +225,8 @@ describe("MembersStatistics", () => {
       renderPage();
       await screen.findByText("Total Members");
 
-      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: "PowerPoint (PPTX)" }));
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
 
       await waitFor(() => expect(requestedFormat).toBe("pptx"));
@@ -255,7 +256,8 @@ describe("MembersStatistics", () => {
       // The template checkbox is also disabled for non-pptx formats (see the
       // "disables ... for PDF format" test below) — select pptx first so
       // this test actually exercises the "no template uploaded" reason.
-      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: "PowerPoint (PPTX)" }));
 
       const checkbox = await screen.findByLabelText(/use annual club template/i);
       await waitFor(() => expect(checkbox).toBeDisabled());
@@ -282,7 +284,8 @@ describe("MembersStatistics", () => {
 
       renderPage();
       await screen.findByText("Total Members");
-      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: "PowerPoint (PPTX)" }));
 
       await waitFor(() =>
         expect(screen.getByLabelText(/use annual club template/i)).toBeEnabled(),
@@ -336,8 +339,10 @@ describe("MembersStatistics", () => {
 
       renderPage();
       await screen.findByText("Total Members");
-      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
-      await userEvent.selectOptions(screen.getByLabelText(/content/i), "integral");
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: "PowerPoint (PPTX)" }));
+      await userEvent.click(screen.getByRole("button", { name: "Content" }));
+      await userEvent.click(screen.getByRole("option", { name: "Integral" }));
       await waitFor(() =>
         expect(screen.getByLabelText(/use annual club template/i)).toBeEnabled(),
       );
@@ -367,8 +372,10 @@ describe("MembersStatistics", () => {
 
       const { unmount } = renderPage();
       await screen.findByText("Total Members");
-      await userEvent.selectOptions(screen.getByLabelText(/generate report/i), "pptx");
-      await userEvent.selectOptions(screen.getByLabelText(/content/i), "integral");
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: "PowerPoint (PPTX)" }));
+      await userEvent.click(screen.getByRole("button", { name: "Content" }));
+      await userEvent.click(screen.getByRole("option", { name: "Integral" }));
       await waitFor(() =>
         expect(screen.getByLabelText(/use annual club template/i)).toBeEnabled(),
       );
@@ -377,7 +384,7 @@ describe("MembersStatistics", () => {
 
       renderPage();
       await screen.findByText("Total Members");
-      expect(screen.getByLabelText(/content/i)).toHaveValue("integral");
+      expect(screen.getByRole("button", { name: "Content" })).toHaveTextContent("Integral");
       await waitFor(() =>
         expect(screen.getByLabelText(/use annual club template/i)).toBeChecked(),
       );

@@ -12,7 +12,6 @@ import { CompactMonthCard, groupEventsByMonth } from "../components/DinnerMonthC
 import SectionLabel from "../components/SectionLabel";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
-import { useTheme } from "../context/ThemeContext";
 import { AVATAR_TONES, getInitials } from "../utils/avatar";
 import { currentRotaryYear, rotaryYear as rotaryYearOf } from "../utils/rotaryYear";
 
@@ -163,7 +162,6 @@ const MODULE_LINKS = [
 ];
 
 export default function Dashboard() {
-  const { isMinimal } = useTheme();
   const { user } = useAuth();
   const { canRead: canViewMembers } = useAccess("members");
   const { canRead: canViewNgos } = useAccess("ngos");
@@ -285,11 +283,7 @@ export default function Dashboard() {
       {error && <p role="alert">{error}</p>}
 
       <SectionLabel className="mt-6">Club overview</SectionLabel>
-      <div
-        className={`club-overview-grid mt-3 grid gap-4 ${
-          isMinimal ? "stat-duo-grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-3"
-        }`}
-      >
+      <div className="club-overview-grid mt-3 grid gap-4 stat-duo-grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         {visibleStatCards.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
             <span className={`text-3xl font-bold ${card.valueClass}`}>

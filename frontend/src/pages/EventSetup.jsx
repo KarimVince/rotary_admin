@@ -12,7 +12,6 @@ import {
   updateEventSponsorCategory,
 } from "../api/eventSetup";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import EventCategoryList from "../components/EventCategoryList";
 import EventTableMappingSection from "../components/EventTableMappingSection";
 
@@ -26,7 +25,6 @@ const FIELDS = [
 ];
 
 export default function EventSetup({ event: selectedEvent }) {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("event.setup");
 
   const [prices, setPrices] = useState({
@@ -106,20 +104,8 @@ export default function EventSetup({ event: selectedEvent }) {
 
       {selectedEvent && (
         <>
-          <div
-            className={`mb-4 rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)] ${
-              isMinimal ? "border border-[var(--border)]" : ""
-            }`}
-          >
-            <span
-              className={
-                isMinimal
-                  ? "seclabel"
-                  : "text-[13px] font-bold uppercase tracking-[0.03em] text-[var(--text-h)]"
-              }
-            >
-              Ticketing &amp; payment
-            </span>
+          <div className="mb-4 rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)] border border-[var(--border)]">
+            <span className="seclabel">Ticketing &amp; payment</span>
             <form
               id="event-setup-form"
               onSubmit={handleSavePrices}

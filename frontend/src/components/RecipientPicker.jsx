@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { AVATAR_TONES } from "../utils/avatar";
-import { useTheme } from "../context/ThemeContext";
 
 function Avatar({ initials, index }) {
   const tone = AVATAR_TONES[index % AVATAR_TONES.length];
@@ -19,18 +18,6 @@ function Avatar({ initials, index }) {
 // picker panel so a whole group (e.g. "Active members") can be bulk-selected
 // via "Select all" without a separate recipient mode.
 export default function RecipientPicker({ people, selectedIds, onChange, quickFilters = [], label }) {
-  // Story 16.29 (Minimal restyle): --color-brand-blue-light/-chip are
-  // repurposed elsewhere in the restyle for the solid nav rail (see
-  // theme-minimal.css) — #4f7fbf / transparent — which would otherwise make
-  // this component's "light tint" backgrounds either invisible (transparent
-  // chip pills) or unexpectedly dark (a medium-blue dropdown hover). Swap to
-  // --accent-soft here instead of touching those shared tokens globally.
-  const { isMinimal } = useTheme();
-  const lightBg = isMinimal ? "bg-[var(--accent-soft)]" : "bg-[var(--color-brand-blue-light)]";
-  const lightBgHover = isMinimal
-    ? "hover:bg-[var(--accent-soft)]"
-    : "hover:bg-[var(--color-brand-blue-light)]";
-  const chipBg = isMinimal ? "bg-[var(--accent-soft)]" : "bg-[var(--color-brand-blue-chip)]";
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeFilterKey, setActiveFilterKey] = useState(null);
@@ -74,35 +61,14 @@ export default function RecipientPicker({ people, selectedIds, onChange, quickFi
 
   return (
     <div className="relative">
-      <div
-        className={
-          isMinimal
-            ? "text-[12px] font-semibold uppercase tracking-[.04em] text-[var(--ink-2)] mb-1.5"
-            : "text-[13px] font-semibold text-[var(--color-muted-text)] mb-2.5"
-        }
-      >
+      <div className="text-[12px] font-semibold uppercase tracking-[.04em] text-[var(--ink-2)] mb-1.5">
         {label}
       </div>
       <div className="flex flex-wrap gap-2 items-center">
         {selectedPeople.map((person, index) => (
-          <div
-            key={person.id}
-            className={
-              isMinimal
-                ? `flex items-center gap-2 ${chipBg} rounded-full pl-1 pr-2.5 py-1`
-                : `flex items-center gap-2 ${chipBg} rounded-full pl-1 pr-1.5 py-1`
-            }
-          >
+          <div key={person.id} className="flex items-center gap-2 bg-[var(--accent-soft)] rounded-full pl-1 pr-2.5 py-1">
             <Avatar initials={person.initials} index={index} />
-            <span
-              className={
-                isMinimal
-                  ? "text-[12.5px] font-semibold text-[var(--accent-ink)]"
-                  : "text-sm text-[var(--color-brand-blue-dark)]"
-              }
-            >
-              {person.name}
-            </span>
+            <span className="text-[12.5px] font-semibold text-[var(--accent-ink)]">{person.name}</span>
             <button
               type="button"
               onClick={() => remove(person.id)}
@@ -116,11 +82,7 @@ export default function RecipientPicker({ people, selectedIds, onChange, quickFi
         <button
           type="button"
           onClick={() => setPickerOpen((open) => !open)}
-          className={
-            isMinimal
-              ? "inline-flex items-center gap-1.5 border-none bg-[var(--bg-alt)] rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-[var(--muted)] cursor-pointer hover:text-[var(--accent)]"
-              : "border border-dashed border-[var(--color-muted-text)] bg-transparent rounded-full px-3.5 py-1.5 text-sm text-[var(--color-muted-text)] cursor-pointer hover:border-[var(--color-brand-blue)] hover:text-[var(--color-brand-blue)]"
-          }
+          className="inline-flex items-center gap-1.5 border-none bg-[var(--bg-alt)] rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-[var(--muted)] cursor-pointer hover:text-[var(--accent)]"
         >
           + Add recipients
         </button>
@@ -128,23 +90,13 @@ export default function RecipientPicker({ people, selectedIds, onChange, quickFi
           <button
             type="button"
             onClick={toggleSelectAllPeople}
-            className={
-              isMinimal
-                ? "border-none bg-transparent rounded-full px-2 py-1.5 text-[12.5px] font-semibold text-[var(--accent)] cursor-pointer hover:underline"
-                : "border-none bg-transparent rounded-full px-2 py-1.5 text-sm font-semibold text-[var(--color-brand-blue)] cursor-pointer hover:underline"
-            }
+            className="border-none bg-transparent rounded-full px-2 py-1.5 text-[12.5px] font-semibold text-[var(--accent)] cursor-pointer hover:underline"
           >
             {allSelected ? "Clear all" : "Select all"}
           </button>
         )}
       </div>
-      <div
-        className={
-          isMinimal
-            ? "mt-2 text-[12.5px] text-[var(--muted)]"
-            : "mt-2 text-[13px] text-[var(--color-muted-text)]"
-        }
-      >
+      <div className="mt-2 text-[12.5px] text-[var(--muted)]">
         {selectedPeople.length} recipient{selectedPeople.length === 1 ? "" : "s"} selected
       </div>
 
@@ -166,7 +118,7 @@ export default function RecipientPicker({ people, selectedIds, onChange, quickFi
                 className={`border-none rounded-lg px-3 py-2 text-[13px] cursor-pointer whitespace-nowrap ${
                   activeFilterKey === filter.key
                     ? "bg-[var(--color-brand-blue)] text-white"
-                    : `${lightBg} text-[var(--color-brand-blue-dark)]`
+                    : "bg-[var(--accent-soft)] text-[var(--color-brand-blue-dark)]"
                 }`}
               >
                 {filter.label}
@@ -175,14 +127,14 @@ export default function RecipientPicker({ people, selectedIds, onChange, quickFi
             <button
               type="button"
               onClick={toggleSelectAll}
-              className={`border-none ${lightBg} rounded-lg px-3 py-2 text-[13px] cursor-pointer whitespace-nowrap`}
+              className="border-none bg-[var(--accent-soft)] rounded-lg px-3 py-2 text-[13px] cursor-pointer whitespace-nowrap"
             >
               {allFilteredSelected ? "Clear shown" : "Select shown"}
             </button>
             <button
               type="button"
               onClick={() => setPickerOpen(false)}
-              className={`border-none ${lightBg} rounded-lg px-3 py-2 text-[13px] cursor-pointer`}
+              className="border-none bg-[var(--accent-soft)] rounded-lg px-3 py-2 text-[13px] cursor-pointer"
             >
               Done
             </button>
@@ -207,7 +159,7 @@ export default function RecipientPicker({ people, selectedIds, onChange, quickFi
                       toggle(person.id);
                     }
                   }}
-                  className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer ${lightBgHover}`}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer hover:bg-[var(--accent-soft)]"
                 >
                   <div
                     className={`w-[18px] h-[18px] rounded-[5px] border-[1.5px] flex items-center justify-center text-white text-xs shrink-0 ${

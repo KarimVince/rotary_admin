@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Check, Trash2 } from "lucide-react";
 import {
   createTableMapping,
   deleteTableMapping,
@@ -75,6 +76,8 @@ export default function EventTableMappingSection({ eventId }) {
 
   const inputClass =
     "w-full rounded-[10px] border border-[var(--color-border-medium)] px-2 py-1.5 text-[13px] text-[var(--text-h)]";
+  const tableNumberInputClass =
+    "w-14 rounded-[10px] border border-[var(--color-border-medium)] px-2 py-1.5 text-[13px] text-[var(--text-h)]";
 
   return (
     <div className="rounded-2xl bg-white p-[22px] shadow-[var(--shadow-card)]">
@@ -109,9 +112,12 @@ export default function EventTableMappingSection({ eventId }) {
                   <input
                     aria-label={`Table number ${row.table_number}`}
                     type="number"
+                    min="1"
+                    max="99"
+                    maxLength={2}
                     value={row.table_number}
-                    onChange={(e) => handleFieldChange(row, "table_number", e.target.value)}
-                    className={inputClass}
+                    onChange={(e) => handleFieldChange(row, "table_number", e.target.value.slice(0, 2))}
+                    className={tableNumberInputClass}
                   />
                 </td>
                 <td className="px-2 py-2">
@@ -131,20 +137,24 @@ export default function EventTableMappingSection({ eventId }) {
                   />
                 </td>
                 <td className="px-2 py-2">
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => handleSaveRow(row)}
-                      className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-brand-blue)]"
+                      title="Save"
+                      aria-label={`Save table ${row.table_number}`}
+                      className="event-iact"
                     >
-                      Save
+                      <Check className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(row)}
-                      className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-tone-rose-text)]"
+                      title="Delete"
+                      aria-label={`Delete table ${row.table_number}`}
+                      className="event-iact event-iact-danger"
                     >
-                      Delete
+                      <Trash2 className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                   </div>
                 </td>
@@ -160,10 +170,13 @@ export default function EventTableMappingSection({ eventId }) {
           <input
             id="new-table-number"
             type="number"
+            min="1"
+            max="99"
+            maxLength={2}
             value={newRow.table_number}
-            onChange={(e) => setNewRow({ ...newRow, table_number: e.target.value })}
+            onChange={(e) => setNewRow({ ...newRow, table_number: e.target.value.slice(0, 2) })}
             required
-            className={inputClass}
+            className={tableNumberInputClass}
           />
         </label>
         <label className="flex flex-col gap-1 text-[12px] text-[var(--color-muted-text)]">

@@ -18,8 +18,6 @@ import Card from "../components/Card";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
 import { useRotaryYears } from "../hooks/useRotaryYears";
-import { useTheme } from "../context/ThemeContext";
-import { SELECT_CLASS } from "../styles/formControls";
 import { rotaryYearLabel } from "../utils/rotaryYear";
 import { currencyLabel } from "../data/currencies";
 
@@ -30,15 +28,12 @@ function formatCurrency(value, currency) {
   })} ${currency}`;
 }
 
-const STAT_TONES = ["blue", "lavender", "teal", "amber"];
-
 const SESSION_KEY_REPORT_TYPE = "ngoStats.reportType";
 const SESSION_KEY_USE_TEMPLATE = "ngoStats.useTemplate";
 
 const STAT_VARIANTS = ["stat-blue", "stat-lavender", "stat-teal", "stat-amber"];
 
 export default function DonationsStatistics() {
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("ngos.statistics");
   const { yearOptions, currentYear, selectedYear, setSelectedYear } = useRotaryYears();
   const [stats, setStats] = useState(null);
@@ -335,7 +330,7 @@ export default function DonationsStatistics() {
   }
 
   const allTimeUnconvertedWarning = stats.all_time.unconverted_count > 0 && (
-    <p role="alert" className={isMinimal ? "text-[13px] text-[var(--low)]" : "donation-unconverted-warning"}>
+    <p role="alert" className="text-[13px] text-[var(--low)]">
       {stats.all_time.unconverted_count} donation
       {stats.all_time.unconverted_count === 1 ? "" : "s"} in{" "}
       {stats.all_time.unconverted_currencies.join(", ")} excluded from the converted
@@ -344,7 +339,7 @@ export default function DonationsStatistics() {
   );
 
   const selectedYearUnconvertedWarning = stats.selected_year.unconverted_count > 0 && (
-    <p role="alert" className={isMinimal ? "text-[13px] text-[var(--low)]" : "donation-unconverted-warning"}>
+    <p role="alert" className="text-[13px] text-[var(--low)]">
       {stats.selected_year.unconverted_count} donation
       {stats.selected_year.unconverted_count === 1 ? "" : "s"} in{" "}
       {stats.selected_year.unconverted_currencies.join(", ")} excluded — add a rate in the
@@ -355,14 +350,11 @@ export default function DonationsStatistics() {
   return (
     <div className="admin-page admin-page-wide">
       <h1>Donation statistics</h1>
-      {isMinimal && (
-        <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
-          Giving and volunteer hours across supported NGOs.
-        </p>
-      )}
+      <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+        Giving and volunteer hours across supported NGOs.
+      </p>
 
-      {isMinimal ? (
-        <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Format
@@ -457,125 +449,33 @@ export default function DonationsStatistics() {
             </p>
           )}
         </div>
-      ) : (
-        <>
-          <div className="report-controls">
-            <label htmlFor="report-format">Generate report</label>
-            <select
-              id="report-format"
-              value={reportFormat}
-              onChange={(event) => setReportFormat(event.target.value)}
-              disabled={isGeneratingReport}
-              className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
-            >
-              <option value="pdf">PDF</option>
-              <option value="pptx">PowerPoint (PPTX)</option>
-            </select>
-            <label htmlFor="report-type">Content</label>
-            <select
-              id="report-type"
-              value={reportType}
-              onChange={(event) => handleReportTypeChange(event.target.value)}
-              disabled={isGeneratingReport}
-              className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
-            >
-              <option value="simplified">Simplified</option>
-              <option value="integral">Integral</option>
-            </select>
-            <label
-              htmlFor="report-use-template"
-              title={
-                reportFormat !== "pptx"
-                  ? "The annual club template only applies to PowerPoint (PPTX) reports"
-                  : !hasTemplate
-                    ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
-                    : undefined
-              }
-            >
-              <input
-                id="report-use-template"
-                type="checkbox"
-                checked={useTemplate}
-                onChange={(event) => handleUseTemplateChange(event.target.checked)}
-                disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
-              />
-              Use annual club template
-            </label>
-            <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
-              {isGeneratingReport ? "Generating…" : "Generate Report"}
-            </button>
-            {reportError && <p role="alert">{reportError}</p>}
-          </div>
 
-          {classifications.length > 0 && (
-            <section className="donation-classification-filter">
-              <label htmlFor="stats-classification">Classification</label>
-              <select
-                id="stats-classification"
-                value={classificationFilter}
-                onChange={(event) => setClassificationFilter(event.target.value)}
-                className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
-              >
-                <option value="">All classifications</option>
-                {classifications.map((classification) => (
-                  <option key={classification.id} value={classification.id}>
-                    {classification.name}
-                  </option>
-                ))}
-              </select>
-            </section>
-          )}
-        </>
+      {stats.by_currency.length > 1 && (
+        <div className="mb-5 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Currency
+            </span>
+            <SingleSelectDropdown
+              ariaLabel="Currency"
+              minWidthClass="min-w-[150px]"
+              value={selectedCurrency}
+              options={stats.by_currency.map((block) => ({
+                value: block.currency,
+                label: currencyLabel(block.currency),
+              }))}
+              onSelect={setSelectedCurrency}
+            />
+          </div>
+          <p className="text-[13px] text-[var(--muted)] pb-2">
+            Totals are shown per currency — amounts in different currencies are never summed
+            together.
+          </p>
+        </div>
       )}
 
-      {stats.by_currency.length > 1 &&
-        (isMinimal ? (
-          <div className="mb-5 flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1.5">
-              <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                Currency
-              </span>
-              <SingleSelectDropdown
-                ariaLabel="Currency"
-                minWidthClass="min-w-[150px]"
-                value={selectedCurrency}
-                options={stats.by_currency.map((block) => ({
-                  value: block.currency,
-                  label: currencyLabel(block.currency),
-                }))}
-                onSelect={setSelectedCurrency}
-              />
-            </div>
-            <p className="text-[13px] text-[var(--muted)] pb-2">
-              Totals are shown per currency — amounts in different currencies are never summed
-              together.
-            </p>
-          </div>
-        ) : (
-          <section className="donation-currency-filter">
-            <label htmlFor="stats-currency">Currency</label>
-            <select
-              id="stats-currency"
-              value={selectedCurrency}
-              onChange={(event) => setSelectedCurrency(event.target.value)}
-              className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
-            >
-              {stats.by_currency.map((block) => (
-                <option key={block.currency} value={block.currency}>
-                  {currencyLabel(block.currency)}
-                </option>
-              ))}
-            </select>
-            <p className="donation-currency-note">
-              Totals are shown per currency — amounts in different currencies are never summed
-              together.
-            </p>
-          </section>
-        ))}
-
-      {isMinimal ? (
-        <>
-          <h2 className="seclabel">All-time</h2>
+      <>
+        <h2 className="seclabel">All-time</h2>
           <div className="ngo-stats-grid stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
             {allTimeCards.map((card, index) => (
               <Card key={card.label + index} variant={STAT_VARIANTS[index % STAT_VARIANTS.length]} className="flex flex-col">
@@ -619,54 +519,7 @@ export default function DonationsStatistics() {
           </div>
 
           {selectedYearUnconvertedWarning}
-        </>
-      ) : (
-        <>
-          <div className="stat-cards-row stat-cards-row-3-compact">
-            {allTimeCards.map((card, index) => (
-              <div key={card.label + index} className={`stat-card stat-card-${STAT_TONES[index % STAT_TONES.length]}`}>
-                <span className="stat-value">{card.value}</span>
-                <span className="stat-label">{card.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {allTimeUnconvertedWarning}
-
-          <div className="stat-cards-row stat-cards-row-3-compact">
-            {selectedYearCards.map((card, index) => (
-              <div
-                key={card.label + index}
-                className={`stat-card stat-card-${STAT_TONES[(index + 1) % STAT_TONES.length]}`}
-              >
-                <span className="stat-value">{card.value}</span>
-                <span className="stat-label">{card.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {selectedYearUnconvertedWarning}
-
-          <section className="donation-year-filter">
-            <label htmlFor="stats-year">View a rotary year</label>
-            <select
-              id="stats-year"
-              value={selectedYear ?? ""}
-              onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className={`${SELECT_CLASS} !w-auto min-w-[150px]`}
-            >
-              {yearOptions.map((year) => (
-                <option key={year} value={year}>
-                  {rotaryYearLabel(year)}
-                  {year === currentYear ? " (current)" : ""}
-                </option>
-              ))}
-            </select>
-          </section>
-
-          <h2>Selected Year — {rotaryYearLabel(stats.selected_rotary_year)}</h2>
-        </>
-      )}
+      </>
 
       <div className="chart-grid chart-grid-2col">
         {renderTopOrgsChart(topOrgsSelectedYear)}
@@ -676,7 +529,7 @@ export default function DonationsStatistics() {
         })}
       </div>
 
-      <h2 className={isMinimal ? "seclabel" : undefined}>All Years</h2>
+      <h2 className="seclabel">All Years</h2>
       <div className="chart-grid chart-grid-2col">
         {renderTrendCharts()}
         {renderTopOrgsChart(topOrgsAllTime)}

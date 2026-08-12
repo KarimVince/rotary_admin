@@ -132,7 +132,8 @@ describe("RotaryFriendsStatistics", () => {
       renderPage();
       await screen.findByText("Total Friends");
 
-      await userEvent.selectOptions(screen.getByLabelText("Content"), "integral");
+      await userEvent.click(screen.getByRole("button", { name: "Content" }));
+      await userEvent.click(screen.getByRole("option", { name: "Integral" }));
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
 
       await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
@@ -155,7 +156,8 @@ describe("RotaryFriendsStatistics", () => {
       const checkbox = await screen.findByLabelText(/use annual club template/i);
       expect(checkbox).toBeDisabled();
 
-      await userEvent.selectOptions(screen.getByLabelText("Generate report"), "pptx");
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: "PowerPoint (PPTX)" }));
       await waitFor(() => expect(checkbox).toBeEnabled());
     });
   });

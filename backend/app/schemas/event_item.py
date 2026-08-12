@@ -27,6 +27,13 @@ class EventItemUpdate(BaseModel):
     ad_page: bool | None = None
     status: ItemStatus | None = None
     value_sold: float | None = None
+    # 2026-08-08: manual lot_ref override — e.g. "A-3". Validated against
+    # the item's own type-group prefix and parsed as a target position by
+    # the API layer (app/api/event_item.py), not stored verbatim as free
+    # text. Mutually exclusive in practice with value_hkd in the same
+    # request (the UI only ever sends one or the other) — see
+    # update_item's handling if both are somehow sent together.
+    lot_ref: str | None = None
 
 
 class EventItemRead(BaseModel):
@@ -35,6 +42,7 @@ class EventItemRead(BaseModel):
     id: uuid.UUID
     event_id: uuid.UUID
     lot_ref: str | None
+    lot_ref_overridden: bool
     name: str
     value_hkd: float | None
     donor_sponsor: str | None

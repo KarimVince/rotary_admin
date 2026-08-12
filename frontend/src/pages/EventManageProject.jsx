@@ -4,11 +4,9 @@ import { listEvents } from "../api/events";
 import { useAccess } from "../hooks/useAccess";
 import { useSelectedEvent } from "../hooks/useSelectedEvent";
 import { useRotaryYears } from "../hooks/useRotaryYears";
-import { useTheme } from "../context/ThemeContext";
 import { formatDate } from "../utils/formatters";
 import RotaryYearField from "../components/RotaryYearField";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
-import EventSwitcher from "../components/EventSwitcher";
 import EventManageBento from "../components/EventManageBento";
 import PanelBreadcrumb from "../components/PanelBreadcrumb";
 import EventSetup from "./EventSetup";
@@ -48,7 +46,6 @@ const PANEL_LABELS = {
 const SELECTED_EVENT_STORAGE_KEY = "events.selectedEventId";
 
 export default function EventManageProject() {
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("event.list");
 
   const [events, setEvents] = useState([]);
@@ -156,7 +153,7 @@ export default function EventManageProject() {
   return (
     <div className="admin-page admin-page-wide">
       <h1>Manage Project</h1>
-      {isMinimal && selectedEvent && (
+      {selectedEvent && (
         <p className="-mt-2 mb-4 text-[13.5px] text-[var(--muted)]">
           {selectedEvent.name} · {formatDate(selectedEvent.date)} · {selectedEvent.venue}
         </p>
@@ -167,48 +164,44 @@ export default function EventManageProject() {
 
       {!isLoading && !loadError && (
         <>
-          {isMinimal ? (
-            !PanelComponent && (
-              <div className="flex flex-wrap items-end gap-3">
-                <RotaryYearField
-                  year={selectedYear}
-                  yearOptions={yearOptions}
-                  currentYear={currentYear}
-                  onChange={setSelectedYear}
-                  className="mb-0"
-                />
-                <div className="mb-4 flex flex-col gap-1.5">
-                  <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                    Project
-                  </span>
-                  {eventsForYear.length === 0 ? (
-                    <p className="flex h-[38px] items-center text-[13.5px] text-[var(--muted)]">
-                      No events for this rotary year.
-                    </p>
-                  ) : (
-                    <SingleSelectDropdown
-                      ariaLabel="Project"
-                      minWidthClass="min-w-[220px]"
-                      value={selectedEvent?.id ?? ""}
-                      options={eventsForYear.map((event) => ({
-                        value: event.id,
-                        label: `${event.name} — ${formatDate(event.date)}`,
-                      }))}
-                      onSelect={setSelectedEventId}
-                    />
-                  )}
-                </div>
+          {!PanelComponent && (
+            <div className="flex flex-wrap items-end gap-3">
+              <RotaryYearField
+                year={selectedYear}
+                yearOptions={yearOptions}
+                currentYear={currentYear}
+                onChange={setSelectedYear}
+                className="mb-0"
+              />
+              <div className="mb-4 flex flex-col gap-1.5">
+                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+                  Project
+                </span>
+                {eventsForYear.length === 0 ? (
+                  <p className="flex h-[38px] items-center text-[13.5px] text-[var(--muted)]">
+                    No events for this rotary year.
+                  </p>
+                ) : (
+                  <SingleSelectDropdown
+                    ariaLabel="Project"
+                    minWidthClass="min-w-[220px]"
+                    value={selectedEvent?.id ?? ""}
+                    options={eventsForYear.map((event) => ({
+                      value: event.id,
+                      label: `${event.name} — ${formatDate(event.date)}`,
+                    }))}
+                    onSelect={setSelectedEventId}
+                  />
+                )}
               </div>
-            )
-          ) : (
-            <EventSwitcher events={events} selectedEvent={selectedEvent} onSelect={setSelectedEventId} />
+            </div>
           )}
 
           {selectedEvent && (
             <div className="mt-4">
               {PanelComponent ? (
                 <>
-                  <PanelBreadcrumb event={selectedEvent} panelLabel={PANEL_LABELS[panel]} onBack={closePanel} />
+                  <PanelBreadcrumb panelLabel={PANEL_LABELS[panel]} onBack={closePanel} />
                   <PanelComponent event={selectedEvent} />
                 </>
               ) : (

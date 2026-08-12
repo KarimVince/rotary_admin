@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { listMembers } from "../api/members";
 import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from "../api/users";
 import Card from "../components/Card";
@@ -469,8 +470,14 @@ export default function UserManagement() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right whitespace-nowrap">
-                      <button type="button" onClick={() => openEdit(user)} className={`${ROW_BUTTON_CLASS} text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)]`}>
-                        Edit
+                      <button
+                        type="button"
+                        onClick={() => openEdit(user)}
+                        aria-label={`Edit ${user.full_name}`}
+                        title="Edit"
+                        className="border-none bg-transparent text-[var(--color-brand-blue)] cursor-pointer hover:opacity-75 align-middle mr-2"
+                      >
+                        <Pencil className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -494,10 +501,11 @@ export default function UserManagement() {
                         type="button"
                         onClick={() => openDeleteConfirm(user)}
                         disabled={isSelf}
-                        title={isSelf ? "You cannot delete your own account" : undefined}
-                        className={`${ROW_BUTTON_CLASS} text-[#b23b3b] bg-[var(--tone-rose-bg)]`}
+                        aria-label={`Delete ${user.full_name}`}
+                        title={isSelf ? "You cannot delete your own account" : "Delete"}
+                        className="border-none bg-transparent text-[#b23b3b] cursor-pointer hover:opacity-75 align-middle disabled:opacity-40"
                       >
-                        Delete
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </td>
                   </tr>

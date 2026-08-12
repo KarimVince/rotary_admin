@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -241,16 +241,16 @@ describe("DonationsStatistics", () => {
 
     renderPage();
 
-    expect(await screen.findByLabelText("Classification")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Classification"), {
-      target: { value: "class-1" },
-    });
+    expect(await screen.findByRole("button", { name: "Classification" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Classification" }));
+    await userEvent.click(screen.getByRole("option", { name: "Environment & Climate" }));
 
     // Page chrome stays fully intact.
     expect(screen.getByText("Donation statistics")).toBeInTheDocument();
-    expect(screen.getByLabelText("Generate report")).toBeInTheDocument();
-    expect(screen.getByLabelText("Classification")).toBeInTheDocument();
-    expect(screen.getByLabelText("View a rotary year")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Format" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Content" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Classification" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View a rotary year" })).toBeInTheDocument();
 
     // Report cards show zero values rather than disappearing.
     expect(screen.getAllByText("0 HKD").length).toBeGreaterThan(0);
@@ -325,7 +325,8 @@ describe("DonationsStatistics", () => {
       renderPage();
       await screen.findByText("1,300 HKD");
 
-      await userEvent.selectOptions(screen.getByLabelText("Content"), "integral");
+      await userEvent.click(screen.getByRole("button", { name: "Content" }));
+      await userEvent.click(screen.getByRole("option", { name: "Integral" }));
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
 
       await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());

@@ -21,8 +21,16 @@ describe("BrandHeader", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the title as plain text (not a competing heading) at other sizes", () => {
+  it("renders the two-line app-shell lockup (not a competing heading) at size=small", () => {
     renderBrandHeader({ size: "small" });
+
+    expect(screen.getByText("Club Administration")).toBeInTheDocument();
+    expect(screen.getByText("Rotary Club Manager")).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("renders the title as plain text (not a competing heading) at size=medium", () => {
+    renderBrandHeader({ size: "medium" });
 
     expect(screen.getByText(/rotary club of discovery bay database/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();

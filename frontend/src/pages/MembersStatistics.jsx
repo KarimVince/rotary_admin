@@ -19,7 +19,6 @@ import Card from "../components/Card";
 import SectionLabel from "../components/SectionLabel";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 
 const PIE_COLORS = ["var(--rotary-blue)", "var(--rotary-gold)", "#5f55ee", "#0f9d9f", "#b3261e", "#9aa4b2"];
 
@@ -30,7 +29,6 @@ const SESSION_KEY_REPORT_TYPE = "membersStats.reportType";
 const SESSION_KEY_USE_TEMPLATE = "membersStats.useTemplate";
 
 export default function MembersStatistics() {
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("members.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -151,14 +149,11 @@ export default function MembersStatistics() {
   return (
     <div className="admin-page admin-page-wide">
       <h1>Member statistics</h1>
-      {isMinimal && (
-        <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
-          Composition of the club membership.
-        </p>
-      )}
+      <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
+        Composition of the club membership.
+      </p>
 
-      {isMinimal ? (
-        <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Format
@@ -232,91 +227,19 @@ export default function MembersStatistics() {
             </p>
           )}
         </div>
-      ) : (
-        <div className="report-controls">
-          <label htmlFor="report-format">Generate report</label>
-          <select
-            id="report-format"
-            value={reportFormat}
-            onChange={(event) => setReportFormat(event.target.value)}
-            disabled={isGeneratingReport}
-          >
-            <option value="pdf">PDF</option>
-            <option value="pptx">PowerPoint (PPTX)</option>
-          </select>
 
-          <label htmlFor="report-type">Content</label>
-          <select
-            id="report-type"
-            value={reportType}
-            onChange={(event) => handleReportTypeChange(event.target.value)}
-            disabled={isGeneratingReport}
-          >
-            <option value="simplified">Simplified</option>
-            <option value="integral">Integral</option>
-          </select>
-
-          <label
-            htmlFor="report-use-template"
-            title={
-              reportFormat !== "pptx"
-                ? "The annual club template only applies to PowerPoint (PPTX) reports"
-                : !hasTemplate
-                  ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
-                  : undefined
-            }
-          >
-            <input
-              id="report-use-template"
-              type="checkbox"
-              checked={useTemplate}
-              onChange={(event) => handleUseTemplateChange(event.target.checked)}
-              disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
-            />
-            Use annual club template
-          </label>
-
-          <button type="button" onClick={handleGenerateReport} disabled={isGeneratingReport}>
-            {isGeneratingReport ? "Generating…" : "Generate Report"}
-          </button>
-          {reportError && <p role="alert">{reportError}</p>}
-        </div>
-      )}
-
-      {isMinimal
-        ? STAT_ROWS.map((row, rowIndex) => (
-            <div key={rowIndex} className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {row.map((card) => (
-                <Card key={card.key} variant={card.tone} className="flex flex-col">
-                  <span className="text-3xl font-bold">{card.value}</span>
-                  <span className="mt-2 text-sm">{card.label}</span>
-                </Card>
-              ))}
-            </div>
-          ))
-        : STAT_ROWS.map((row, rowIndex) => (
-            <div key={rowIndex} className="stat-cards-row">
-              {row.map((card) => (
-                <div
-                  key={card.key}
-                  className={`stat-card stat-card-${
-                    card.tone === "stat-blue"
-                      ? "blue"
-                      : card.tone === "stat-lavender"
-                        ? "lavender"
-                        : card.tone === "stat-teal"
-                          ? "teal"
-                          : "amber"
-                  }`}
-                >
-                  <span className="stat-value">{card.value}</span>
-                  <span className="stat-label">{card.label}</span>
-                </div>
-              ))}
-            </div>
+      {STAT_ROWS.map((row, rowIndex) => (
+        <div key={rowIndex} className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {row.map((card) => (
+            <Card key={card.key} variant={card.tone} className="flex flex-col">
+              <span className="text-3xl font-bold">{card.value}</span>
+              <span className="mt-2 text-sm">{card.label}</span>
+            </Card>
           ))}
+        </div>
+      ))}
 
-      {isMinimal && <SectionLabel className="mt-2">Breakdowns</SectionLabel>}
+      <SectionLabel className="mt-2">Breakdowns</SectionLabel>
 
       <div className="chart-grid">
         <div className="chart-card">

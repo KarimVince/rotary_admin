@@ -96,7 +96,8 @@ describe("RotaryFriendsList", () => {
     renderPage();
     await waitForLoaded();
 
-    await userEvent.selectOptions(screen.getByLabelText("Tag"), "sponsor");
+    await userEvent.click(screen.getByRole("button", { name: "Tag" }));
+    await userEvent.click(screen.getByRole("option", { name: "sponsor" }));
 
     expect(screen.getByText("Jamie Lee")).toBeInTheDocument();
     expect(screen.queryByText("Sara Nguyen")).not.toBeInTheDocument();
@@ -107,7 +108,8 @@ describe("RotaryFriendsList", () => {
     renderPage();
     await waitForLoaded();
 
-    await userEvent.selectOptions(screen.getByLabelText("Source"), "Golf tournament");
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    await userEvent.click(screen.getByRole("option", { name: "Golf tournament" }));
 
     expect(screen.getByText("Jamie Lee")).toBeInTheDocument();
     expect(screen.queryByText("Sara Nguyen")).not.toBeInTheDocument();

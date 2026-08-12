@@ -89,25 +89,25 @@ describe("EventSummary", () => {
     await waitForLoaded();
 
     expect(screen.getByText("Fundraising Results")).toBeInTheDocument();
-    expect(
-      screen.getByText("Total Raised", { selector: ".summary-card-label" }).closest(".summary-card"),
-    ).toHaveTextContent("HKD 7,500");
+    expect(screen.getByText("Total Raised").closest("[data-variant]")).toHaveTextContent(
+      "HKD 7,500",
+    );
 
     expect(screen.getByText("Revenue")).toBeInTheDocument();
-    expect(
-      screen.getByText("Total Revenue", { selector: ".summary-card-label" }).closest(".summary-card"),
-    ).toHaveTextContent("HKD 3,900");
+    expect(screen.getByText("Total Revenue").closest("[data-variant]")).toHaveTextContent(
+      "HKD 3,900",
+    );
 
     expect(screen.getByText("Operational Cost")).toBeInTheDocument();
-    expect(
-      screen.getByText("Decoration", { selector: ".summary-card-label" }).closest(".summary-card"),
-    ).toHaveTextContent("HKD 100");
+    const decorationCard = screen
+      .getAllByText("Decoration")
+      .map((el) => el.closest("[data-variant]"))
+      .find(Boolean);
+    expect(decorationCard).toHaveTextContent("HKD 100");
 
     expect(screen.getByText("Operational Result")).toBeInTheDocument();
     expect(
-      screen
-        .getByText("Net Operational Result", { selector: ".summary-card-label" })
-        .closest(".summary-card"),
+      screen.getByText("Net Operational Result").closest("[data-variant]"),
     ).toHaveTextContent("HKD 3,800");
   });
 

@@ -130,7 +130,9 @@ describe("OrganisationDetail", () => {
     await waitForLoaded();
 
     expect(screen.getByRole("heading", { name: "Clean Water Project" })).toBeInTheDocument();
-    expect(screen.getByText(/Total donated \(all years\)/i)).toHaveTextContent("700");
+    expect(
+      screen.getByText(/Total donated \(all years\)/i).closest("[data-variant]"),
+    ).toHaveTextContent("700");
 
     expect(screen.getByText("Annual gift")).toBeInTheDocument();
     expect(screen.getByText("Older gift")).toBeInTheDocument();
@@ -190,11 +192,12 @@ describe("OrganisationDetail", () => {
       renderDetail();
       await waitForLoaded();
 
-      expect(screen.getByText(/Total service hours \(all years\)/i)).toHaveTextContent("10.0 h");
-      expect(screen.getByText(/Total service hours \(all years\)/i)).toHaveTextContent(
-        "Current year",
-      );
-      expect(screen.getByText(/Total service hours \(all years\)/i)).toHaveTextContent("4.0 h");
+      const hoursCard = screen
+        .getByText(/Total service hours \(all years\)/i)
+        .closest("[data-variant]");
+      expect(hoursCard).toHaveTextContent("10.0 h");
+      expect(hoursCard).toHaveTextContent("Current year");
+      expect(hoursCard).toHaveTextContent("4.0 h");
 
       expect(screen.getByText("Well maintenance")).toBeInTheDocument();
       expect(screen.getByText("Site survey")).toBeInTheDocument();

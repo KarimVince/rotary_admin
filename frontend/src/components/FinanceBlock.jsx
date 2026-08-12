@@ -1,7 +1,6 @@
-// "Minimal" design theme's compact label/value block layout for the Finance
-// pages (see design_handoff_minimal_restyle/README.md — "Finance pages").
-// Only rendered from each Finance page's isMinimal branch; styling lives in
-// src/theme-minimal.css (.fin-* classes).
+// Compact label/value block layout for the Finance pages (see
+// design_handoff_minimal_restyle/README.md — "Finance pages"); styling
+// lives in src/theme-minimal.css (.fin-* classes).
 export function FinanceBlock({ title, total, children }) {
   return (
     <div className="fin-block">

@@ -32,7 +32,6 @@ import { listMembers } from "../api/members";
 import Card from "../components/Card";
 import { CURRENCIES, currencyLabel } from "../data/currencies";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS } from "../styles/formControls";
 import { currentRotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
@@ -51,24 +50,11 @@ const TABS = [
 // the rest of the page (tabs, forms, tables) stays untouched. `tone` picks
 // any stat-* Card variant — the actual color is irrelevant when the parent
 // carries `.stat-duo-grid`, which repaints by position (blue/gold).
-function StatCard({ value, valueClass, label, bg, tone = "stat-blue" }) {
-  const { isMinimal } = useTheme();
-  if (isMinimal) {
-    return (
-      <Card variant={tone} className="flex flex-col">
-        <span className="text-3xl font-bold">{value}</span>
-        <span className="mt-2 text-sm">{label}</span>
-      </Card>
-    );
-  }
+function StatCard({ value, label, tone = "stat-blue" }) {
   return (
-    <Card
-      variant="default"
-      className="!rounded-2xl flex min-h-[104px] flex-col justify-center !p-4"
-      style={bg ? { background: bg } : undefined}
-    >
-      <div className="text-xs font-semibold text-[var(--color-muted-text)]">{label}</div>
-      <div className={`mt-1 text-[22px] font-bold ${valueClass}`}>{value}</div>
+    <Card variant={tone} className="flex flex-col">
+      <span className="text-3xl font-bold">{value}</span>
+      <span className="mt-2 text-sm">{label}</span>
     </Card>
   );
 }
@@ -112,7 +98,6 @@ const TIER_OPTIONS = [
 ];
 
 function TrackingTab() {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite: canManage } = useAccess("fees.tracking");
   const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [paidFilter, setPaidFilter] = useState("");
@@ -369,7 +354,7 @@ function TrackingTab() {
 
       {!isLoading && !loadError && (
         <>
-          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5 ${isMinimal ? "stat-duo-grid" : ""}`}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5 stat-duo-grid">
             <StatCard label="Total due" value={`${stats.totalDue.toLocaleString()}`} valueClass="text-[var(--color-brand-blue-dark)]" tone="stat-blue" />
             <StatCard label="Collected" value={`${stats.totalPaid.toLocaleString()}`} valueClass="text-[var(--color-tone-teal-text)]" tone="stat-lavender" />
             <StatCard label="Outstanding" value={`${stats.outstanding.toLocaleString()}`} valueClass="text-[var(--color-tone-rose-text)]" tone="stat-blue" />
@@ -1094,7 +1079,6 @@ function formatCurrency(value, currency) {
 }
 
 function StatisticsTab() {
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("fees.statistics");
   const { yearOptions, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [stats, setStats] = useState(null);
@@ -1223,7 +1207,7 @@ function StatisticsTab() {
 
       {!isLoading && !loadError && stats && (
         <>
-          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5 ${isMinimal ? "stat-duo-grid" : ""}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5 stat-duo-grid">
             <StatCard
               label={`Average fee per active member — ${rotaryYearLabel(year)}`}
               value={formatCurrency(stats.average_fee_per_active_member, stats.currency)}

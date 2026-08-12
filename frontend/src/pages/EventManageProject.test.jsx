@@ -84,55 +84,54 @@ describe("EventManageProject", () => {
   it("deep-links ?event= into the selected event and shows the bento overview", async () => {
     renderManageProject("/events/manage?event=event-1");
 
-    expect(await screen.findByRole("tab", { name: /Annual Ball/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    expect(await screen.findByRole("button", { name: /Project/i })).toHaveTextContent(
+      "Annual Ball — 15 Aug 2026",
     );
-    expect(screen.getByText("Summary")).toBeInTheDocument();
-    expect(screen.getByText("Guest List")).toBeInTheDocument();
-    expect(screen.getByText("Rundown")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guest List" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rundown" })).toBeInTheDocument();
   });
 
   it("opens a panel via ?panel= and shows the breadcrumb", async () => {
     renderManageProject("/events/manage?event=event-1&panel=guests");
 
-    expect(await screen.findByText(/Annual Ball · Manage Project/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Guest List" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /all panels/i })).toBeInTheDocument();
+    expect(await screen.findByText(/no guests registered/i)).toBeInTheDocument();
   });
 
   it("clicking a bento card link opens the matching panel", async () => {
     renderManageProject("/events/manage?event=event-1");
-    await screen.findByText("Guest List");
+    await screen.findByRole("button", { name: "Guest List" });
 
-    await userEvent.click(screen.getAllByRole("button", { name: /Manage →/i })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Guest List" }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/Annual Ball · Manage Project/i)).toBeInTheDocument(),
-    );
+    expect(await screen.findByText(/no guests registered/i)).toBeInTheDocument();
   });
 
   it("clicking the breadcrumb clears the panel and keeps the same event selected", async () => {
     renderManageProject("/events/manage?event=event-1&panel=guests");
-    await screen.findByText(/Annual Ball · Manage Project/i);
+    await screen.findByRole("button", { name: /all panels/i });
 
-    await userEvent.click(screen.getByText(/Annual Ball · Manage Project/i));
+    await userEvent.click(screen.getByRole("button", { name: /all panels/i }));
 
-    await waitFor(() => expect(screen.getByText("Guest List")).toBeInTheDocument());
-    expect(
-      screen.getByRole("tab", { name: /Annual Ball/i }),
-    ).toHaveAttribute("aria-selected", "true");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Guest List" })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /Project/i })).toHaveTextContent(
+      "Annual Ball — 15 Aug 2026",
+    );
   });
 
   it("switching the event pill re-fetches panel data for the new event", async () => {
     renderManageProject("/events/manage?event=event-1");
-    await screen.findByRole("tab", { name: /Annual Ball/i });
+    const projectTrigger = await screen.findByRole("button", { name: /Project/i });
+    expect(projectTrigger).toHaveTextContent("Annual Ball — 15 Aug 2026");
 
-    await userEvent.click(screen.getByRole("tab", { name: /Fellowship Night/i }));
+    await userEvent.click(projectTrigger);
+    await userEvent.click(screen.getByRole("option", { name: /Fellowship Night/i }));
 
     await waitFor(() =>
-      expect(screen.getByRole("tab", { name: /Fellowship Night/i })).toHaveAttribute(
-        "aria-selected",
-        "true",
+      expect(screen.getByRole("button", { name: /Project/i })).toHaveTextContent(
+        "Fellowship Night — 01 Sep 2026",
       ),
     );
   });

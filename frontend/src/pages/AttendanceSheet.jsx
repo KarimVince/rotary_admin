@@ -7,7 +7,6 @@ import {
   updateAttendanceRecord,
 } from "../api/attendance";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import { isFutureEventDate } from "../utils/eventDate";
 import { formatDate } from "../utils/formatters";
 import AttendanceEventFormModal from "../components/AttendanceEventFormModal";
@@ -21,7 +20,6 @@ function memberLabel(member) {
 export default function AttendanceSheet() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("attendance.sheet");
   const { canWrite } = useAccess("attendance.sheet");
 
@@ -228,22 +226,14 @@ export default function AttendanceSheet() {
               type="button"
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className={
-                isMinimal
-                  ? "rounded-[9px] bg-[var(--color-brand-blue)] px-[14px] py-2 text-[13px] font-semibold text-white"
-                  : "rounded-[9px] bg-[var(--color-brand-blue-light)] px-[14px] py-2 text-[13px] font-semibold text-[var(--color-brand-blue)]"
-              }
+              className="rounded-[9px] bg-[var(--color-brand-blue)] px-[14px] py-2 text-[13px] font-semibold text-white"
             >
               {isRefreshing ? "Refreshing…" : "Refresh List"}
             </button>
             <button
               type="button"
               onClick={() => setIsEditOpen(true)}
-              className={
-                isMinimal
-                  ? "rounded-[9px] bg-[var(--color-brand-blue)] px-[14px] py-2 text-[13px] font-semibold text-white"
-                  : "rounded-[9px] bg-[var(--color-brand-blue-light)] px-[14px] py-2 text-[13px] font-semibold text-[var(--color-brand-blue)]"
-              }
+              className="rounded-[9px] bg-[var(--color-brand-blue)] px-[14px] py-2 text-[13px] font-semibold text-white"
             >
               Edit
             </button>
@@ -287,11 +277,7 @@ export default function AttendanceSheet() {
               type="button"
               onClick={togglePastExpanded}
               aria-expanded={isPastExpanded}
-              className={
-                isMinimal
-                  ? "rounded-[9px] bg-[var(--color-brand-blue)] px-[14px] py-2 text-[13px] font-semibold text-white"
-                  : undefined
-              }
+              className="rounded-[9px] bg-[var(--color-brand-blue)] px-[14px] py-2 text-[13px] font-semibold text-white"
             >
               {isPastExpanded ? "▾" : "▸"} Past Members ({sheet.past.length})
             </button>

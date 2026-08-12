@@ -392,7 +392,7 @@ describe("ReferenceLists", () => {
       await waitForLoaded();
 
       const card = within(screen.getByRole("region", { name: "Finance Categories" }));
-      await userEvent.click(card.getByRole("button", { name: /^edit$/i }));
+      await userEvent.click(card.getByRole("button", { name: /^edit /i }));
 
       const typeSelect = card.getByLabelText(/type/i);
       expect(typeSelect).not.toBeDisabled();

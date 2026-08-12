@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   createExchangeRate,
   deleteExchangeRate,
@@ -220,16 +221,20 @@ export default function CurrencyManagement() {
                       <button
                         type="button"
                         onClick={() => startEdit(rate)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)] cursor-pointer mr-2"
+                        aria-label={`Edit ${currencyLabel(rate.currency_code)}`}
+                        title="Edit"
+                        className="border-none bg-transparent text-[var(--color-brand-blue)] cursor-pointer hover:opacity-75 align-middle mr-2"
                       >
-                        Edit
+                        <Pencil className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(rate)}
-                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#b23b3b] bg-[var(--tone-rose-bg)] border-none cursor-pointer"
+                        aria-label={`Delete ${currencyLabel(rate.currency_code)}`}
+                        title="Delete"
+                        className="border-none bg-transparent text-[#b23b3b] cursor-pointer hover:opacity-75 align-middle"
                       >
-                        Delete
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </td>
                   )}

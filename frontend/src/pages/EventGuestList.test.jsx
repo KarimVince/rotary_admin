@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -149,9 +149,7 @@ describe("EventGuestList", () => {
     await waitForLoaded();
 
     const row = screen.getByText("Smith").closest("tr");
-    await userEvent.click(
-      Array.from(row.querySelectorAll("button")).find((b) => b.textContent === "Delete"),
-    );
+    await userEvent.click(within(row).getByTitle("Delete"));
     await waitFor(() => expect(deleteCalled).toBe(true));
 
     window.confirm.mockRestore();
@@ -162,8 +160,8 @@ describe("EventGuestList", () => {
     renderGuestList({ event: EVENT });
     await waitForLoaded();
 
-    expect(screen.queryByText("+ Add Guest")).not.toBeInTheDocument();
-    expect(screen.queryByText("Edit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Guest")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Edit")).not.toBeInTheDocument();
   });
 
   it("creates a new guest with required fields", async () => {
@@ -178,7 +176,7 @@ describe("EventGuestList", () => {
     renderGuestList({ event: EVENT });
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add Guest" }));
     await userEvent.type(screen.getByLabelText("Surname"), "Doe");
     await userEvent.type(screen.getByLabelText("First Name"), "Jane");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));

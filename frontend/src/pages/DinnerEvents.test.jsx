@@ -124,9 +124,10 @@ describe("DinnerEvents", () => {
     renderPage();
     await waitForLoaded();
 
-    const chips = await screen.findAllByText("Dinner");
-    const chip = chips.find((el) => el.tagName === "SPAN");
-    expect(chip).toHaveStyle({ backgroundColor: "#e3edfb", color: "#17458f" });
+    const label = await screen.findAllByText("Dinner");
+    const chip = label.find((el) => el.tagName === "SPAN").closest("span");
+    const dot = chip.querySelector("span");
+    expect(dot).toHaveStyle({ background: "#17458f" });
   });
 
   it("falls back to a neutral grey chip for an unconfigured type", async () => {
@@ -138,8 +139,9 @@ describe("DinnerEvents", () => {
     renderPage();
     await waitForLoaded();
 
-    const chip = await screen.findByText("Gala");
-    expect(chip.className).toMatch(/bg-\[#f0f2f6\]/);
+    const chip = (await screen.findByText("Gala")).closest("span");
+    const dot = chip.querySelector("span");
+    expect(dot).toHaveStyle({ background: "var(--color-muted-text)" });
   });
 
   it("shows the NGO/Organisation name next to the speaker when set", async () => {
@@ -168,49 +170,8 @@ describe("DinnerEvents", () => {
     expect(screen.queryByText(/^NGO:$/)).not.toBeInTheDocument();
   });
 
-  it("populates the event-type filter pills from the admin-configured list", async () => {
-    renderPage();
-    await waitForLoaded();
-
-    const group = screen.getByRole("group", { name: /event filter/i });
-    const pillLabels = within(group)
-      .getAllByRole("button")
-      .map((button) => button.textContent);
-    expect(pillLabels).toEqual(["All", "Dinner", "Fellowship"]);
-  });
-
-  it("allows selecting multiple event types for the report filter", async () => {
-    let requestUrl;
-    server.use(
-      http.get(`${API_BASE_URL}/dinner-forecast/report`, ({ request }) => {
-        requestUrl = new URL(request.url);
-        return new HttpResponse("fake-pdf-bytes", {
-          headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": 'attachment; filename="dinner-forecast.pdf"',
-          },
-        });
-      }),
-    );
-    const originalCreateObjectURL = URL.createObjectURL;
-    const originalRevokeObjectURL = URL.revokeObjectURL;
-    URL.createObjectURL = vi.fn(() => "blob:mock-url");
-    URL.revokeObjectURL = vi.fn();
-
-    renderPage();
-    await waitForLoaded();
-
-    const group = screen.getByRole("group", { name: /event filter/i });
-    await userEvent.click(within(group).getByRole("button", { name: "Dinner" }));
-    await userEvent.click(within(group).getByRole("button", { name: "Fellowship" }));
-    await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
-
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
-    expect(requestUrl.searchParams.getAll("event_type")).toEqual(["Dinner", "Fellowship"]);
-
-    URL.createObjectURL = originalCreateObjectURL;
-    URL.revokeObjectURL = originalRevokeObjectURL;
-  });
+  // The event-type filter dropdown and multi-select behavior are covered in
+  // the "DinnerEvents — Minimal design" describe block below.
 
   it("denies access without attendance.forecast read", async () => {
     mockCanRead = false;
@@ -233,7 +194,11 @@ describe("DinnerEvents", () => {
     await waitForLoaded();
 
     expect(await screen.findByText("Not started")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /take attendance/i })).toBeInTheDocument();
+    const row = (await screen.findByText("Welcome Dinner")).closest("div.grid");
+    expect(within(row).getByRole("button", { name: "Attendance sheet" })).toHaveAttribute(
+      "title",
+      "Take attendance",
+    );
   });
 
   it("shows an attendance percentage chip and View sheet action for a started event", async () => {
@@ -241,7 +206,11 @@ describe("DinnerEvents", () => {
     await waitForLoaded();
 
     expect(await screen.findByText("8/10 · 80%")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /view sheet/i })).toBeInTheDocument();
+    const row = (await screen.findByText("Fellowship Night")).closest("div.grid");
+    expect(within(row).getByRole("button", { name: "Attendance sheet" })).toHaveAttribute(
+      "title",
+      "View attendance sheet",
+    );
   });
 
   it("starts attendance then navigates to the sheet when taking attendance", async () => {
@@ -256,7 +225,8 @@ describe("DinnerEvents", () => {
     renderPage();
     await waitForLoaded();
 
-    await userEvent.click(await screen.findByRole("button", { name: /take attendance/i }));
+    const row = (await screen.findByText("Welcome Dinner")).closest("div.grid");
+    await userEvent.click(within(row).getByRole("button", { name: "Attendance sheet" }));
     await waitFor(() => expect(startCalled).toBe(true));
     expect(await screen.findByText("Attendance sheet page")).toBeInTheDocument();
   });
@@ -265,7 +235,8 @@ describe("DinnerEvents", () => {
     renderPage();
     await waitForLoaded();
 
-    await userEvent.click(await screen.findByRole("button", { name: /view sheet/i }));
+    const row = (await screen.findByText("Fellowship Night")).closest("div.grid");
+    await userEvent.click(within(row).getByRole("button", { name: "Attendance sheet" }));
     expect(await screen.findByText("Attendance sheet page")).toBeInTheDocument();
   });
 
@@ -283,9 +254,7 @@ describe("DinnerEvents", () => {
     await waitForLoaded();
 
     const row = (await screen.findByText("Welcome Dinner")).closest("div.grid");
-    await userEvent.click(
-      Array.from(row.querySelectorAll("button")).find((b) => b.textContent === "Delete"),
-    );
+    await userEvent.click(within(row).getByRole("button", { name: "Delete event" }));
     await waitFor(() => expect(deleteCalled).toBe(true));
 
     window.confirm.mockRestore();
@@ -398,7 +367,10 @@ describe("DinnerEvents", () => {
       await screen.findByText("Future Fellowship");
       const row = (await screen.findByText("Future Fellowship")).closest("div.grid");
       expect(row).toHaveTextContent("Not started");
-      expect(row.querySelector("button")).toHaveTextContent(/take attendance/i);
+      expect(within(row).getByRole("button", { name: "Attendance sheet" })).toHaveAttribute(
+        "title",
+        "Take attendance",
+      );
       // The genuinely past started event is unaffected.
       expect(screen.getByText("8/10 · 80%")).toBeInTheDocument();
     });
@@ -536,7 +508,8 @@ describe("DinnerEvents", () => {
       renderPage();
       await waitForLoaded();
 
-      await userEvent.click(screen.getByRole("button", { name: /add welcome dinner to calendar/i }));
+      const row = (await screen.findByText("Welcome Dinner")).closest("div.grid");
+      await userEvent.click(within(row).getByRole("button", { name: "Add to calendar" }));
 
       expect(URL.createObjectURL).toHaveBeenCalled();
       const text = await capturedBlob.text();

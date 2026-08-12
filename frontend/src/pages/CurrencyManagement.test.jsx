@@ -100,7 +100,7 @@ describe("CurrencyManagement", () => {
     render(<CurrencyManagement />);
     await screen.findByText("HKD");
 
-    await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^edit hkd$/i }));
     const hkdInput = screen.getByLabelText(/rate to hkd/i);
     await userEvent.clear(hkdInput);
     await userEvent.type(hkdInput, "1");
@@ -144,6 +144,6 @@ describe("CurrencyManagement", () => {
     await waitForLoaded();
 
     expect(screen.queryByLabelText(/rate to hkd/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^edit hkd$/i })).not.toBeInTheDocument();
   });
 });

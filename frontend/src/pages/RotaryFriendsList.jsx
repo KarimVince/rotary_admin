@@ -14,8 +14,7 @@ import {
 import Card from "../components/Card";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
-import { INPUT_CLASS, SELECT_CLASS } from "../styles/formControls";
+import { INPUT_CLASS } from "../styles/formControls";
 import { splitTags } from "../utils/tags";
 
 const EMPTY_FORM = {
@@ -37,22 +36,16 @@ function toPayload(form) {
 }
 
 export default function RotaryFriendsList() {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite: isAdmin } = useAccess("friends.directory");
 
-  const PRIMARY_BUTTON_CLASS = isMinimal
-    ? "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-    : "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-white bg-[var(--color-brand-blue)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
-  const SECONDARY_BUTTON_CLASS = isMinimal
-    ? "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-    : "rounded-full px-6 py-2.5 text-[14.5px] font-semibold text-[var(--color-muted-text-strong)] bg-[var(--color-border-light)] hover:bg-[var(--color-card-border)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
-  const OUTLINE_BUTTON_CLASS = isMinimal
-    ? "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
-    : "border border-[var(--color-brand-blue)] bg-white text-[var(--color-brand-blue)] rounded-lg px-4 py-2 text-[13.5px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap";
+  const PRIMARY_BUTTON_CLASS =
+    "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+  const SECONDARY_BUTTON_CLASS =
+    "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+  const OUTLINE_BUTTON_CLASS =
+    "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer";
   const EDIT_LINK_CLASS = "bg-transparent border-none p-0 mr-4 text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)] cursor-pointer";
   const DELETE_LINK_CLASS = "bg-transparent border-none p-0 text-[13px] font-semibold text-[var(--low)] hover:opacity-80 cursor-pointer";
-  const ROW_BUTTON_CLASS =
-    "rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mr-2 border-none";
 
   const [friends, setFriends] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -288,16 +281,16 @@ export default function RotaryFriendsList() {
         {isAdmin && (
           <div className="flex items-center gap-2 flex-wrap">
             <button type="button" className={OUTLINE_BUTTON_CLASS} onClick={handleExport} disabled={isExporting}>
-              {isMinimal && <Download className="w-[15px] h-[15px]" aria-hidden="true" />}
+              <Download className="w-[15px] h-[15px]" aria-hidden="true" />
               {isExporting ? "Exporting…" : "Export CSV"}
             </button>
             <button type="button" className={OUTLINE_BUTTON_CLASS} onClick={openImportModal}>
-              {isMinimal && <Upload className="w-[15px] h-[15px]" aria-hidden="true" />}
+              <Upload className="w-[15px] h-[15px]" aria-hidden="true" />
               Import CSV
             </button>
             <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={openAddModal}>
-              {isMinimal && <UserPlus className="w-[15px] h-[15px]" aria-hidden="true" />}
-              {isMinimal ? "Add Friend" : "+ Add Friend"}
+              <UserPlus className="w-[15px] h-[15px]" aria-hidden="true" />
+              Add Friend
             </button>
           </div>
         )}
@@ -305,20 +298,14 @@ export default function RotaryFriendsList() {
       {exportError && <p role="alert">{exportError}</p>}
 
       {isImportModalOpen && isAdmin && (
-        <div className={`modal-overlay ${isMinimal ? "friends-modal-overlay" : ""}`} onClick={closeImportModal}>
+        <div className="modal-overlay friends-modal-overlay" onClick={closeImportModal}>
           <div
-            className={`modal-dialog !rounded-2xl !max-w-[640px] !text-[15px] ${isMinimal ? "friends-modal-dialog" : ""}`}
+            className="modal-dialog !rounded-2xl !max-w-[640px] !text-[15px] friends-modal-dialog"
             role="dialog"
             aria-label="Import friends from CSV"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2
-              className={
-                isMinimal
-                  ? "text-[19px] font-semibold mb-2"
-                  : "text-[19px] font-semibold text-[var(--color-brand-blue-dark)] mb-2"
-              }
-            >
+            <h2 className="text-[19px] font-semibold mb-2">
               Import friends from CSV
             </h2>
             <p className="text-sm text-[var(--color-muted-text)] mb-4">
@@ -413,21 +400,15 @@ export default function RotaryFriendsList() {
       )}
 
       {isModalOpen && isAdmin && (
-        <div className={`modal-overlay ${isMinimal ? "friends-modal-overlay" : ""}`} onClick={closeModal}>
+        <div className="modal-overlay friends-modal-overlay" onClick={closeModal}>
           <div
-            className={`modal-dialog !rounded-2xl !max-w-[560px] !text-[15px] ${isMinimal ? "friends-modal-dialog" : ""}`}
+            className="modal-dialog !rounded-2xl !max-w-[560px] !text-[15px] friends-modal-dialog"
             role="dialog"
             aria-label={editingId ? "Edit friend" : "Add friend"}
             onClick={(event) => event.stopPropagation()}
           >
             <form onSubmit={handleSubmit}>
-              <h2
-                className={
-                  isMinimal
-                    ? "text-[19px] font-semibold mb-3"
-                    : "text-[19px] font-semibold text-[var(--color-brand-blue-dark)] mb-3"
-                }
-              >
+              <h2 className="text-[19px] font-semibold mb-3">
                 {editingId ? "Edit friend" : "Add friend"}
               </h2>
 
@@ -537,99 +518,42 @@ export default function RotaryFriendsList() {
         </div>
       )}
 
-      {isMinimal ? (
-        <div className="mb-5 flex flex-wrap items-center gap-[10px]">
-          <div className="flex h-[38px] flex-1 min-w-[220px] items-center gap-[9px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px]">
-            <Search className="w-4 h-4 shrink-0 text-[var(--faint)]" aria-hidden="true" />
-            <input
-              id="filter-search"
-              type="text"
-              placeholder="Search by name or email…"
-              aria-label="Search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="w-full border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
-            />
-          </div>
-
-          <SingleSelectDropdown
-            ariaLabel="Tag"
-            minWidthClass="min-w-[150px]"
-            value={tagFilter || "all"}
-            options={[
-              { value: "all", label: "All tags" },
-              ...tagOptions.map((tag) => ({ value: tag, label: tag })),
-            ]}
-            onSelect={(value) => setTagFilter(value === "all" ? "" : value)}
-          />
-
-          <SingleSelectDropdown
-            ariaLabel="Source"
-            minWidthClass="min-w-[150px]"
-            value={sourceFilter || "all"}
-            options={[
-              { value: "all", label: "All sources" },
-              ...sourceOptions.map((source) => ({ value: source, label: source })),
-            ]}
-            onSelect={(value) => setSourceFilter(value === "all" ? "" : value)}
+      <div className="mb-5 flex flex-wrap items-center gap-[10px]">
+        <div className="flex h-[38px] flex-1 min-w-[220px] items-center gap-[9px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px]">
+          <Search className="w-4 h-4 shrink-0 text-[var(--faint)]" aria-hidden="true" />
+          <input
+            id="filter-search"
+            type="text"
+            placeholder="Search by name or email…"
+            aria-label="Search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
           />
         </div>
-      ) : (
-        <div className="flex items-end gap-4 flex-wrap mb-5">
-          <div className="flex-1 min-w-[220px]">
-            <label htmlFor="filter-search" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
-              Search
-            </label>
-            <input
-              id="filter-search"
-              type="text"
-              placeholder="Search by name or email…"
-              aria-label="Search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className={INPUT_CLASS}
-            />
-          </div>
-          <div>
-            <label htmlFor="filter-tag" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
-              Tag
-            </label>
-            <select
-              id="filter-tag"
-              aria-label="Tag"
-              value={tagFilter}
-              onChange={(event) => setTagFilter(event.target.value)}
-              className={`${SELECT_CLASS} min-w-[150px]`}
-            >
-              <option value="">All tags</option>
-              {tagOptions.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="filter-source" className="block text-xs font-semibold text-[var(--color-muted-text)] mb-1.5">
-              Source
-            </label>
-            <select
-              id="filter-source"
-              aria-label="Source"
-              value={sourceFilter}
-              onChange={(event) => setSourceFilter(event.target.value)}
-              className={`${SELECT_CLASS} min-w-[150px]`}
-            >
-              <option value="">All sources</option>
-              {sourceOptions.map((source) => (
-                <option key={source} value={source}>
-                  {source}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
+
+        <SingleSelectDropdown
+          ariaLabel="Tag"
+          minWidthClass="min-w-[150px]"
+          value={tagFilter || "all"}
+          options={[
+            { value: "all", label: "All tags" },
+            ...tagOptions.map((tag) => ({ value: tag, label: tag })),
+          ]}
+          onSelect={(value) => setTagFilter(value === "all" ? "" : value)}
+        />
+
+        <SingleSelectDropdown
+          ariaLabel="Source"
+          minWidthClass="min-w-[150px]"
+          value={sourceFilter || "all"}
+          options={[
+            { value: "all", label: "All sources" },
+            ...sourceOptions.map((source) => ({ value: source, label: source })),
+          ]}
+          onSelect={(value) => setSourceFilter(value === "all" ? "" : value)}
+        />
+      </div>
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -667,22 +591,14 @@ export default function RotaryFriendsList() {
                         <button
                           type="button"
                           onClick={() => startEdit(friend)}
-                          className={
-                            isMinimal
-                              ? EDIT_LINK_CLASS
-                              : `${ROW_BUTTON_CLASS} text-[var(--color-brand-blue)] bg-white border border-[var(--color-brand-blue)]`
-                          }
+                          className={EDIT_LINK_CLASS}
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(friend)}
-                          className={
-                            isMinimal
-                              ? DELETE_LINK_CLASS
-                              : `${ROW_BUTTON_CLASS} text-[#b23b3b] bg-[var(--tone-rose-bg)]`
-                          }
+                          className={DELETE_LINK_CLASS}
                         >
                           Delete
                         </button>

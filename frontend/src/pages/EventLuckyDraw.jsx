@@ -18,10 +18,10 @@ import {
   getLuckyDrawConfig,
   listEventItems,
   saveLuckyDrawConfig,
+  updateEventItem,
 } from "../api/eventItems";
 import { listMembers } from "../api/members";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import { formatCurrency } from "../utils/formatters";
 import EventItemFormModal from "../components/EventItemFormModal";
 import MultiSelectDropdown from "../components/MultiSelectDropdown";
@@ -33,29 +33,132 @@ const TYPE_LABEL = {
   lucky_draw: "Lucky Draw",
 };
 
-const TYPE_CHIP = {
-  auction: { bg: "var(--tone-lavender-bg)", color: "var(--color-tone-lavender-text)" },
-  lucky_draw_on_stage: { bg: "var(--tone-blue-bg)", color: "var(--color-brand-blue)" },
-  lucky_draw: { bg: "var(--tone-blue-bg)", color: "var(--color-brand-blue)" },
+// 2026-08-08: click-to-cycle Type through the 3 item types (same pill
+// design as Payment Status/Early Bird elsewhere — rounded-full pill, own
+// color set). Each of the 3 values now gets its own distinct tone (was
+// 2 colors for 3 values — lucky_draw_on_stage/lucky_draw both blue — so a
+// click didn't always look like it changed anything).
+const TYPE_CYCLE = {
+  auction: "lucky_draw_on_stage",
+  lucky_draw_on_stage: "lucky_draw",
+  lucky_draw: "auction",
 };
 
-const TYPE_CHIP_MINIMAL = {
+const TYPE_CHIP = {
   auction: { bg: "var(--gold-soft)", color: "var(--gold-ink)" },
   lucky_draw_on_stage: { bg: "var(--accent-soft)", color: "var(--accent-ink)" },
-  lucky_draw: { bg: "var(--accent-soft)", color: "var(--accent-ink)" },
+  lucky_draw: { bg: "var(--ok-bg)", color: "var(--ok)" },
 };
 
 const STATUS_LABEL = { received: "Received", not_received: "Not Received" };
 
-const TILE_TONES = [
-  { bg: "var(--tone-amber-bg)", color: "var(--color-tone-amber-text)" },
-  { bg: "var(--tone-blue-bg)", color: "var(--color-brand-blue)" },
-  { bg: "var(--tone-lavender-bg)", color: "var(--color-tone-lavender-text)" },
-  { bg: "var(--tone-teal-bg)", color: "var(--color-tone-teal-text)" },
-  { bg: "var(--tone-rose-bg)", color: "var(--color-tone-rose-text)" },
-];
+// 2026-08-08: click-to-cycle Status (2-way) — own color set, distinct from
+// Type above and Ad Page below.
+const STATUS_CYCLE = { received: "not_received", not_received: "received" };
+const STATUS_CHIP = {
+  received: { bg: "var(--ok-bg)", color: "var(--ok)" },
+  not_received: { bg: "var(--low-bg)", color: "var(--low)" },
+};
 
-const TILE_TONES_MINIMAL = [
+// 2026-08-08: click-to-toggle Ad Page (Yes/No) — own color set, distinct
+// from Type/Status above.
+const AD_PAGE_CHIP = {
+  yes: { bg: "var(--warn-bg)", color: "var(--warn)" },
+  no: { bg: "var(--bg-alt)", color: "var(--muted)" },
+};
+
+// Shared pill look for all three click-to-change columns above — "same
+// look, different set of colors" per explicit request.
+function ToggleChip({ label, tone, onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-fit rounded-full px-[10px] py-[3px] text-[11px] font-bold disabled:cursor-wait disabled:opacity-60"
+      style={{ background: tone.bg, color: tone.color }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// 2026-08-10, reworked twice more on 2026-08-11 (see
+// app/api/event_item.py's _ITEM_PREFIX/_GROUP_KEY): the printed letter
+// always matches the item's own type — auction "A", on-stage "LS", regular
+// "L" — but the NUMBER after it is drawn from one shared pool for the two
+// lucky-draw subtypes (on-stage items filling the front of the pool, so an
+// on-stage block of 3 followed by 2 regular items reads LS-1, LS-2, LS-3,
+// L-4, L-5 — the regular block continues the count rather than resetting).
+// The bubble is also colored per-Type via `tone` below (auction
+// lavender/gold, on-stage blue/accent, regular teal/ok).
+const LOT_REF_PREFIX = { auction: "A", lucky_draw_on_stage: "LS", lucky_draw: "L" };
+
+function lotRefNumberPart(item) {
+  if (!item.lot_ref) return "";
+  const prefix = LOT_REF_PREFIX[item.item_type];
+  return item.lot_ref.startsWith(`${prefix}-`) ? item.lot_ref.slice(prefix.length + 1) : item.lot_ref;
+}
+
+// 2026-08-10: number is type-in (the only editable part) — default value
+// is value_hkd-descending position within the item's own type sequence,
+// but any value can be typed to force a specific position (the backend
+// inserts the item there and shifts the rest of the sequence, see
+// backend/app/api/event_item.py's _insert_and_shift). The list itself
+// always displays in current lot-number order, whether that's the
+// untouched default or after a manual change (see _sorted_items) — so
+// re-typing a number here also moves the row. A manually-set number is
+// marked with a small dot; that mark (and the position itself) clears the
+// next time anything in the sequence recalculates — a value_hkd change,
+// an item_type move, or a new item being added.
+function LotRefField({ item, tone, onBlurValue, error }) {
+  const prefix = LOT_REF_PREFIX[item.item_type];
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1">
+        <span
+          className="flex h-6 min-w-[22px] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold"
+          style={{ background: tone.bg, color: tone.color }}
+        >
+          {prefix}
+        </span>
+        <input
+          // 2026-08-10 fix: uncontrolled input (defaultValue) only applies
+          // on mount — without a key tied to the actual value, changing
+          // *another* item's Type/value could renumber this item's
+          // lot_ref server-side (see _recompute_group), the refetch would
+          // update `item.lot_ref`, but this same DOM node would keep
+          // showing its old number since React never re-applies
+          // defaultValue after mount. Keying on the current lot_ref forces
+          // a fresh node (and fresh defaultValue) whenever it changes for
+          // any reason, not just this field's own edits.
+          key={item.lot_ref}
+          type="number"
+          min={1}
+          defaultValue={lotRefNumberPart(item)}
+          onBlur={(event) => {
+            const raw = event.target.value.trim();
+            onBlurValue(raw === "" ? "" : `${prefix}-${raw}`);
+          }}
+          aria-label={`Lot number for ${item.name}`}
+          className={`w-12 rounded-md border px-1.5 py-1 text-xs ${
+            error ? "border-[var(--color-tone-rose-text)]" : "border-[var(--color-card-border)]"
+          }`}
+        />
+        {item.lot_ref_overridden && (
+          <span
+            className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--color-tone-amber-text)]"
+            title="Manually overridden — resets to value order on the next recalculation"
+            aria-label="Manually overridden"
+          />
+        )}
+      </div>
+      {error && <span className="max-w-[140px] text-[10px] leading-tight text-[var(--color-tone-rose-text)]">{error}</span>}
+    </div>
+  );
+}
+
+const TILE_TONES = [
   { bg: "var(--gold-soft)", color: "var(--gold-ink)" },
   { bg: "var(--accent-soft)", color: "var(--accent-ink)" },
   { bg: "var(--ok-bg)", color: "var(--ok)" },
@@ -86,48 +189,31 @@ function itemSortValue(item, key) {
     case "value_hkd":
     case "value_sold":
       return item[key] ?? -1;
+    case "lot_ref": {
+      // "A-2"/"L-19"/"L-345" compared as plain strings sort "L-19" before
+      // "L-2" (lexicographic, digit by digit) — zero-pad the numeric part
+      // so the string comparison below still lines up with numeric order.
+      if (!item.lot_ref) return "";
+      const match = item.lot_ref.match(/^(.*)-(\d+)$/);
+      if (!match) return item.lot_ref;
+      const [, prefix, num] = match;
+      return `${prefix}-${num.padStart(6, "0")}`;
+    }
     default:
       return item[key] || "";
   }
 }
 
-// 2026-08-06: minimal branch now matches Dashboard's stat-card shape
-// exactly (Card variant="stat-*", value-first <span>, label <span>, inside
-// a `.stat-duo-grid` parent for the position-based blue/gold alternation +
-// compact type-scale) instead of its own plain-div 5-tone cycling palette.
-// Classic keeps its original look untouched.
-function StatTile({ bg, color, value, label, isMinimal }) {
-  if (isMinimal) {
-    return (
-      <Card variant="stat-blue" className="flex flex-col">
-        <span className="text-3xl font-bold">{value}</span>
-        <span className="mt-2 text-sm">{label}</span>
-      </Card>
-    );
-  }
+function StatTile({ value, label }) {
   return (
-    <div className="rounded-2xl p-[14px_18px]" style={{ background: bg }}>
-      <span className="block text-[20px] font-bold" style={{ color }}>
-        {value}
-      </span>
-      <span className="text-[12px] text-[var(--text)]">{label}</span>
-    </div>
-  );
-}
-
-function TableWrapper({ isMinimal, children }) {
-  if (isMinimal) {
-    return <div className="overflow-hidden">{children}</div>;
-  }
-  return (
-    <Card variant="default" className="p-0 overflow-hidden">
-      {children}
+    <Card variant="stat-blue" className="flex flex-col">
+      <span className="text-3xl font-bold">{value}</span>
+      <span className="mt-2 text-sm">{label}</span>
     </Card>
   );
 }
 
 export default function EventLuckyDraw({ event: selectedEvent }) {
-  const { isMinimal } = useTheme();
   const { canRead, canWrite } = useAccess("event.auction");
 
   const [members, setMembers] = useState([]);
@@ -144,6 +230,14 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
 
   const [generatingReport, setGeneratingReport] = useState(null);
   const [reportErrors, setReportErrors] = useState({});
+  const [lotRefErrors, setLotRefErrors] = useState({});
+  // 2026-08-10: guards against rapid double-clicks on Type/Status/Ad Page
+  // firing two overlapping PATCH requests for the same item — each one
+  // recomputes lot_ref sequences server-side from whatever the DB looks
+  // like at that instant, so two in-flight requests for the same item can
+  // race and leave a stale/gapped result. One in-flight mutation per item
+  // at a time; the chip disables itself while its own request is pending.
+  const [pendingItemIds, setPendingItemIds] = useState(() => new Set());
 
   const [typeFilters, setTypeFilters] = useState([]);
   const [statusFilters, setStatusFilters] = useState([]);
@@ -176,9 +270,12 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
       .finally(() => setIsLoading(false));
   }, [canRead]);
 
-  async function loadItemData() {
+  async function loadItemData({ silent = false } = {}) {
     if (!selectedEvent) return;
-    setIsLoadingItemData(true);
+    // 2026-08-08: silent skips the loading flip so row-level toggles
+    // (Type/Ad Page/Status) don't unmount the whole table and jump the
+    // page back to top — same fix as EventGuestList.jsx's loadGuestData.
+    if (!silent) setIsLoadingItemData(true);
     const [itemsData, configData, setupData] = await Promise.all([
       listEventItems(selectedEvent.id),
       getLuckyDrawConfig(selectedEvent.id),
@@ -187,7 +284,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
     setItems(itemsData);
     setConfig(configData);
     setSetup(setupData);
-    setIsLoadingItemData(false);
+    if (!silent) setIsLoadingItemData(false);
   }
 
   useEffect(() => {
@@ -274,6 +371,66 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
     loadItemData();
   }
 
+  // 2026-08-10: serializes mutations per item — if a request for this item
+  // is already in flight, ignore the click instead of firing a second,
+  // racing PATCH. Also guards the tail end (marking not-pending) even if
+  // the request throws.
+  async function withItemPending(item, action) {
+    if (pendingItemIds.has(item.id)) return;
+    setPendingItemIds((current) => new Set(current).add(item.id));
+    try {
+      await action();
+    } finally {
+      setPendingItemIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }
+
+  // 2026-08-08: click-to-cycle Type/Status, click-to-toggle Ad Page — same
+  // pattern as PaymentChip/EarlyBirdChip elsewhere in the Event module.
+  function handleCycleType(item) {
+    return withItemPending(item, async () => {
+      await updateEventItem(selectedEvent.id, item.id, { item_type: TYPE_CYCLE[item.item_type] });
+      await loadItemData({ silent: true });
+    });
+  }
+
+  function handleToggleAdPage(item) {
+    return withItemPending(item, async () => {
+      await updateEventItem(selectedEvent.id, item.id, { ad_page: !item.ad_page });
+      await loadItemData({ silent: true });
+    });
+  }
+
+  function handleCycleStatus(item) {
+    return withItemPending(item, async () => {
+      await updateEventItem(selectedEvent.id, item.id, { status: STATUS_CYCLE[item.status] });
+      await loadItemData({ silent: true });
+    });
+  }
+
+  // 2026-08-08: manual Lot Ref override — the backend validates the
+  // "<prefix>-<n>" format against the item's own type-group and performs
+  // the insert-and-shift; a rejected value (wrong prefix, not a number,
+  // etc.) shows inline instead of being applied.
+  async function handleLotRefBlur(item, rawValue) {
+    const trimmed = rawValue.trim();
+    if (trimmed === "" || trimmed === item.lot_ref) {
+      setLotRefErrors((current) => ({ ...current, [item.id]: null }));
+      return;
+    }
+    try {
+      await updateEventItem(selectedEvent.id, item.id, { lot_ref: trimmed });
+      setLotRefErrors((current) => ({ ...current, [item.id]: null }));
+      loadItemData({ silent: true });
+    } catch (err) {
+      setLotRefErrors((current) => ({ ...current, [item.id]: err.detail || "Invalid lot ref" }));
+    }
+  }
+
   async function handleDownloadReport(downloadFn, reportKey) {
     setReportErrors((current) => ({ ...current, [reportKey]: null }));
     setGeneratingReport(reportKey);
@@ -306,27 +463,11 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
     );
   }
 
-  const reportButtonClass = isMinimal
-    ? "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50"
-    : "rounded-[10px] bg-[var(--color-brand-blue-light)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-brand-blue)]";
+  const reportButtonClass =
+    "inline-flex h-[38px] items-center gap-[7px] rounded-[8px] border border-[var(--border)] bg-transparent px-[15px] text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50";
 
   return (
     <div className="admin-page admin-page-wide event-lucky-draw-page">
-      {!isMinimal && (
-        <div className="mb-5 flex items-center justify-between">
-          <h1 className="m-0 text-2xl font-semibold text-[var(--text-h)]">Lucky Draw &amp; Auction</h1>
-          {canWrite && selectedEvent && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-[10px] bg-[var(--color-brand-blue)] px-[18px] py-[9px] text-[13px] font-semibold text-white"
-            >
-              Add Item
-            </button>
-          )}
-        </div>
-      )}
-
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
 
@@ -336,114 +477,60 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
 
           {selectedEvent && !isLoadingItemData && (
             <>
-              {isMinimal ? (
-                <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-[18px_22px]">
-                  <form onSubmit={handleSaveConfig} className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <label
-                        htmlFor="lucky-draw-tickets-sold"
-                        className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
-                      >
-                        Tickets sold
-                      </label>
-                      <input
-                        id="lucky-draw-tickets-sold"
-                        type="number"
-                        value={config.tickets_sold}
-                        onChange={(e) => setConfig({ ...config, tickets_sold: e.target.value })}
-                        disabled={!canWrite}
-                        className="h-[38px] w-[100px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label
-                        htmlFor="lucky-draw-other-donation"
-                        className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
-                      >
-                        Other donation (HKD)
-                      </label>
-                      <input
-                        id="lucky-draw-other-donation"
-                        type="number"
-                        step="0.01"
-                        value={config.other_donation}
-                        onChange={(e) => setConfig({ ...config, other_donation: e.target.value })}
-                        disabled={!canWrite}
-                        className="h-[38px] w-[130px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
-                      />
-                    </div>
-                    {canWrite && (
-                      <button
-                        type="submit"
-                        disabled={isSavingConfig}
-                        className="inline-flex h-[38px] items-center rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50"
-                      >
-                        {isSavingConfig ? "Saving…" : "Save"}
-                      </button>
-                    )}
-                  </form>
-                  <div className="text-right">
-                    <span className="block text-[20px] font-bold text-[var(--gold-ink)]">
-                      {formatCurrency(summary.prizePool)}
-                    </span>
-                    <span className="text-[12px] text-[var(--faint)]">Prize pool</span>
-                  </div>
-                </div>
-              ) : (
-                <Card variant="default" className="mb-4 flex flex-wrap items-center gap-7 p-[18px_22px]">
-                  <form
-                    onSubmit={handleSaveConfig}
-                    className="flex flex-wrap items-end gap-7 event-lucky-draw-config-form"
-                  >
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-[18px_22px]">
+                <form onSubmit={handleSaveConfig} className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="lucky-draw-tickets-sold"
-                      className="flex flex-col gap-[6px] text-[12px] text-[var(--color-muted-text)]"
+                      className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
                     >
                       Tickets sold
-                      <input
-                        id="lucky-draw-tickets-sold"
-                        type="number"
-                        value={config.tickets_sold}
-                        onChange={(e) => setConfig({ ...config, tickets_sold: e.target.value })}
-                        disabled={!canWrite}
-                        className="w-[100px] rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[14px] text-[var(--text-h)]"
-                      />
                     </label>
+                    <input
+                      id="lucky-draw-tickets-sold"
+                      type="number"
+                      value={config.tickets_sold}
+                      onChange={(e) => setConfig({ ...config, tickets_sold: e.target.value })}
+                      disabled={!canWrite}
+                      className="h-[38px] w-[100px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
                     <label
                       htmlFor="lucky-draw-other-donation"
-                      className="flex flex-col gap-[6px] text-[12px] text-[var(--color-muted-text)]"
+                      className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
                     >
                       Other donation (HKD)
-                      <input
-                        id="lucky-draw-other-donation"
-                        type="number"
-                        step="0.01"
-                        value={config.other_donation}
-                        onChange={(e) => setConfig({ ...config, other_donation: e.target.value })}
-                        disabled={!canWrite}
-                        className="w-[120px] rounded-[10px] border border-[var(--color-border-medium)] px-3 py-2 text-[14px] text-[var(--text-h)]"
-                      />
                     </label>
-                    {canWrite && (
-                      <button
-                        type="submit"
-                        disabled={isSavingConfig}
-                        className="rounded-[10px] bg-[var(--color-brand-blue)] px-4 py-2 text-[13px] font-semibold text-white"
-                      >
-                        {isSavingConfig ? "Saving…" : "Save"}
-                      </button>
-                    )}
-                  </form>
-                  <div className="ml-auto text-right">
-                    <span className="block text-[20px] font-bold text-[var(--color-tone-amber-text)]">
-                      {formatCurrency(summary.prizePool)}
-                    </span>
-                    <span className="text-[12px] text-[var(--color-muted-text)]">Prize pool</span>
+                    <input
+                      id="lucky-draw-other-donation"
+                      type="number"
+                      step="0.01"
+                      value={config.other_donation}
+                      onChange={(e) => setConfig({ ...config, other_donation: e.target.value })}
+                      disabled={!canWrite}
+                      className="h-[38px] w-[130px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13.5px] text-[var(--ink)]"
+                    />
                   </div>
-                </Card>
-              )}
+                  {canWrite && (
+                    <button
+                      type="submit"
+                      disabled={isSavingConfig}
+                      className="inline-flex h-[38px] items-center rounded-[8px] bg-[var(--accent)] px-[15px] text-[13.5px] font-semibold text-white hover:bg-[var(--accent-ink)] disabled:opacity-50"
+                    >
+                      {isSavingConfig ? "Saving…" : "Save"}
+                    </button>
+                  )}
+                </form>
+                <div className="text-right">
+                  <span className="block text-[20px] font-bold text-[var(--gold-ink)]">
+                    {formatCurrency(summary.prizePool)}
+                  </span>
+                  <span className="text-[12px] text-[var(--faint)]">Prize pool</span>
+                </div>
+              </div>
 
-              <div className={`mb-4 flex ${isMinimal ? "items-end justify-between" : "items-center"} flex-wrap gap-3`}>
+              <div className="mb-4 flex items-end justify-between flex-wrap gap-3">
                 <div className="flex flex-wrap items-end gap-3">
                   <button
                     type="button"
@@ -451,7 +538,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                     disabled={generatingReport === "programme"}
                     className={reportButtonClass}
                   >
-                    {isMinimal && <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />}
+                    <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />
                     {generatingReport === "programme" ? "Generating…" : "Programme List"}
                   </button>
                   <button
@@ -460,7 +547,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                     disabled={generatingReport === "results"}
                     className={reportButtonClass}
                   >
-                    {isMinimal && <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />}
+                    <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />
                     {generatingReport === "results" ? "Generating…" : "Lucky Draw Results"}
                   </button>
                   <button
@@ -469,7 +556,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                     disabled={generatingReport === "auction-receipts"}
                     className={reportButtonClass}
                   >
-                    {isMinimal && <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />}
+                    <FileDown className="w-[15px] h-[15px]" aria-hidden="true" />
                     {generatingReport === "auction-receipts" ? "Generating…" : "Auction Receipts"}
                   </button>
                   <MultiSelectDropdown
@@ -491,7 +578,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                     onClear={() => setStatusFilters([])}
                   />
                 </div>
-                {isMinimal && canWrite && selectedEvent && (
+                {canWrite && selectedEvent && (
                   <button
                     type="button"
                     onClick={openCreate}
@@ -508,7 +595,12 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                 <p role="alert">{reportErrors["auction-receipts"]}</p>
               )}
 
-              <div className={`mb-4 flex flex-wrap gap-3 ${isMinimal ? "stat-duo-grid" : ""}`}>
+              {/* 2026-08-08: grid instead of flex-wrap — flex-wrap sized
+                  each card to its own text (e.g. "HKD 5,500" vs "100"),
+                  so cards were visibly different widths. A fixed-column
+                  grid gives every card the same size regardless of value
+                  length, same as every other stat-card row in the app. */}
+              <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 stat-duo-grid">
                 {[
                   { value: summary.ticketsSold, label: "Tickets Sold" },
                   { value: formatCurrency(summary.luckyDrawAmount), label: "Lucky Draw Amount" },
@@ -516,38 +608,20 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                   { value: formatCurrency(summary.otherDonation), label: "Other Donation" },
                   { value: formatCurrency(summary.totalDonations), label: "Total Donations" },
                 ].map(({ value, label }, index) => {
-                  const tone = (isMinimal ? TILE_TONES_MINIMAL : TILE_TONES)[index % 5];
-                  return (
-                    <StatTile
-                      key={label}
-                      isMinimal={isMinimal}
-                      bg={tone.bg}
-                      color={tone.color}
-                      value={value}
-                      label={label}
-                    />
-                  );
+                  const tone = TILE_TONES[index % 5];
+                  return <StatTile key={label} bg={tone.bg} color={tone.color} value={value} label={label} />;
                 })}
               </div>
 
-              <div className={`mb-4 flex flex-wrap gap-3 ${isMinimal ? "stat-duo-grid" : ""}`}>
+              <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 stat-duo-grid">
                 {[
                   { value: summary.totalGifts, label: "Total Gifts" },
                   { value: summary.auctionCount, label: "Auction" },
                   { value: summary.onStageCount, label: "Lucky Draw On Stage" },
                   { value: summary.luckyDrawCount, label: "Lucky Draw" },
                 ].map(({ value, label }, index) => {
-                  const tone = (isMinimal ? TILE_TONES_MINIMAL : TILE_TONES)[(index + 1) % 5];
-                  return (
-                    <StatTile
-                      key={label}
-                      isMinimal={isMinimal}
-                      bg={tone.bg}
-                      color={tone.color}
-                      value={value}
-                      label={label}
-                    />
-                  );
+                  const tone = TILE_TONES[(index + 1) % 5];
+                  return <StatTile key={label} bg={tone.bg} color={tone.color} value={value} label={label} />;
                 })}
               </div>
 
@@ -556,7 +630,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
               ) : visibleItems.length === 0 ? (
                 <p className="member-empty-state">No items match the selected filters.</p>
               ) : (
-                <TableWrapper isMinimal={isMinimal}>
+                <div className="overflow-hidden">
                   <table className="w-full border-collapse text-left">
                     <thead>
                       <tr className="border-b border-[var(--color-border-faint)]">
@@ -590,13 +664,20 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                     </thead>
                     <tbody>
                       {visibleItems.map((item) => {
-                        const chip = (isMinimal ? TYPE_CHIP_MINIMAL : TYPE_CHIP)[item.item_type];
+                        const chip = TYPE_CHIP[item.item_type];
                         return (
                           <tr
                             key={item.id}
                             className="border-b border-[var(--color-border-light)] text-[13px] text-[var(--text-h)] last:border-b-0"
                           >
-                            <td className="px-4 py-[13px] text-[var(--color-muted-text)]">{item.lot_ref}</td>
+                            <td className="px-4 py-[13px]">
+                              <LotRefField
+                                item={item}
+                                tone={chip}
+                                onBlurValue={(value) => handleLotRefBlur(item, value)}
+                                error={lotRefErrors[item.id]}
+                              />
+                            </td>
                             <td className="px-4 py-[13px] font-semibold">{item.name}</td>
                             <td className="px-4 py-[13px]">
                               {item.value_hkd != null ? formatCurrency(item.value_hkd) : "—"}
@@ -608,15 +689,29 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                               {item.contact_rotary_name || "—"}
                             </td>
                             <td className="px-4 py-[13px]">
-                              <span
-                                className="w-fit rounded-full px-[10px] py-[3px] text-[11px] font-bold"
-                                style={{ background: chip.bg, color: chip.color }}
-                              >
-                                {TYPE_LABEL[item.item_type]}
-                              </span>
+                              <ToggleChip
+                                label={TYPE_LABEL[item.item_type]}
+                                tone={chip}
+                                onClick={() => handleCycleType(item)}
+                                disabled={pendingItemIds.has(item.id)}
+                              />
                             </td>
-                            <td className="px-4 py-[13px]">{item.ad_page ? "Yes" : "No"}</td>
-                            <td className="px-4 py-[13px]">{STATUS_LABEL[item.status]}</td>
+                            <td className="px-4 py-[13px]">
+                              <ToggleChip
+                                label={item.ad_page ? "Yes" : "No"}
+                                tone={AD_PAGE_CHIP[item.ad_page ? "yes" : "no"]}
+                                onClick={() => handleToggleAdPage(item)}
+                                disabled={pendingItemIds.has(item.id)}
+                              />
+                            </td>
+                            <td className="px-4 py-[13px]">
+                              <ToggleChip
+                                label={STATUS_LABEL[item.status]}
+                                tone={STATUS_CHIP[item.status]}
+                                onClick={() => handleCycleStatus(item)}
+                                disabled={pendingItemIds.has(item.id)}
+                              />
+                            </td>
                             <td className="px-4 py-[13px]">
                               {item.item_type === "auction" && item.value_sold != null
                                 ? formatCurrency(item.value_sold)
@@ -649,7 +744,7 @@ export default function EventLuckyDraw({ event: selectedEvent }) {
                       })}
                     </tbody>
                   </table>
-                </TableWrapper>
+                </div>
               )}
             </>
           )}

@@ -72,7 +72,7 @@ describe("FinanceSummary", () => {
     expect(screen.getByText("Club Operational Results")).toBeInTheDocument();
     expect(screen.getByText("Total Fundraising")).toBeInTheDocument();
     expect(screen.getByText("Total Donations")).toBeInTheDocument();
-    expect(screen.getByText("Remaining Amount for Donation")).toBeInTheDocument();
+    expect(screen.getByText("Remaining for Donation")).toBeInTheDocument();
     expect(screen.getByText("1,500 HKD")).toBeInTheDocument();
     expect(screen.getByText("1,000 HKD")).toBeInTheDocument();
     expect(screen.getByText("800 HKD")).toBeInTheDocument();

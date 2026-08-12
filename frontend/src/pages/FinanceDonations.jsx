@@ -4,11 +4,8 @@ import { listOrganisations } from "../api/organisations";
 import Card from "../components/Card";
 import RotaryYearField from "../components/RotaryYearField";
 import { useAccess } from "../hooks/useAccess";
-import { useTheme } from "../context/ThemeContext";
 import { useRotaryYears } from "../hooks/useRotaryYears";
-import { SELECT_CLASS } from "../styles/formControls";
 import { formatDate } from "../utils/formatters";
-import { rotaryYearLabel } from "../utils/rotaryYear";
 
 function formatCurrency(value, currency) {
   return `${Number(value ?? 0).toLocaleString(undefined, {
@@ -17,23 +14,11 @@ function formatCurrency(value, currency) {
   })} ${currency}`;
 }
 
-// 2026-08-06: minimal branch matches Dashboard's stat-card shape exactly
-// (value-first <span>, then label <span>, inside a .stat-duo-grid parent
-// for the blue/gold alternation + compact type-scale) — Classic keeps its
-// original label-first div layout untouched.
-function StatCard({ value, label, isMinimal }) {
-  if (isMinimal) {
-    return (
-      <Card variant="stat-blue" className="flex flex-col">
-        <span className="text-3xl font-bold">{value}</span>
-        <span className="mt-2 text-sm">{label}</span>
-      </Card>
-    );
-  }
+function StatCard({ value, label }) {
   return (
-    <Card variant="stat-blue" className="flex min-h-[104px] flex-col justify-center">
-      <div className="text-xs font-semibold text-[var(--color-muted-text)]">{label}</div>
-      <div className="mt-1 text-[22px] font-bold">{value}</div>
+    <Card variant="stat-blue" className="flex flex-col">
+      <span className="text-3xl font-bold">{value}</span>
+      <span className="mt-2 text-sm">{label}</span>
     </Card>
   );
 }
@@ -45,7 +30,6 @@ function StatCard({ value, label, isMinimal }) {
 // each Finance page is its own nav entry + matrix key, not a query-param
 // tab, matching Members/NGOs/Friends rather than the Member Fees tab style).
 export default function FinanceDonations() {
-  const { isMinimal } = useTheme();
   const { canRead } = useAccess("finance.donations");
   const { yearOptions, currentYear, selectedYear: year, setSelectedYear: setYear } = useRotaryYears({ persistKey: "finance" });
   const [organisations, setOrganisations] = useState([]);
@@ -115,32 +99,12 @@ export default function FinanceDonations() {
         </p>
       </div>
 
-      {isMinimal ? (
-        <RotaryYearField
-          year={year}
-          yearOptions={yearOptions}
-          currentYear={currentYear}
-          onChange={setYear}
-        />
-      ) : (
-        <div className="flex items-center gap-3 mb-4 mt-4">
-          <label htmlFor="donation-results-year" className="text-sm font-semibold">
-            Rotary Year
-          </label>
-          <select
-            id="donation-results-year"
-            className={SELECT_CLASS}
-            value={year}
-            onChange={(event) => setYear(Number(event.target.value))}
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {rotaryYearLabel(y)}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <RotaryYearField
+        year={year}
+        yearOptions={yearOptions}
+        currentYear={currentYear}
+        onChange={setYear}
+      />
 
       {isLoading && <p>Loading…</p>}
       {loadError && (
@@ -151,16 +115,11 @@ export default function FinanceDonations() {
 
       {!isLoading && !loadError && (
         <>
-          <div className={`grid grid-cols-2 gap-4 mb-6 ${isMinimal ? "stat-duo-grid" : ""}`}>
-            <StatCard
-              value={organisations.length}
-              label="Organisations supported"
-              isMinimal={isMinimal}
-            />
+          <div className="grid grid-cols-2 gap-4 mb-6 stat-duo-grid">
+            <StatCard value={organisations.length} label="Organisations supported" />
             <StatCard
               value={formatCurrency(stats?.selected_year?.total_hkd, "HKD")}
               label="Total donated (HKD equiv.)"
-              isMinimal={isMinimal}
             />
           </div>
 
@@ -170,73 +129,42 @@ export default function FinanceDonations() {
             </p>
           )}
 
-          {donationsByOrg.map(({ organisation, entries }) =>
-            isMinimal ? (
-              <div key={organisation.id} className="fin-block mb-4">
-                <div className="fin-blockhead">
-                  <span className="fin-mm">{organisation.name}</span>
-                  <span className="fin-rt">{formatCurrency(organisation.year_total, "HKD")}</span>
-                </div>
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="text-left px-4 py-2.5 !text-[12.5px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
-                        Date
-                      </th>
-                      <th className="text-left px-4 py-2.5 !text-[12.5px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
-                        Amount
-                      </th>
-                      <th className="text-left px-4 py-2.5 !text-[12.5px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
-                        Notes
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...entries]
-                      .sort((a, b) => (a.donation_date < b.donation_date ? 1 : -1))
-                      .map((entry) => (
-                        <tr key={entry.id}>
-                          <td className="px-4 py-2.5 !text-[14.5px]">{formatDate(entry.donation_date)}</td>
-                          <td className="px-4 py-2.5 !text-[14.5px]">
-                            {formatCurrency(entry.amount, entry.currency)}
-                          </td>
-                          <td className="px-4 py-2.5 !text-[14.5px]">{entry.notes || "—"}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+          {donationsByOrg.map(({ organisation, entries }) => (
+            <div key={organisation.id} className="fin-block mb-4">
+              <div className="fin-blockhead">
+                <span className="fin-mm">{organisation.name}</span>
+                <span className="fin-rt">{formatCurrency(organisation.year_total, "HKD")}</span>
               </div>
-            ) : (
-              <Card key={organisation.id} variant="default" className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-semibold">{organisation.name}</h3>
-                  <span className="text-sm font-semibold">
-                    {formatCurrency(organisation.year_total, "HKD")}
-                  </span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[var(--color-muted-text)]">
-                      <th className="pb-1 font-medium">Date</th>
-                      <th className="pb-1 font-medium">Amount</th>
-                      <th className="pb-1 font-medium">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...entries]
-                      .sort((a, b) => (a.donation_date < b.donation_date ? 1 : -1))
-                      .map((entry) => (
-                        <tr key={entry.id}>
-                          <td className="py-1">{formatDate(entry.donation_date)}</td>
-                          <td className="py-1">{formatCurrency(entry.amount, entry.currency)}</td>
-                          <td className="py-1">{entry.notes || "—"}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </Card>
-            ),
-          )}
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="text-left px-4 py-2.5 !text-[12.5px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
+                      Date
+                    </th>
+                    <th className="text-left px-4 py-2.5 !text-[12.5px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
+                      Amount
+                    </th>
+                    <th className="text-left px-4 py-2.5 !text-[12.5px] font-bold uppercase tracking-[0.03em] text-[var(--color-muted-text)]">
+                      Notes
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...entries]
+                    .sort((a, b) => (a.donation_date < b.donation_date ? 1 : -1))
+                    .map((entry) => (
+                      <tr key={entry.id}>
+                        <td className="px-4 py-2.5 !text-[14.5px]">{formatDate(entry.donation_date)}</td>
+                        <td className="px-4 py-2.5 !text-[14.5px]">
+                          {formatCurrency(entry.amount, entry.currency)}
+                        </td>
+                        <td className="px-4 py-2.5 !text-[14.5px]">{entry.notes || "—"}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </>
       )}
     </div>

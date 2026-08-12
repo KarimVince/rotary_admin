@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 
 // Story 14.3: cost categories and sponsor categories are two separate
 // global lookups with identical add/edit/delete behaviour — one component
@@ -92,41 +92,48 @@ export default function EventCategoryList({ label, listFn, createFn, updateFn, d
                     onChange={(e) => setEditingName(e.target.value)}
                     className="flex-1 rounded border border-[var(--color-border-medium)] px-2 py-1 text-[13px]"
                   />
-                  <div className="flex gap-2 pl-2">
+                  <div className="flex items-center gap-1 pl-2">
                     <button
                       type="button"
                       onClick={() => handleSaveEdit(category.id)}
-                      className="bg-transparent p-0 text-[12px] font-semibold text-[var(--color-brand-blue)]"
+                      title="Save"
+                      aria-label={`Save ${category.name}`}
+                      className="event-iact"
                     >
-                      Save
+                      <Check className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditingId(null)}
-                      className="bg-transparent p-0 text-[12px] text-[var(--color-muted-text)]"
+                      title="Cancel"
+                      aria-label="Cancel edit"
+                      className="event-iact"
                     >
-                      Cancel
+                      <X className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                   </div>
                 </>
               ) : (
                 <>
                   <span>{category.name}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => startEdit(category)}
-                      className="bg-transparent p-0 text-[11px] font-semibold text-[var(--color-muted-text)]"
+                      title="Edit"
+                      aria-label={`Edit ${category.name}`}
+                      className="event-iact"
                     >
-                      Edit
+                      <Pencil className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(category)}
+                      title="Delete"
                       aria-label={`Delete ${category.name}`}
-                      className="bg-transparent p-0 text-[var(--color-muted-text)] opacity-40 hover:opacity-100"
+                      className="event-iact event-iact-danger"
                     >
-                      <X size={14} />
+                      <Trash2 className="w-[14px] h-[14px]" aria-hidden="true" />
                     </button>
                   </div>
                 </>

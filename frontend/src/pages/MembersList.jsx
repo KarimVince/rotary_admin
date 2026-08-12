@@ -21,7 +21,6 @@ import MultiSelectDropdown from "../components/MultiSelectDropdown";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
-import { useTheme } from "../context/ThemeContext";
 
 const STATUS_LABELS = { active: "Active", past: "Past" };
 
@@ -91,7 +90,6 @@ function toPayload(form) {
 }
 
 export default function MembersList() {
-  const { isMinimal } = useTheme();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const { canRead, canWrite } = useAccess("members.directory");
@@ -116,10 +114,8 @@ export default function MembersList() {
 
   const [statusFilter, setStatusFilter] = useState("active");
   const [honoraryOnly, setHonoraryOnly] = useState(false);
-  // Story 16.29 (Minimal restyle): Title/Nationality are multi-select in the
-  // new design, so both are stored as arrays — Classic's native <select>
-  // still only ever holds 0 or 1 entries, keeping its single-choice
-  // behavior/DOM unchanged (see the isMinimal ? ... : ... branch below).
+  // Story 16.29: Title/Nationality are multi-select filters, stored as
+  // arrays.
   const [titleFilters, setTitleFilters] = useState([]);
   const [nationalityFilters, setNationalityFilters] = useState([]);
   const [search, setSearch] = useState("");
@@ -423,7 +419,7 @@ export default function MembersList() {
     <div className="admin-page admin-page-wide">
       <div className="page-header-row">
         <h1>Members Directory</h1>
-        {canWrite && isMinimal && (
+        {canWrite && (
           <div className="page-header-actions flex items-center gap-[9px]">
             <button
               type="button"
@@ -443,25 +439,12 @@ export default function MembersList() {
             </button>
           </div>
         )}
-        {canWrite && !isMinimal && (
-          <div className="page-header-actions">
-            <button type="button" className="btn-add-member" onClick={openAddModal}>
-              Add Member
-            </button>
-            <button type="button" className="btn-add-member" onClick={openApplicationModal}>
-              Application
-            </button>
-          </div>
-        )}
       </div>
 
       {isApplicationModalOpen && canWrite && (
-        <div
-          className={`modal-overlay ${isMinimal ? "members-modal-overlay" : ""}`}
-          onClick={closeApplicationModal}
-        >
+        <div className="modal-overlay members-modal-overlay" onClick={closeApplicationModal}>
           <div
-            className={`modal-dialog ${isMinimal ? "members-modal-dialog members-modal-dialog--narrow" : ""}`}
+            className="modal-dialog members-modal-dialog members-modal-dialog--narrow"
             onClick={(event) => event.stopPropagation()}
           >
             {!applicationResult ? (
@@ -472,7 +455,7 @@ export default function MembersList() {
                   the rest is left blank for the prospect to complete and sign.
                 </p>
 
-                <div className={`member-form-grid ${isMinimal ? "members-form-grid members-form-grid--single" : ""}`}>
+                <div className="member-form-grid members-form-grid members-form-grid--single">
                   <div className="field-full">
                     <label htmlFor="application-name">Name</label>
                     <input
@@ -522,7 +505,7 @@ export default function MembersList() {
             ) : (
               <>
                 <h2>Application generated</h2>
-                <div className={isMinimal ? "px-[26px] pt-[18px] pb-[4px] flex flex-col gap-2" : undefined}>
+                <div className="px-[26px] pt-[18px] pb-[4px] flex flex-col gap-2">
                   <p>
                     <button
                       type="button"
@@ -563,40 +546,33 @@ export default function MembersList() {
       )}
 
       {isModalOpen && canWrite && (
-        <div
-          className={`modal-overlay ${isMinimal ? "members-modal-overlay" : ""}`}
-          onClick={cancelEdit}
-        >
+        <div className="modal-overlay members-modal-overlay" onClick={cancelEdit}>
           <div
-            className={`modal-dialog ${isMinimal ? "members-modal-dialog members-modal-dialog--wide" : ""}`}
+            className="modal-dialog members-modal-dialog members-modal-dialog--wide"
             onClick={(event) => event.stopPropagation()}
           >
             <form onSubmit={handleSubmit}>
-              {isMinimal && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  aria-label="Close"
-                  className="members-modal-x"
-                >
-                  <X className="w-[17px] h-[17px]" aria-hidden="true" />
-                </button>
-              )}
-              {isMinimal && (
-                <div className="members-modal-kicker">
-                  <UserPlus className="w-[14px] h-[14px]" aria-hidden="true" />
-                  {editingId ? "Edit member" : "Add member"}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={cancelEdit}
+                aria-label="Close"
+                className="members-modal-x"
+              >
+                <X className="w-[17px] h-[17px]" aria-hidden="true" />
+              </button>
+              <div className="members-modal-kicker">
+                <UserPlus className="w-[14px] h-[14px]" aria-hidden="true" />
+                {editingId ? "Edit member" : "Add member"}
+              </div>
               <h2>{editingId ? "Edit member" : "Add member"}</h2>
-              {isMinimal && !editingId && (
+              {!editingId && (
                 <p className="members-modal-sub">
                   Creates a member record directly from these details. All fields can be edited
                   later from the member&rsquo;s profile.
                 </p>
               )}
 
-              <div className={`member-form-grid ${isMinimal ? "members-form-grid" : ""}`}>
+              <div className="member-form-grid members-form-grid">
                 <div>
                   <label htmlFor="member-first-name">First name</label>
                   <input
@@ -890,14 +866,14 @@ export default function MembersList() {
               </div>
 
               {saveError && (
-                <p role="alert" className={isMinimal ? "px-[26px]" : undefined}>
+                <p role="alert" className="px-[26px]">
                   {saveError}
                 </p>
               )}
               <div className="modal-actions">
                 <button type="submit" disabled={isSaving}>
-                  {isMinimal && !isSaving && <Check className="w-4 h-4" aria-hidden="true" />}
-                  {isSaving ? "Saving…" : editingId ? "Update member" : isMinimal ? "Submit" : "Save member"}
+                  {!isSaving && <Check className="w-4 h-4" aria-hidden="true" />}
+                  {isSaving ? "Saving…" : editingId ? "Update member" : "Submit"}
                 </button>
                 <button type="button" onClick={cancelEdit}>
                   Cancel
@@ -908,129 +884,68 @@ export default function MembersList() {
         </div>
       )}
 
-      {isMinimal ? (
-        <div className="mb-[22px] flex flex-wrap items-center gap-[10px]">
-          <div className="flex h-[38px] flex-1 min-w-[240px] items-center gap-[9px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px]">
-            <Search className="w-4 h-4 shrink-0 text-[var(--faint)]" aria-hidden="true" />
-            <input
-              id="filter-search"
-              type="text"
-              placeholder="Search by name or email…"
-              aria-label="Search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="w-full border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
-            />
-          </div>
-
-          <SingleSelectDropdown
-            ariaLabel="Status"
-            minWidthClass="min-w-[130px]"
-            value={statusFilter}
-            options={[
-              { value: "active", label: "Active" },
-              { value: "past", label: "Past" },
-              { value: "", label: "All statuses" },
-            ]}
-            onSelect={setStatusFilter}
-          />
-
-          <label
-            htmlFor="filter-honorary-only"
-            className="inline-flex h-[38px] items-center gap-2 text-[13.5px] font-medium text-[var(--ink-2)]"
-          >
-            <input
-              id="filter-honorary-only"
-              type="checkbox"
-              checked={honoraryOnly}
-              onChange={(event) => setHonoraryOnly(event.target.checked)}
-            />
-            Honorary only
-          </label>
-
-          <MultiSelectDropdown
-            icon={Filter}
-            ariaLabel="Title"
-            allLabel="All titles"
-            options={titles.map((title) => ({ value: title.id, label: title.label }))}
-            selected={titleFilters}
-            onToggleOption={toggleTitleFilter}
-            onClear={() => setTitleFilters([])}
-          />
-
-          <MultiSelectDropdown
-            icon={Filter}
-            ariaLabel="Nationality"
-            allLabel="All nationalities"
-            options={nationalityOptions.map((nationality) => ({
-              value: nationality,
-              label: nationality,
-            }))}
-            selected={nationalityFilters}
-            onToggleOption={toggleNationalityFilter}
-            onClear={() => setNationalityFilters([])}
-          />
-        </div>
-      ) : (
-        <div className="member-filter-bar">
+      <div className="mb-[22px] flex flex-wrap items-center gap-[10px]">
+        <div className="flex h-[38px] flex-1 min-w-[240px] items-center gap-[9px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-[13px]">
+          <Search className="w-4 h-4 shrink-0 text-[var(--faint)]" aria-hidden="true" />
           <input
             id="filter-search"
-            className="member-filter-search"
             type="text"
             placeholder="Search by name or email…"
             aria-label="Search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            className="w-full border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
           />
-          <select
-            id="filter-status"
-            aria-label="Status"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-          >
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="past">Past</option>
-          </select>
-          <label htmlFor="filter-honorary-only" className="member-filter-checkbox-label">
-            <input
-              id="filter-honorary-only"
-              type="checkbox"
-              checked={honoraryOnly}
-              onChange={(event) => setHonoraryOnly(event.target.checked)}
-            />
-            Honorary only
-          </label>
-          <select
-            id="filter-title"
-            aria-label="Title"
-            value={titleFilters[0] ?? ""}
-            onChange={(event) => setTitleFilters(event.target.value ? [event.target.value] : [])}
-          >
-            <option value="">All titles</option>
-            {titles.map((title) => (
-              <option key={title.id} value={title.id}>
-                {title.label}
-              </option>
-            ))}
-          </select>
-          <select
-            id="filter-nationality"
-            aria-label="Nationality"
-            value={nationalityFilters[0] ?? ""}
-            onChange={(event) =>
-              setNationalityFilters(event.target.value ? [event.target.value] : [])
-            }
-          >
-            <option value="">All nationalities</option>
-            {nationalityOptions.map((nationality) => (
-              <option key={nationality} value={nationality}>
-                {nationality}
-              </option>
-            ))}
-          </select>
         </div>
-      )}
+
+        <SingleSelectDropdown
+          ariaLabel="Status"
+          minWidthClass="min-w-[130px]"
+          value={statusFilter}
+          options={[
+            { value: "active", label: "Active" },
+            { value: "past", label: "Past" },
+            { value: "", label: "All statuses" },
+          ]}
+          onSelect={setStatusFilter}
+        />
+
+        <label
+          htmlFor="filter-honorary-only"
+          className="inline-flex h-[38px] items-center gap-2 text-[13.5px] font-medium text-[var(--ink-2)]"
+        >
+          <input
+            id="filter-honorary-only"
+            type="checkbox"
+            checked={honoraryOnly}
+            onChange={(event) => setHonoraryOnly(event.target.checked)}
+          />
+          Honorary only
+        </label>
+
+        <MultiSelectDropdown
+          icon={Filter}
+          ariaLabel="Title"
+          allLabel="All titles"
+          options={titles.map((title) => ({ value: title.id, label: title.label }))}
+          selected={titleFilters}
+          onToggleOption={toggleTitleFilter}
+          onClear={() => setTitleFilters([])}
+        />
+
+        <MultiSelectDropdown
+          icon={Filter}
+          ariaLabel="Nationality"
+          allLabel="All nationalities"
+          options={nationalityOptions.map((nationality) => ({
+            value: nationality,
+            label: nationality,
+          }))}
+          selected={nationalityFilters}
+          onToggleOption={toggleNationalityFilter}
+          onClear={() => setNationalityFilters([])}
+        />
+      </div>
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -1104,71 +1019,43 @@ export default function MembersList() {
       )}
 
       {!isLoading && !loadError && visibleMembers.length > 0 && (
-        <div
-          className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
-            isMinimal ? "member-card-grid lg:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-4"
-          }`}
-        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 member-card-grid lg:grid-cols-4">
           {visibleMembers.map((member) => {
             const title = member.title_id ? titleById.get(member.title_id) : null;
             const age = computeAge(member.date_of_birth);
-            const avatarSizeClass = isMinimal ? "w-[60px] h-[60px]" : "w-[var(--avatar-size)] h-[var(--avatar-size)]";
+            const avatarSizeClass = "w-[60px] h-[60px]";
             return (
               <Card
                 key={member.id}
                 variant="default"
-                className={`flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow ${
-                  isMinimal ? "!gap-[7px] !p-[20px_16px]" : "hover:shadow-lg"
-                }`}
+                className="flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow !gap-[7px] !p-[20px_16px]"
                 onClick={() => openDetail(member)}
               >
                 {member.photo_url ? (
                   <img
-                    className={`${avatarSizeClass} rounded-full object-cover shrink-0 ${
-                      isMinimal ? "bg-[var(--accent-soft)]" : "bg-[var(--color-card-border)]"
-                    }`}
+                    className={`${avatarSizeClass} rounded-full object-cover shrink-0 bg-[var(--accent-soft)]`}
                     src={resolvePhotoUrl(member.photo_url)}
                     alt=""
                   />
                 ) : (
                   <div
-                    className={`${avatarSizeClass} rounded-full flex items-center justify-center shrink-0 ${
-                      isMinimal
-                        ? "bg-[var(--accent-soft)] text-[19px] font-bold text-[var(--accent-ink)]"
-                        : "bg-[var(--color-card-border)] text-base font-semibold text-[var(--color-brand-blue-dark)]"
-                    }`}
+                    className={`${avatarSizeClass} rounded-full flex items-center justify-center shrink-0 bg-[var(--accent-soft)] text-[19px] font-bold text-[var(--accent-ink)]`}
                   >
                     {initials(member)}
                   </div>
                 )}
                 <div className="min-w-0 w-full">
                   <div className="flex items-center justify-center gap-2">
-                    <span
-                      className={`truncate ${
-                        isMinimal
-                          ? "text-[14.5px] font-semibold text-[var(--ink)]"
-                          : "font-semibold text-[var(--color-brand-blue-dark)]"
-                      }`}
-                    >
+                    <span className="truncate text-[14.5px] font-semibold text-[var(--ink)]">
                       {member.first_name} {member.last_name}
                     </span>
                     {title && (
-                      <span
-                        className={
-                          isMinimal
-                            ? "shrink-0 text-[11px] font-semibold text-[var(--muted)]"
-                            : "inline-badge shrink-0"
-                        }
-                      >
+                      <span className="shrink-0 text-[11px] font-semibold text-[var(--muted)]">
                         {title.code}
                       </span>
                     )}
                   </div>
-                  <div
-                    className={`truncate ${
-                      isMinimal ? "text-[12.5px] text-[var(--muted)]" : "text-sm text-gray-500"
-                    }`}
-                  >
+                  <div className="truncate text-[12.5px] text-[var(--muted)]">
                     {[
                       age !== null ? `${age}y old` : null,
                       member.gender,
@@ -1179,9 +1066,7 @@ export default function MembersList() {
                       .join(" · ")}
                   </div>
                 </div>
-                <div
-                  className={isMinimal ? "text-[11.5px] text-[var(--faint)] mt-1" : "text-xs text-gray-400"}
-                >
+                <div className="text-[11.5px] text-[var(--faint)] mt-1">
                   {member.years_in_this_club}y in club · {member.years_as_rotarian}y as Rotarian
                 </div>
               </Card>
