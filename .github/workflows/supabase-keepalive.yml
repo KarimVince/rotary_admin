@@ -1,0 +1,34 @@
+# Supabase's free tier auto-pauses a project after 7 days with no API
+# activity — Storage/Auth/DB access all count, but the app being idle for a
+# slow week is enough to trip it, which breaks member photos/NGO logos/PPT
+# templates (all served from Supabase Storage, see backend/app/core/storage.py)
+# until someone notices and manually resumes the project.
+#
+# This workflow pings the Storage API on a fixed daily schedule regardless of
+# real traffic, so the 7-day inactivity clock never runs out.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions),
+# same project the backend itself uses (see backend/.env.example):
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily, 06:00 UTC — comfortably inside the 7-day pause window
+  workflow_dispatch: {} # lets you trigger a one-off ping manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Storage API
+        run: |
+          curl -fsS "${SUPABASE_URL}/storage/v1/bucket" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -o /dev/null
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

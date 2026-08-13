@@ -202,6 +202,28 @@ Render keeps every previous deploy. To roll back:
 1. Render dashboard → the affected service → **Events** (or **Deploys**) tab.
 2. Find the last known-good deploy → **Rollback to this deploy** (or
    redeploy it manually).
+
+---
+
+## 6.7 — CI: Supabase keepalive (prevents free-tier auto-pause)
+
+**(Claude committed the workflow; you add two repo secrets)**
+
+Supabase's free tier auto-pauses a project after 7 days with no API
+activity, which breaks member photos, NGO logos, and PPT templates (all
+served from Supabase Storage — see `backend/app/core/storage.py`) until
+someone notices and manually resumes it in the Supabase dashboard.
+`.github/workflows/supabase-keepalive.yml` pings the Storage API once a day
+on a fixed schedule so the 7-day clock never runs out, regardless of real
+traffic.
+
+1. In GitHub: repo → Settings → Secrets and variables → Actions → New
+   repository secret. Add the same values the backend itself uses (see
+   `backend/.env.example`):
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+2. To verify it works: Actions tab → **Supabase Keepalive** → **Run
+   workflow** (the `workflow_dispatch` trigger) → confirm it goes green.
 3. Do this for both services if the bad release touched both — they don't
    roll back together automatically.
 4. If the bad release included a migration, `alembic downgrade -1` may also
