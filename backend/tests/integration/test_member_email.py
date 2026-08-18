@@ -321,3 +321,21 @@ def test_email_log_lists_past_sends_most_recent_first(admin_client, monkeypatch)
     assert body[1]["subject"] == "First"
     assert body[0]["recipient_count"] == 1
     assert body[0]["status"] == "sent"
+
+
+def test_sent_email_includes_the_membership_footer(admin_client, monkeypatch):
+    captured = {}
+
+    def _capture(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("app.api.member_email.send_email", _capture)
+    _create_member(admin_client, email="a@example.com")
+
+    admin_client.post(
+        "/api/v1/members/email",
+        json={"subject": "Newsletter", "body": "<p>Hello</p>", "recipient_group": "all"},
+    )
+
+    assert "<p>Hello</p>" in captured["html_body"]
+    assert "pursuant to your registration as a club member" in captured["html_body"]

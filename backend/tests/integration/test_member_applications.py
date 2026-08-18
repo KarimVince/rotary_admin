@@ -63,6 +63,26 @@ def test_send_by_email_succeeds(admin_client, monkeypatch, tmp_path):
     assert response.json()["email_sent_at"] is not None
 
 
+def test_send_by_email_includes_the_membership_footer(admin_client, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.api.member_applications.settings.upload_dir", str(tmp_path))
+    captured = {}
+
+    def _capture(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("app.api.member_applications.send_email", _capture)
+
+    application = admin_client.post(
+        "/api/v1/member-applications",
+        json={"name": "Prospect", "email": "prospect@example.com"},
+    ).json()
+
+    response = admin_client.post(f"/api/v1/member-applications/{application['id']}/send")
+
+    assert response.status_code == 200
+    assert "pursuant to your registration as a club member" in captured["html_body"]
+
+
 def test_send_by_email_without_email_on_file_returns_422(admin_client, monkeypatch, tmp_path):
     monkeypatch.setattr("app.api.member_applications.settings.upload_dir", str(tmp_path))
 

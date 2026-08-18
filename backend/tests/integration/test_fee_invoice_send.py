@@ -141,3 +141,22 @@ def test_non_admin_non_treasurer_cannot_send_invoices(user_client, make_fee_sett
     make_fee_settings(rotary_year=2025)
     response = user_client.post("/api/v1/fee-runs/2025/send", json={})
     assert response.status_code == 403
+
+
+def test_invoice_email_includes_the_membership_footer(
+    admin_client, make_fee_settings, make_member, make_member_fee, monkeypatch
+):
+    captured = {}
+
+    def _capture(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("app.api.fee_runs.send_email", _capture)
+    make_fee_settings(rotary_year=2025)
+    member = make_member(email="member@example.com")
+    make_member_fee(member_id=member.id, rotary_year=2025, is_paid=False)
+
+    response = admin_client.post("/api/v1/fee-runs/2025/send", json={})
+
+    assert response.status_code == 201
+    assert "pursuant to your registration as a club member" in captured["html_body"]

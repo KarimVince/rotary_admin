@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_access
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
+from app.core.email_footer import MEMBER_EMAIL_FOOTER_HTML
 from app.core.member_application_pdf import build_member_application_pdf
 from app.core.report_filename import generate_report_filename
 from app.db.session import get_db
@@ -90,6 +91,7 @@ def send_member_application(
             html_body=(
                 "<p>Please find attached your membership application form. "
                 "Complete the remaining fields, sign, and return it to the club.</p>"
+                f"{MEMBER_EMAIL_FOOTER_HTML}"
             ),
             attachments={"Membership Application.pdf": pdf_url},
         )

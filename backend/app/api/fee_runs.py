@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_access
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
+from app.core.email_footer import MEMBER_EMAIL_FOOTER_HTML
 from app.core.rotary_year import rotary_year_bounds
 from app.db.session import get_db
 from app.models import EmailLog, FeeSettings, Member, MemberFee
@@ -172,6 +173,7 @@ def _invoice_html(member: Member, fee: MemberFee, fee_settings: FeeSettings) -> 
       <li>Amount due: {fee.amount_due} {fee_settings.currency}</li>
     </ul>
     <p>{settings.fee_payment_instructions}</p>
+    {MEMBER_EMAIL_FOOTER_HTML}
     """
 
 

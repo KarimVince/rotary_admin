@@ -1,3 +1,4 @@
+import { Pencil, Trash2 } from "lucide-react";
 import Card from "./Card";
 import SectionLabel from "./SectionLabel";
 
@@ -42,20 +43,26 @@ export default function EmailDraftsPanel({ drafts, onEdit, onDelete }) {
                     {new Date(draft.updated_at).toLocaleString()}
                   </td>
                   <td className="px-5 py-[14px] text-right whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(draft)}
-                      className="bg-transparent border-none p-0 mr-4 text-[13px] font-semibold text-[var(--color-brand-blue)] cursor-pointer"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(draft)}
-                      className="bg-transparent border-none p-0 text-[13px] font-semibold text-[var(--color-tone-rose-text)] cursor-pointer"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(draft)}
+                        title="Edit draft"
+                        aria-label="Edit draft"
+                        className="grid h-[30px] w-[30px] place-items-center rounded-[7px] !bg-transparent text-[var(--muted)] hover:!bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                      >
+                        <Pencil className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(draft)}
+                        title="Delete draft"
+                        aria-label="Delete draft"
+                        className="grid h-[30px] w-[30px] place-items-center rounded-[7px] !bg-transparent text-[var(--muted)] hover:!bg-[var(--low-bg)] hover:text-[var(--low)]"
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

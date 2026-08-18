@@ -336,7 +336,7 @@ describe("RotaryFriendsEmail", () => {
 
       expect(screen.getByText("Saved subject")).toBeInTheDocument();
 
-      await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+      await userEvent.click(screen.getByRole("button", { name: "Edit draft" }));
 
       expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("Saved subject");
       expect(screen.getByTestId("email-body-editor")).toHaveTextContent("Saved body");
@@ -361,7 +361,7 @@ describe("RotaryFriendsEmail", () => {
       renderPage();
       await waitForLoaded();
 
-      await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+      await userEvent.click(screen.getByRole("button", { name: "Delete draft" }));
 
       await waitFor(() => expect(deleteCalled).toBe(true));
       window.confirm.mockRestore();
@@ -429,7 +429,7 @@ describe("RotaryFriendsEmail", () => {
       renderPage();
       await waitForLoaded();
 
-      await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+      await userEvent.click(screen.getByRole("button", { name: "Edit draft" }));
       expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("Saved subject");
 
       await userEvent.click(screen.getByRole("button", { name: /new draft/i }));

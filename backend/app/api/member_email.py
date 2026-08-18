@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_access
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
+from app.core.email_footer import MEMBER_EMAIL_FOOTER_HTML
 from app.db.session import get_db
 from app.models import EmailLog, Member, User
 from app.schemas.member_email import EmailLogRead, MemberEmailRequest, MemberEmailResult
@@ -73,13 +74,18 @@ def email_members(
     success_count = 0
     failure_count = 0
 
+    # Appended at send time only — the draft/composed body itself (what the
+    # rich text editor holds and what gets saved as a draft) stays exactly
+    # what the user typed, never gets this baked in.
+    html_body = payload.body + MEMBER_EMAIL_FOOTER_HTML
+
     for member in recipients:
         try:
             send_email(
                 to_email=member.email,
                 to_name=f"{member.first_name} {member.last_name}",
                 subject=payload.subject,
-                html_body=payload.body,
+                html_body=html_body,
                 attachments=attachments,
             )
             success_count += 1
