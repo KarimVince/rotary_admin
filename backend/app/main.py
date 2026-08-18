@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api import (
+    account,
     attendance,
     auth,
     board,
@@ -17,6 +18,7 @@ from app.api import (
     event_cost,
     event_guest,
     event_item,
+    event_minutes,
     event_rundown,
     event_setup,
     event_sponsor,
@@ -28,6 +30,7 @@ from app.api import (
     finance_categories,
     health,
     honorifics,
+    important_information,
     member_applications,
     member_email,
     member_fees,
@@ -67,6 +70,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(member_titles.router, prefix="/api/v1", tags=["member-titles"])
 app.include_router(honorifics.router, prefix="/api/v1", tags=["honorifics"])
+app.include_router(important_information.router, prefix="/api/v1", tags=["important-information"])
 app.include_router(member_email.router, prefix="/api/v1", tags=["members"])
 app.include_router(email_drafts.router, prefix="/api/v1", tags=["email-drafts"])
 app.include_router(members.router, prefix="/api/v1", tags=["members"])
@@ -96,8 +100,10 @@ app.include_router(event.router, prefix="/api/v1", tags=["events"])
 app.include_router(event_setup.router, prefix="/api/v1", tags=["events"])
 app.include_router(event_guest.router, prefix="/api/v1", tags=["events"])
 app.include_router(event_item.router, prefix="/api/v1", tags=["events"])
+app.include_router(event_minutes.router, prefix="/api/v1", tags=["attendance"])
 app.include_router(event_cost.router, prefix="/api/v1", tags=["events"])
 app.include_router(event_sponsor.router, prefix="/api/v1", tags=["events"])
 app.include_router(event_summary.router, prefix="/api/v1", tags=["events"])
 app.include_router(event_rundown.router, prefix="/api/v1", tags=["events"])
 app.include_router(auth.router)
+app.include_router(account.router)

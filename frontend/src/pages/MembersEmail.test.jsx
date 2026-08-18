@@ -415,5 +415,68 @@ describe("MembersEmail", () => {
 
       await waitFor(() => expect(deleteCalled).toBe(true));
     });
+
+    it("does not show a New Draft button while composing a brand-new message", async () => {
+      mockLoadHandlers();
+
+      renderPage();
+      await waitForLoaded();
+
+      expect(screen.queryByRole("button", { name: /new draft/i })).not.toBeInTheDocument();
+    });
+
+    it("shows New Draft after saving, and resets the form to start a second draft without a refresh", async () => {
+      mockLoadHandlers();
+      server.use(
+        http.post(`${API_BASE_URL}/email-drafts`, async () =>
+          HttpResponse.json({ ...DRAFT, id: "draft-new" }, { status: 201 }),
+        ),
+      );
+
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.type(screen.getByPlaceholderText(/subject/i), "Hello");
+      typeIntoBody("World");
+      await selectRecipient("Alice Active");
+      await userEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+      const newDraftButton = await screen.findByRole("button", { name: /new draft/i });
+      await userEvent.click(newDraftButton);
+
+      expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("");
+      expect(screen.getByTestId("email-body-editor")).toHaveTextContent("");
+      expect(screen.queryByRole("button", { name: /new draft/i })).not.toBeInTheDocument();
+
+      // Saving again should create a second draft, not update the first one.
+      let capturedBody;
+      server.use(
+        http.post(`${API_BASE_URL}/email-drafts`, async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({ ...DRAFT, id: "draft-second" }, { status: 201 });
+        }),
+      );
+
+      await userEvent.type(screen.getByPlaceholderText(/subject/i), "Second");
+      typeIntoBody("Second body");
+      await userEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+      await waitFor(() => expect(capturedBody?.subject).toBe("Second"));
+    });
+
+    it("clears the New Draft button after resuming an edit and clicking it", async () => {
+      mockLoadHandlers([LOG_ENTRY], [DRAFT]);
+
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+      expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("Saved subject");
+
+      await userEvent.click(screen.getByRole("button", { name: /new draft/i }));
+
+      expect(screen.getByPlaceholderText(/subject/i)).toHaveValue("");
+      expect(screen.queryByRole("button", { name: /new draft/i })).not.toBeInTheDocument();
+    });
   });
 });

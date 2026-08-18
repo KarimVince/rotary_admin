@@ -242,6 +242,19 @@ export default function RotaryFriendsEmail() {
     await loadDrafts();
   }
 
+  // Clears the compose form so the next "Save Draft" creates a new draft
+  // instead of updating the one just saved — no page refresh needed.
+  function handleNewDraft() {
+    setDraftError(null);
+    setEditingDraftId(null);
+    setSubject("");
+    bodyRef.current = "";
+    editorRef.current?.setHTML("");
+    setBodyEmpty(true);
+    setSelectedFriendIds([]);
+    setAttachments([]);
+  }
+
   const canSend =
     canSendEmail && subject.trim() !== "" && !bodyEmpty && recipientCount > 0 && !isLoading && !loadError;
   const canSaveDraft =
@@ -351,6 +364,16 @@ export default function RotaryFriendsEmail() {
               )}
 
               <div className="flex justify-end gap-[9px]">
+                {editingDraftId && (
+                  <button
+                    type="button"
+                    onClick={handleNewDraft}
+                    disabled={isSavingDraft}
+                    className="inline-flex h-[38px] items-center rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13.5px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    New Draft
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSaveDraft}

@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
+from app.core.email_client import EmailSendError, send_email
 from app.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     create_access_token,
@@ -14,10 +16,18 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models import AuthToken, User
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse, UserRead
+from app.schemas.auth import ForgotPasswordRequest, LoginRequest, RefreshRequest, TokenResponse, UserRead
 from app.schemas.user import PasswordResetConfirm
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+# Story 16.30 — self-service forgot-password. Separate from
+# app/api/users.py's PASSWORD_RESET_EXPIRE_HOURS (admin-triggered reset) —
+# duplicated rather than shared, matching this codebase's existing
+# convention of every email-sending caller inlining its own constant/HTML
+# (see app/core/email_client.py's docstring) rather than a shared template
+# module. Same value (1 hour) by design.
+FORGOT_PASSWORD_EXPIRE_HOURS = 1
 
 
 def _issue_tokens(db: Session, user: User) -> TokenResponse:
@@ -86,6 +96,55 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     return _issue_tokens(db, user)
 
 
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Story 16.30 — self-service password reset request (login page's
+    "Forgot password?" link), distinct from app/api/users.py's admin-
+    triggered reset. Always returns the same generic response regardless of
+    whether the email is registered — the AC explicitly calls out that
+    "email not found" must not reveal account existence."""
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user is not None and user.is_active:
+        raw_token = generate_refresh_token()
+        db.add(
+            AuthToken(
+                user_id=user.id,
+                token=hash_token(raw_token),
+                purpose="password_reset",
+                expires_at=datetime.now(timezone.utc)
+                + timedelta(hours=FORGOT_PASSWORD_EXPIRE_HOURS),
+            )
+        )
+        db.commit()
+
+        reset_link = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
+        try:
+            send_email(
+                to_email=user.email,
+                to_name=user.full_name,
+                subject="Reset your Rotary Admin password",
+                html_body=(
+                    f"<p>Hello {user.full_name},</p>"
+                    "<p>We received a request to reset your Rotary Admin password. "
+                    f'Click <a href="{reset_link}">this link</a> to set a new password. '
+                    f"This link expires in {FORGOT_PASSWORD_EXPIRE_HOURS} hour(s) and can "
+                    "only be used once.</p>"
+                    "<p>If you didn't request this, you can safely ignore this email — "
+                    "your password won't be changed.</p>"
+                ),
+            )
+        except EmailSendError:
+            # Best-effort: swallow send failures rather than surfacing them,
+            # so the response shape never differs based on delivery success
+            # either — same anti-enumeration reasoning as the "user not
+            # found" branch above.
+            pass
+
+    return {
+        "detail": "If that email is registered, we've sent a password reset link to it."
+    }
+
+
 @router.post("/reset-password")
 def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(get_db)):
     hashed = hash_token(payload.token)
@@ -119,5 +178,26 @@ def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(
         AuthToken.used_at.is_(None),
     ).update({"used_at": now})
     db.commit()
+
+    # Story 16.30 — heads-up sent to the account's own email whenever its
+    # password changes (covers both this self-service flow and the
+    # admin-triggered reset in app/api/users.py, since both land here to
+    # confirm), in case it wasn't the account owner who triggered it.
+    # Best-effort: a notification failure must never block the password
+    # change that already succeeded.
+    try:
+        send_email(
+            to_email=user.email,
+            to_name=user.full_name,
+            subject="Your Rotary Admin password was changed",
+            html_body=(
+                f"<p>Hello {user.full_name},</p>"
+                "<p>This is a confirmation that your Rotary Admin password was just "
+                "changed. If you didn't make this change, contact your club "
+                "administrator right away.</p>"
+            ),
+        )
+    except EmailSendError:
+        pass
 
     return {"detail": "Password updated"}

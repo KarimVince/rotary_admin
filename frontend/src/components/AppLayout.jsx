@@ -16,6 +16,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAccess } from "../hooks/useAccess";
 import { useAuth } from "../hooks/useAuth";
 import { getInitials } from "../utils/avatar";
+import AccountSettingsPopover from "./AccountSettingsPopover";
 import BrandHeader from "./BrandHeader";
 import Footer from "./Footer";
 import NavSection from "./NavSection";
@@ -198,6 +199,11 @@ const NAV_ITEMS = [
         label: "PPT Template",
         requiredPermission: "admin.ppt_template",
       },
+      {
+        to: "/admin/important-information",
+        label: "Important Information",
+        requiredPermission: "admin.important_information",
+      },
     ],
   },
 ];
@@ -241,6 +247,7 @@ export default function AppLayout() {
   const { canRead: canViewAdminCurrencies } = useAccess("admin.currencies");
   const { canRead: canViewAdminNgoClassifications } = useAccess("admin.ngo_classifications");
   const { canRead: canViewAdminPptTemplate } = useAccess("admin.ppt_template");
+  const { canRead: canViewAdminImportantInformation } = useAccess("admin.important_information");
   const { canRead: canViewAdminDinnerEventTypes } = useAccess("admin.dinner_event_types");
   const { canRead: canViewAdminFinanceCategories } = useAccess("admin.finance_categories");
   // Story 16.28: admin.rotary_years grants broad READ (every year selector
@@ -284,6 +291,7 @@ export default function AppLayout() {
     admin: canViewAdmin,
     "admin.currencies": canViewAdminCurrencies,
     "admin.ppt_template": canViewAdminPptTemplate,
+    "admin.important_information": canViewAdminImportantInformation,
     // Reference Lists nav link is visible if any of its 6 merged cards is
     // readable — each card still self-gates on its own key at render time.
     "admin.reference_lists":
@@ -365,15 +373,17 @@ export default function AppLayout() {
           <BrandHeader size="small" />
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-[var(--accent-soft)] text-[var(--accent-ink)]">
-              {initialsFromFullName(user?.full_name)}
+          <AccountSettingsPopover user={user}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-[var(--accent-soft)] text-[var(--accent-ink)]">
+                {initialsFromFullName(user?.full_name)}
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm font-semibold text-[var(--text-h)]">{user?.full_name}</span>
+                <span className="text-xs text-[var(--faint)] capitalize">{user?.role}</span>
+              </div>
             </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-[var(--text-h)]">{user?.full_name}</span>
-              <span className="text-xs text-[var(--faint)] capitalize">{user?.role}</span>
-            </div>
-          </div>
+          </AccountSettingsPopover>
           <button
             type="button"
             onClick={handleLogout}

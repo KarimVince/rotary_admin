@@ -15,6 +15,7 @@ from app.models.event_cost_category import EventCostCategory
 from app.models.event_guest import EventGuest
 from app.models.event_item import EventItem
 from app.models.event_lucky_draw_config import EventLuckyDrawConfig
+from app.models.event_minutes import EventMinutes
 from app.models.event_rundown import EventRundown
 from app.models.event_setup import EventSetup
 from app.models.event_sponsor import EventSponsor
@@ -24,6 +25,7 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.fee_settings import FeeSettings
 from app.models.finance_category import FinanceCategory
 from app.models.honorific import Honorific
+from app.models.important_information import ImportantInformationMessage
 from app.models.member import Member
 from app.models.member_application import MemberApplication
 from app.models.member_fee import MemberFee
@@ -56,6 +58,7 @@ __all__ = [
     "EventGuest",
     "EventItem",
     "EventLuckyDrawConfig",
+    "EventMinutes",
     "EventRundown",
     "EventSetup",
     "EventSponsor",
@@ -65,6 +68,7 @@ __all__ = [
     "FeeSettings",
     "FinanceCategory",
     "Honorific",
+    "ImportantInformationMessage",
     "Member",
     "MemberApplication",
     "MemberFee",

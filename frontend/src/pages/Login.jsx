@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import BrandHeader from "../components/BrandHeader";
 import { useAuth } from "../hooks/useAuth";
 
@@ -58,6 +58,9 @@ export default function Login() {
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Logging in…" : "Log in"}
         </button>
+        <Link to="/forgot-password" className="login-forgot-link">
+          Forgot password?
+        </Link>
       </form>
     </div>
   );

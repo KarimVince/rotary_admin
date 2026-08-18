@@ -95,6 +95,15 @@ DEFAULT_MATRIX = {
         "no_access",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
     ),
+    # New story — Dashboard "Important Information" banner management, same
+    # write tier as NGO Classifications/PPT Template/Dinner Event Types
+    # (Secretary/President/President Elect manage messages; everyone else
+    # has no access to the admin page — though every user can still see the
+    # active banner itself on the Dashboard, which isn't gated by this key).
+    "admin.important_information": (
+        "no_access",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
+    ),
     # Story 16.10 — same write tier as NGO Classifications/PPT Template
     # (Secretary/President/President Elect manage the Dinner Event Types
     # list; everyone else has no access).
@@ -120,6 +129,13 @@ DEFAULT_MATRIX = {
     # Story 15.1 — Dinner Forecast event planning, same board tier as the
     # rest of the Dinner module.
     "attendance.forecast": (
+        "read",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
+    ),
+    # Story 16.29 — Dinner/Event Minutes, same board tier as the rest of the
+    # Dinner module (members-only visibility, per the story's own answer to
+    # its "who should see this" open question).
+    "attendance.minutes": (
         "read",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "read"},
     ),

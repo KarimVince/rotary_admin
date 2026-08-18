@@ -8,7 +8,208 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-08-11)
+## Current status / resume from here (2026-08-19)
+- **Epic 16 Story 16.32 second follow-up round** (same session): more
+  spacing above the banner, a proper "Important Information" section
+  header matching "Club overview"'s style, and more breathing room between
+  title/text inside the box.
+  - **Near-miss, caught before it shipped**: `SectionLabel.jsx` silently
+    ignores its `className` prop — every caller across the app has been
+    passing `mt-6` etc. that never applied. First instinct was to "fix"
+    that so the new header's spacing would work, but `theme-minimal.css`
+    has an explicit, already-verified comment right next to `.seclabel`
+    explaining this is deliberate: `.seclabel`'s own `margin: 38px 0 15px`
+    is the real spacing, and a paired `.seclabel + * { margin-top: 0
+    !important }` rule compensates for the (inert) className elsewhere.
+    Applying className there would have doubled every section gap
+    app-wide. Reverted before running anything, left a comment on
+    `SectionLabel.jsx` itself so this doesn't get "fixed" again. The actual
+    ask — visible space above the banner, "same way as Club overview" — is
+    already satisfied for free by giving Important Information its own
+    `<SectionLabel className="mt-6">` (same dead-but-conventional prop as
+    every other section here), since `.seclabel`'s own margin is what
+    produces the gap, not the className.
+  - `SectionLabel` is now nested **inside** the `importantInfo &&`
+    conditional (not a separate always-rendered header) — so the header and
+    banner still disappear together when there's no active message,
+    preserving that AC.
+  - Title/text spacing inside the box bumped from `pb-2`/`mt-2` to
+    `pb-3`/`mt-3` (Dashboard banner only — the Admin page's own
+    active-message/history boxes weren't touched this round, not asked for).
+  - No test changes needed — existing banner/ordering tests still cover
+    this; ran the full `Dashboard.test.jsx` (20 tests) to confirm nothing
+    broke.
+- **Epic 16 Story 16.32 first follow-up round, same session** (all
+  explicitly requested by Karim after initial implementation):
+  - **Manual deactivate**: new `POST /important-information/{id}/deactivate`
+    (write-gated) archives the active message without replacing it — the
+    Dashboard banner then just disappears until a new message is created or
+    an archived one reactivated. New "Deactivate" button on the Admin
+    page's active-message card.
+  - **Real bug found via the DB-level guard while adding this**: the
+    reactivate endpoint (and, defensively, create) could transiently stage
+    two rows with `status='active'` in the same flush batch — Postgres
+    checks the partial unique index immediately, not deferred, so this
+    intermittently 500'd depending on statement-batching order. Fixed by
+    calling `db.flush()` right after archiving the current active row,
+    before activating the new one, in both endpoints — forces the archive
+    UPDATE to land before the activate UPDATE/INSERT. Confirmed with 5
+    repeated scoped test runs, not just one green run.
+  - **Visual**: a thin divider line now separates title from text
+    everywhere title+text are shown together (Dashboard banner, Admin
+    page's active-message card, and history list rows) — a `border-b`
+    under the title rather than a literal `<hr>`.
+  - **Dashboard placement**: banner moved from "between Club Overview and
+    Club Planning" to **above Club Overview** (first section on the page,
+    right under the welcome header), with its own `mb-6` so there's clear
+    space before Club Overview starts.
+  - Tests: 3 new backend tests (deactivate happy path, already-archived
+    400, non-write 403 — 13 total now) and 2 new frontend tests (deactivate
+    button, banner-before-Club-overview ordering) added; all green.
+- **Epic 16 Story 16.32 implemented** (Dashboard "Important Information"
+  banner). Answers to the story's own Open Questions, confirmed with Karim
+  before dev: **character caps** — Title 150, Text 2000 (enforced both
+  client-side `maxLength` and server-side Pydantic `Field`); **plain text
+  only** (no rich-text editor — matches every other free-text field in this
+  app, e.g. Story 16.29's Minutes); **archiving is always manual**, no
+  expiry-date field.
+  - New `important_information_messages` table + `admin.important_information`
+    app_function in one migration (`7c71ddab138e`, **run against dev DB,
+    confirmed**), same write tier as NGO Classifications/PPT Template/Dinner
+    Event Types (President/President Elect/Secretary write, everyone else
+    no_access) — `seed_permission_matrix.py` updated and re-seeded.
+    "Only one active message at a time" is enforced **both**
+    application-side (creating/reactivating a message archives whatever was
+    active) **and** at the DB level via a partial unique index on
+    `status='active'` — belt-and-suspenders against a race, since no
+    existing model in this repo had this "single active + archive history"
+    shape to copy.
+  - New `app/api/important_information.py`: `GET /important-information/active`
+    is deliberately gated on just being logged in (`get_current_user`, no
+    permission-matrix check) — every user who sees the Dashboard should see
+    the banner; the matrix key only gates the management endpoints
+    (list/create/reactivate/delete, all `require_access(..., "write")`,
+    since the story's AC is explicit that only Write users can even reach
+    the admin page — no separate read-only view exists for this feature).
+    The active message can't be deleted directly (400) — it has to be
+    replaced or reactivated-over first.
+  - Frontend: `Dashboard.jsx` fetches the active message unconditionally
+    (like the board strip's non-fatal fetches) and renders it as a
+    self-contained amber warning banner (`--tone-amber-bg`/
+    `--color-tone-amber-text`, same tokens as `AttendanceSheet.jsx`'s
+    "hasn't taken place yet" notice) with **no separate `SectionLabel`
+    header** — the AC requires the whole section including any header to
+    disappear when there's no active message, so pairing a banner with an
+    independently-conditioned header would risk exactly that bug. New
+    `AdminImportantInformation.jsx` (`/admin/important-information`, new
+    Admin nav entry) — active-message display, a create form that always
+    archives the prior active message, and a history list with
+    Reactivate/Delete per archived row.
+  - Tests: new backend `test_important_information.py` (10 tests) and
+    frontend `AdminImportantInformation.test.jsx` (7 tests), plus 3 new
+    banner-specific cases added to the existing `Dashboard.test.jsx` (now
+    19 tests, all still green — had to add a default "no active message"
+    MSW handler to that file's `beforeEach` so the pre-existing tests,
+    which don't know about the banner, keep passing). Scoped runs only.
+  - **Not committed or pushed** — only do so when explicitly asked.
+  - **ClickUp note**: the task tool's write API was rate-limited
+    (~10 hours) right after this was finished — the story (86eynvpxx) is
+    still sitting in "planning" in ClickUp, not moved to Complete yet.
+    Move it manually or ask next session to retry.
+- **Epic 16 Story 16.30 implemented** (self-service "Forgot password?" on
+  the login page + an account settings popover in the top nav for
+  self-service email/password changes). Flagged deviation + answers to the
+  story's own Open Questions, confirmed with Karim before dev: **email
+  provider is Resend, not Sender.net** (the story text is stale — this app
+  switched mid-Epic-4, see the "Known open issue — email sending" entry
+  below); **email change requires re-verification** via a confirmation link
+  to the new address before it takes effect; **both a password change and
+  an email change notify the OLD/previous email address**; **password
+  complexity is 8-characters-minimum only** (matches the existing
+  `UserCreate`/`PasswordResetConfirm` rule already in the codebase).
+  - New `POST /auth/forgot-password` (public, always returns the same
+    generic response regardless of whether the account exists —
+    anti-enumeration, per the story's own AC). Reuses the
+    `AuthToken(purpose="password_reset")` + `POST /auth/reset-password`
+    confirm flow that **already existed** from the pre-existing
+    admin-triggered "reset a user's password" feature (`app/api/users.py`)
+    — no new token infra needed for the reset half.
+  - The shared `/auth/reset-password` confirm endpoint now also sends a
+    best-effort "your password was changed" notice — applies to both this
+    new self-service flow and the admin-triggered one, since both land on
+    the same confirm step.
+  - New `app/api/account.py` (self-service, gated only on being logged in
+    via `get_current_user` — deliberately **not** permission-matrix gated,
+    since every user manages their own account regardless of module-level
+    access): `PUT /account/password` (current-password-confirmed,
+    invalidates other sessions' refresh tokens) and
+    `POST /account/email/request` / `POST /account/email/confirm`. Email
+    change uses a new nullable `payload` column added to the existing
+    `auth_tokens` table (migration `43027c80c200`, **run against dev DB,
+    confirmed**) to carry the pending new email until the confirmation link
+    is clicked — the account's `email` column isn't touched until then.
+  - Frontend: "Forgot password?" link on `Login.jsx` → new
+    `ForgotPassword.jsx` (`/forgot-password`); new `ConfirmEmailChange.jsx`
+    (`/confirm-email`) — deliberately requires a manual button click rather
+    than auto-confirming on page load, since email-client link-prefetching
+    could otherwise silently burn the single-use token before the user
+    clicks it; new `AccountSettingsPopover.jsx` opened by clicking the
+    existing avatar/name pill in `AppLayout.jsx`'s top nav (Email tab +
+    Password tab, click-outside-to-close pattern copied from
+    `SingleSelectDropdown.jsx` since no shared Popover primitive existed
+    yet) — scoped strictly to `users` table login fields, no member-profile
+    fields shown, per the story's explicit scope note.
+  - Tests: backend `test_auth.py` (+7 tests) and new `test_account.py` (13
+    tests), 30/30 passing. Frontend: new `ForgotPassword.test.jsx`,
+    `ConfirmEmailChange.test.jsx`, `AccountSettingsPopover.test.jsx` (13
+    tests); existing `Login.test.jsx`/`AppLayout.test.jsx`/
+    `ResetPasswordConfirm.test.jsx` re-verified green (25 tests) — nothing
+    broke. Scoped runs only.
+  - **Not committed or pushed** — only do so when explicitly asked.
+- **Epic 16 Story 16.29 implemented** (Dinner/Event Minutes: pasted text or
+  an uploaded Word/PDF file against an `AttendanceEvent`, role-gated edit
+  access). Confirmed with Karim before building: "Dinner/Event" here means
+  `AttendanceEvent` (Epics 10/15/16 — Dinner Forecast/Attendance), **not**
+  the separate Epic 14 `events` gala-management table — this Epic-16 story
+  sequence lives entirely on the Attendance side. Answers to the story's own
+  flagged Open Questions: **multiple minutes records per event allowed**
+  (not a single 1:1 text-or-file record), **5MB file size limit**,
+  **members-only visibility** (no Friends of Rotary access).
+  - New `EventMinutes` model/table (`event_minutes`), FK to
+    `attendance_events.id` (`ON DELETE CASCADE`), `minutes_type` Postgres
+    enum (`text`/`file`, same convention as `EventGuest.payment_status`),
+    audit fields (`created_by`/`created_at`, `last_updated_by`/
+    `last_updated_at`). Migrations `fd6db30982d2` (table) and
+    `90ae9a657259` (new `attendance.minutes` app_function) — **both run
+    against dev DB, confirmed present**.
+  - New permission-matrix key `attendance.minutes`, same board tier as the
+    rest of the Dinner module (President/President Elect/Secretary write,
+    everyone else read) — `seed_permission_matrix.py` updated and **re-run
+    against dev DB, confirmed**.
+  - File uploads reuse the Story 16.6 Supabase Storage pattern via a new
+    **private** bucket, `EVENT_MINUTES_BUCKET` = `"event-minutes"` (needs
+    creating in the Supabase dashboard, same manual step as the other two
+    buckets — not yet done, since minutes are members-only and must go
+    through an authenticated download endpoint rather than a public URL
+    like member photos/NGO logos).
+  - New `app/api/event_minutes.py`: list, create text, edit text, upload
+    file, replace file, download file, delete — all under
+    `/attendance/events/{event_id}/minutes...`, gated by
+    `require_access("attendance.minutes", ...)`.
+  - Frontend: new `EventMinutesSection.jsx`, self-gates on its own
+    `useAccess("attendance.minutes")` call (hides entirely for No Access
+    regardless of the parent page's own access level), embedded on
+    `AttendanceSheet.jsx` (`/dinners/:eventId` — the real per-event detail
+    page, not the `DinnerEvents.jsx` list page). Paste Text / Upload File
+    toggle, empty state, edit/replace/delete for Write users, view/
+    download-only for Read users, "Last edited by/at" shown per record.
+  - Tests: `backend/tests/integration/test_event_minutes.py` (write/read/
+    no-access, extension + size validation, replace-cleans-up-old-object,
+    delete) and `frontend/src/components/EventMinutesSection.test.jsx` —
+    scoped runs only (this story's own new test files), both green.
+  - **Not committed or pushed** — only do so when explicitly asked.
+
+## Previous status (2026-08-11)
 - **UNRESOLVED — Event Lucky Draw `lot_ref` bug, mid-investigation, resume
   here first.** The Lucky Draw & Auction item list (Manage Project →
   Lucky Draw) has a reworked lot-ref numbering system (details below) that

@@ -211,3 +211,89 @@ def test_password_reset_invalidates_existing_refresh_tokens(
         "/api/v1/auth/refresh", json={"refresh_token": old_refresh_token}
     )
     assert refresh_response.status_code == 401
+
+
+def test_forgot_password_sends_reset_email_for_known_active_user(client, make_user, monkeypatch):
+    make_user(email="forgot@example.com", password="old-password123", role="user")
+    sent = {}
+    monkeypatch.setattr(
+        "app.api.auth.send_email",
+        lambda **kwargs: sent.update(kwargs),
+    )
+    monkeypatch.setattr("app.api.auth.generate_refresh_token", lambda: "forgot-password-token")
+
+    response = client.post("/api/v1/auth/forgot-password", json={"email": "forgot@example.com"})
+
+    assert response.status_code == 200
+    assert sent["to_email"] == "forgot@example.com"
+    assert "forgot-password-token" in sent["html_body"]
+
+    confirm = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "forgot-password-token", "new_password": "brand-new-password123"},
+    )
+    assert confirm.status_code == 200
+
+
+def test_forgot_password_unknown_email_returns_same_generic_response(client, make_user, monkeypatch):
+    make_user(email="known@example.com", password="old-password123", role="user")
+    send_calls = []
+    monkeypatch.setattr("app.api.auth.send_email", lambda **kwargs: send_calls.append(kwargs))
+
+    known_response = client.post("/api/v1/auth/forgot-password", json={"email": "known@example.com"})
+    unknown_response = client.post(
+        "/api/v1/auth/forgot-password", json={"email": "nobody@example.com"}
+    )
+
+    assert known_response.status_code == unknown_response.status_code == 200
+    assert known_response.json() == unknown_response.json()
+    # Only the known/active account actually triggers a send.
+    assert len(send_calls) == 1
+
+
+def test_forgot_password_inactive_user_sends_no_email(client, make_user, monkeypatch):
+    make_user(email="forgot-inactive@example.com", password="old-password123", is_active=False)
+    send_calls = []
+    monkeypatch.setattr("app.api.auth.send_email", lambda **kwargs: send_calls.append(kwargs))
+
+    response = client.post(
+        "/api/v1/auth/forgot-password", json={"email": "forgot-inactive@example.com"}
+    )
+
+    assert response.status_code == 200
+    assert send_calls == []
+
+
+def test_forgot_password_survives_email_send_failure(client, make_user, monkeypatch):
+    make_user(email="forgot-fails@example.com", password="old-password123")
+
+    def _always_fails(**kwargs):
+        from app.core.email_client import EmailSendError
+
+        raise EmailSendError("boom")
+
+    monkeypatch.setattr("app.api.auth.send_email", _always_fails)
+
+    response = client.post(
+        "/api/v1/auth/forgot-password", json={"email": "forgot-fails@example.com"}
+    )
+
+    assert response.status_code == 200
+
+
+def test_password_reset_confirm_sends_change_notice(client, make_user, monkeypatch):
+    make_user(email="notice@example.com", password="old-password123")
+    notices = []
+    monkeypatch.setattr("app.api.auth.send_email", lambda **kwargs: notices.append(kwargs))
+    monkeypatch.setattr("app.api.auth.generate_refresh_token", lambda: "notice-token")
+
+    client.post("/api/v1/auth/forgot-password", json={"email": "notice@example.com"})
+    client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "notice-token", "new_password": "brand-new-password123"},
+    )
+
+    # One send for the reset link itself, one for the "password changed" notice.
+    assert len(notices) == 2
+    assert notices[1]["to_email"] == "notice@example.com"
+    assert "changed" in notices[1]["subject"].lower()

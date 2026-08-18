@@ -10,6 +10,7 @@ import { useAccess } from "../hooks/useAccess";
 import { isFutureEventDate } from "../utils/eventDate";
 import { formatDate } from "../utils/formatters";
 import AttendanceEventFormModal from "../components/AttendanceEventFormModal";
+import EventMinutesSection from "../components/EventMinutesSection";
 
 const PAST_SECTION_STORAGE_KEY = "attendance-sheet-past-expanded";
 
@@ -285,6 +286,8 @@ export default function AttendanceSheet() {
           </section>
         )}
       </div>
+
+      <EventMinutesSection eventId={eventId} />
 
       {isEditOpen && (
         <AttendanceEventFormModal

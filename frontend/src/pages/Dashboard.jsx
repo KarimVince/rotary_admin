@@ -1,4 +1,4 @@
-import { Building2, HeartHandshake, Landmark, UtensilsCrossed, Users, Wallet } from "lucide-react";
+import { AlertTriangle, Building2, HeartHandshake, Landmark, UtensilsCrossed, Users, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { API_ORIGIN } from "../api/client";
@@ -7,6 +7,7 @@ import { listBoardAssignments } from "../api/boardAssignments";
 import { listBoardPositions } from "../api/boardPositions";
 import { listDinnerEventTypes } from "../api/dinnerEventTypes";
 import { listDinnerForecastEvents } from "../api/dinnerForecast";
+import { fetchActiveImportantInformation } from "../api/importantInformation";
 import Card from "../components/Card";
 import { CompactMonthCard, groupEventsByMonth } from "../components/DinnerMonthCard";
 import SectionLabel from "../components/SectionLabel";
@@ -175,6 +176,10 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
   const [boardCards, setBoardCards] = useState([]);
+  // New story — visible to every logged-in user (not gated on any
+  // permission key, unlike the sections around it), so it's fetched
+  // unconditionally rather than behind a canView* check.
+  const [importantInfo, setImportantInfo] = useState(null);
 
   const planningMonthKeys = useMemo(() => upcomingMonthKeys(3), []);
   const [planningEvents, setPlanningEvents] = useState([]);
@@ -209,6 +214,14 @@ export default function Dashboard() {
     fetchDashboardSummary()
       .then(setSummary)
       .catch((err) => setError(err.detail || "Failed to load dashboard summary"));
+  }, []);
+
+  useEffect(() => {
+    // Non-fatal — the banner just doesn't render if this fails, same
+    // convention as the board strip/Club Planning fetches below.
+    fetchActiveImportantInformation()
+      .then(setImportantInfo)
+      .catch(() => setImportantInfo(null));
   }, []);
 
   useEffect(() => {
@@ -281,6 +294,42 @@ export default function Dashboard() {
         Here's how the club is doing this year.
       </p>
       {error && <p role="alert">{error}</p>}
+
+      {/* New story — Important Information banner. Positioned above Club
+          Overview (moved here from between Club Overview/Club Planning per
+          follow-up feedback). Now paired with its own SectionLabel — same
+          "mt-6" convention as every other section on this page (Club
+          overview/Club Planning/Board members/Module access); SectionLabel
+          ignores className (see its own file — Minimal's `.seclabel` supplies
+          its own 38px/15px margin instead, which is exactly what gives this
+          section clear air above it, "same way as Club overview" per
+          follow-up feedback) — but nested INSIDE the `importantInfo &&`
+          conditional (not alongside it) so the AC still holds: the whole
+          section, header included, disappears together when there's no
+          active message, instead of leaving an orphaned "Important
+          Information" header with nothing under it. */}
+      {importantInfo && (
+        <>
+          <SectionLabel className="mt-6">Important Information</SectionLabel>
+          <div className="mt-3 mb-6 flex items-start gap-3 rounded-xl bg-[var(--tone-amber-bg)] px-4 py-3.5 text-[var(--color-tone-amber-text)]">
+            <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" aria-hidden="true" />
+            {/* Real bug: `mt-3` on the text <p> below did nothing — index.css
+                has an unlayered `p { margin: 0; }` (deliberately unlayered so
+                it loses to Tailwind's OWN element defaults elsewhere, but
+                that also means it beats Tailwind's utility classes like
+                `mt-3`, which live in `@layer utilities` — unlayered CSS wins
+                over layered CSS regardless of specificity). Using `gap-3` on
+                this flex column instead of a margin utility sidesteps that
+                entirely, since gap isn't margin. */}
+            <div className="min-w-0 flex flex-col gap-5">
+              <p className="m-0 pb-3 border-b border-current/20 text-sm font-bold">
+                {importantInfo.title}
+              </p>
+              <p className="m-0 text-sm whitespace-pre-wrap">{importantInfo.text}</p>
+            </div>
+          </div>
+        </>
+      )}
 
       <SectionLabel className="mt-6">Club overview</SectionLabel>
       <div className="club-overview-grid mt-3 grid gap-4 stat-duo-grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">

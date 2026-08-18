@@ -42,6 +42,10 @@ describe("Dashboard", () => {
       http.get(`${API_BASE_URL}/board/assignments`, () => HttpResponse.json([])),
       http.get(`${API_BASE_URL}/dinner-forecast/events`, () => HttpResponse.json([])),
       http.get(`${API_BASE_URL}/dinner-event-types`, () => HttpResponse.json([])),
+      // New story — default the Important Information banner fetch to "no
+      // active message" so existing tests (which don't know about it)
+      // don't need to mock it.
+      http.get(`${API_BASE_URL}/important-information/active`, () => HttpResponse.json(null)),
     );
   });
 
@@ -457,6 +461,96 @@ describe("Dashboard", () => {
 
       await screen.findByRole("link", { name: /members/i });
       expect(screen.queryByText("Club Planning")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Important Information banner", () => {
+    it("shows the active message's title and text as a warning banner", async () => {
+      mockRole = "admin";
+      mockDeniedKeys = new Set();
+      server.use(
+        http.get(`${API_BASE_URL}/dashboard/summary`, () => HttpResponse.json({})),
+        http.get(`${API_BASE_URL}/important-information/active`, () =>
+          HttpResponse.json({
+            id: "info-1",
+            title: "AGM this Saturday",
+            text: "Don't forget the AGM at 10am.",
+            status: "active",
+            created_by: null,
+            created_by_name: "Jane Secretary",
+            created_at: new Date().toISOString(),
+            archived_at: null,
+          }),
+        ),
+      );
+
+      renderDashboard();
+
+      expect(await screen.findByText("AGM this Saturday")).toBeInTheDocument();
+      expect(screen.getByText("Don't forget the AGM at 10am.")).toBeInTheDocument();
+    });
+
+    it("renders before the Club overview section", async () => {
+      mockRole = "admin";
+      mockDeniedKeys = new Set();
+      server.use(
+        http.get(`${API_BASE_URL}/dashboard/summary`, () => HttpResponse.json({})),
+        http.get(`${API_BASE_URL}/important-information/active`, () =>
+          HttpResponse.json({
+            id: "info-1",
+            title: "AGM this Saturday",
+            text: "Don't forget the AGM at 10am.",
+            status: "active",
+            created_by: null,
+            created_by_name: null,
+            created_at: new Date().toISOString(),
+            archived_at: null,
+          }),
+        ),
+      );
+
+      renderDashboard();
+
+      const banner = await screen.findByText("AGM this Saturday");
+      const clubOverview = screen.getByText("Club overview");
+      expect(
+        banner.compareDocumentPosition(clubOverview) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("shows no banner (and no header) when there is no active message", async () => {
+      mockRole = "admin";
+      mockDeniedKeys = new Set();
+      server.use(http.get(`${API_BASE_URL}/dashboard/summary`, () => HttpResponse.json({})));
+
+      renderDashboard();
+
+      await screen.findByRole("link", { name: /members/i });
+      expect(screen.queryByText("Important Information")).not.toBeInTheDocument();
+    });
+
+    it("shows the banner for every logged-in user, regardless of permissions", async () => {
+      mockRole = "user";
+      mockDeniedKeys = new Set(["fees", "board", "attendance", "members"]);
+      server.use(
+        http.get(`${API_BASE_URL}/dashboard/summary`, () => HttpResponse.json({})),
+        http.get(`${API_BASE_URL}/important-information/active`, () =>
+          HttpResponse.json({
+            id: "info-1",
+            title: "Heads up",
+            text: "Something urgent.",
+            status: "active",
+            created_by: null,
+            created_by_name: null,
+            created_at: new Date().toISOString(),
+            archived_at: null,
+          }),
+        ),
+      );
+
+      renderDashboard();
+
+      expect(await screen.findByText("Heads up")).toBeInTheDocument();
     });
   });
 });

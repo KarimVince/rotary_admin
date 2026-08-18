@@ -112,6 +112,20 @@ select:focus {
   font-size: 14px;
 }
 
+/* Story 16.30 — "Forgot password?" link (Login) and the forgot/reset/
+   confirm-email pages, which reuse .login-page/.login-form directly. */
+.login-forgot-link {
+  align-self: center;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--rotary-blue);
+  text-decoration: none;
+}
+
+.login-forgot-link:hover {
+  text-decoration: underline;
+}
+
 /* Brand header (logo + app title) — shared by the login page and the
    post-login app shell header, see components/BrandHeader.jsx */
 

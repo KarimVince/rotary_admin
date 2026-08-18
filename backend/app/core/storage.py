@@ -15,6 +15,15 @@ Two buckets (create both in the Supabase dashboard before using this):
 - `PPT_TEMPLATES_BUCKET` ("ppt-templates", private) — one `{rotary_year}.pptx`
   per year, read back only by the backend (service-role key) for report
   generation; never served to the browser.
+
+Story 16.29 adds a third bucket:
+- `EVENT_MINUTES_BUCKET` ("event-minutes", private, create in the Supabase
+  dashboard same as the other two) — Dinner/Event minutes uploaded as
+  Word/PDF files, one object per `EventMinutes` row at
+  `{event_id}/{uuid}.{ext}`. Private (not `public-assets`) because minutes
+  visibility must follow the permission matrix (members only), not be
+  reachable via a public URL — served back to the browser through an
+  authenticated download endpoint (`app/api/event_minutes.py`).
 """
 import httpx
 
@@ -22,6 +31,7 @@ from app.core.config import settings
 
 PUBLIC_ASSETS_BUCKET = "public-assets"
 PPT_TEMPLATES_BUCKET = "ppt-templates"
+EVENT_MINUTES_BUCKET = "event-minutes"
 
 _TIMEOUT = 30.0
 

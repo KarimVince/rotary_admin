@@ -4,13 +4,16 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionsProvider } from "./context/PermissionsContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import AdminImportantInformation from "./pages/AdminImportantInformation";
 import AdminPptTemplate from "./pages/AdminPptTemplate";
 import AttendanceSheet from "./pages/AttendanceSheet";
 import BoardMembers from "./pages/BoardMembers";
 import BoardPositionManagement from "./pages/BoardPositionManagement";
+import ConfirmEmailChange from "./pages/ConfirmEmailChange";
 import CurrencyManagement from "./pages/CurrencyManagement";
 import Dashboard from "./pages/Dashboard";
 import DinnerEvents from "./pages/DinnerEvents";
+import ForgotPassword from "./pages/ForgotPassword";
 import DonationsStatistics from "./pages/DonationsStatistics";
 import EventList from "./pages/EventList";
 import EventManageProject from "./pages/EventManageProject";
@@ -43,7 +46,9 @@ function App() {
         <PermissionsProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPasswordConfirm />} />
+            <Route path="/confirm-email" element={<ConfirmEmailChange />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
@@ -64,6 +69,10 @@ function App() {
                 {/* Story 8.23 — same reasoning: matrix-driven
                     (admin.ppt_template), not admin-role-only. */}
                 <Route path="/admin/ppt-template" element={<AdminPptTemplate />} />
+                <Route
+                  path="/admin/important-information"
+                  element={<AdminImportantInformation />}
+                />
                 <Route path="/finance" element={<FinanceSummary />} />
                 <Route path="/finance/donations" element={<FinanceDonations />} />
                 <Route path="/finance/fundraising" element={<FinanceFundraising />} />
