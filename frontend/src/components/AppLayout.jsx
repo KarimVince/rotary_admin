@@ -204,6 +204,11 @@ const NAV_ITEMS = [
         label: "Important Information",
         requiredPermission: "admin.important_information",
       },
+      {
+        to: "/admin/connection-log",
+        label: "Login Audit Log",
+        requiredPermission: "admin.connection_log",
+      },
     ],
   },
 ];
@@ -248,6 +253,7 @@ export default function AppLayout() {
   const { canRead: canViewAdminNgoClassifications } = useAccess("admin.ngo_classifications");
   const { canRead: canViewAdminPptTemplate } = useAccess("admin.ppt_template");
   const { canRead: canViewAdminImportantInformation } = useAccess("admin.important_information");
+  const { canRead: canViewAdminConnectionLog } = useAccess("admin.connection_log");
   const { canRead: canViewAdminDinnerEventTypes } = useAccess("admin.dinner_event_types");
   const { canRead: canViewAdminFinanceCategories } = useAccess("admin.finance_categories");
   // Story 16.28: admin.rotary_years grants broad READ (every year selector
@@ -292,6 +298,7 @@ export default function AppLayout() {
     "admin.currencies": canViewAdminCurrencies,
     "admin.ppt_template": canViewAdminPptTemplate,
     "admin.important_information": canViewAdminImportantInformation,
+    "admin.connection_log": canViewAdminConnectionLog,
     // Reference Lists nav link is visible if any of its 6 merged cards is
     // readable — each card still self-gates on its own key at render time.
     "admin.reference_lists":

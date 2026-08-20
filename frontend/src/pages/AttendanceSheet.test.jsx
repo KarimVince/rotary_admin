@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/mocks/server";
 import { ThemeProvider } from "../context/ThemeContext";
 import AttendanceSheet from "./AttendanceSheet";
@@ -150,6 +150,74 @@ describe("AttendanceSheet", () => {
     mockCanWrite = false;
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
+  });
+
+  describe("Generate Attendance Sheet (Story 16.33)", () => {
+    let originalCreateObjectURL;
+    let originalRevokeObjectURL;
+
+    beforeEach(() => {
+      originalCreateObjectURL = URL.createObjectURL;
+      originalRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = vi.fn(() => "blob:mock-url");
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    afterEach(() => {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it("downloads the attendance sheet PDF, visible to read-only users too", async () => {
+      mockCanRead = true;
+      mockCanWrite = false;
+      let requested = false;
+      server.use(
+        http.get(`${API_BASE_URL}/attendance/events/event-1/sheet`, () =>
+          HttpResponse.json(buildSheet()),
+        ),
+        http.get(`${API_BASE_URL}/attendance/events/event-1/attendance-sheet-pdf`, () => {
+          requested = true;
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="attendance-sheet.pdf"',
+            },
+          });
+        }),
+      );
+
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /generate attendance sheet/i }));
+
+      await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+      expect(requested).toBe(true);
+    });
+
+    it("shows an error if generation fails", async () => {
+      mockCanRead = true;
+      mockCanWrite = true;
+      server.use(
+        http.get(`${API_BASE_URL}/attendance/events/event-1/sheet`, () =>
+          HttpResponse.json(buildSheet()),
+        ),
+        http.get(`${API_BASE_URL}/attendance/events/event-1/attendance-sheet-pdf`, () =>
+          HttpResponse.json({ detail: "Server error" }, { status: 500 }),
+        ),
+      );
+
+      renderPage();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /generate attendance sheet/i }));
+
+      // Two alerts can be on screen at once (EventMinutesSection's own
+      // unmocked fetch also renders one) — assert the specific text rather
+      // than assuming a single alert.
+      expect(await screen.findByText("Server error")).toBeInTheDocument();
+    });
   });
 
   describe("future-dated event (Story 16.9)", () => {

@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiDownload, apiFetch } from "./client";
 
 function buildQuery(params) {
   const query = new URLSearchParams();
@@ -51,4 +51,10 @@ export function updateAttendanceRecord(eventId, memberId, present) {
     method: "PATCH",
     body: JSON.stringify({ present }),
   });
+}
+
+// Story 16.33 — attendance/payment tracking sheet, downloadable for on-site
+// use.
+export function downloadAttendanceSheetPdf(eventId) {
+  return apiDownload(`/attendance/events/${eventId}/attendance-sheet-pdf`);
 }

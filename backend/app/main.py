@@ -9,6 +9,7 @@ from app.api import (
     attendance,
     auth,
     board,
+    connection_logs,
     dashboard,
     dinner_event_types,
     dinner_forecast,
@@ -93,6 +94,7 @@ app.include_router(rotary_years.router, prefix="/api/v1", tags=["rotary-years"])
 app.include_router(users.router, prefix="/api/v1", tags=["users"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(board.router, prefix="/api/v1", tags=["board"])
+app.include_router(connection_logs.router, prefix="/api/v1", tags=["connection-logs"])
 app.include_router(attendance.router, prefix="/api/v1", tags=["attendance"])
 app.include_router(dinner_forecast.router, prefix="/api/v1", tags=["dinner-forecast"])
 app.include_router(dinner_event_types.router, prefix="/api/v1", tags=["dinner-event-types"])

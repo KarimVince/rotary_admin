@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   deleteAttendanceEvent,
+  downloadAttendanceSheetPdf,
   fetchAttendanceSheet,
   refreshAttendanceList,
   updateAttendanceRecord,
@@ -34,6 +35,8 @@ export default function AttendanceSheet() {
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [generatePdfError, setGeneratePdfError] = useState(null);
 
   async function loadSheet() {
     setIsLoading(true);
@@ -132,6 +135,28 @@ export default function AttendanceSheet() {
     }
   }
 
+  // Story 16.33 — same blob-download dance as DinnerEvents.jsx's Generate
+  // Report button.
+  async function handleGenerateAttendanceSheetPdf() {
+    setIsGeneratingPdf(true);
+    setGeneratePdfError(null);
+    try {
+      const { blob, filename } = await downloadAttendanceSheetPdf(eventId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setGeneratePdfError(err.detail || "Failed to generate the attendance sheet");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }
+
   async function handleRefresh() {
     setIsRefreshing(true);
     setRefreshError(null);
@@ -221,8 +246,20 @@ export default function AttendanceSheet() {
             {formatDate(sheet.event.event_date)} · {sheet.event.location || "—"}
           </p>
         </div>
-        {canWrite && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          {/* Story 16.33 — read access is enough to download this (matches
+              the Dinner Forecast report's own "read"-gated Generate Report
+              button), so it's outside the canWrite block below. */}
+          <button
+            type="button"
+            onClick={handleGenerateAttendanceSheetPdf}
+            disabled={isGeneratingPdf}
+            className="rounded-[9px] border border-[var(--color-brand-blue)] bg-white px-[14px] py-2 text-[13px] font-semibold text-[var(--color-brand-blue)]"
+          >
+            {isGeneratingPdf ? "Generating…" : "Generate Attendance Sheet"}
+          </button>
+          {canWrite && (
+            <>
             <button
               type="button"
               onClick={handleRefresh}
@@ -245,10 +282,12 @@ export default function AttendanceSheet() {
             >
               Delete
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
       {refreshError && <p role="alert">{refreshError}</p>}
+      {generatePdfError && <p role="alert">{generatePdfError}</p>}
 
       {isFuture ? (
         <div className="mb-5 rounded-xl bg-[var(--tone-amber-bg)] px-4 py-3 text-[13px] font-semibold text-[var(--color-tone-amber-text)]">

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -48,6 +48,20 @@ def require_role(*allowed_roles: str):
 
 require_admin = require_role("admin")
 require_user = require_role("user", "admin")
+
+
+def get_client_ip(request: Request) -> str | None:
+    """STORY 16.34 — the client's IP for the login audit log. Render's edge
+    proxies to this app's container (see `render.yaml` — plain `uvicorn`,
+    no nginx/gunicorn in front, no `ProxyHeadersMiddleware` configured), so
+    `request.client.host` would report the proxy's own internal address,
+    not the real caller — `X-Forwarded-For`'s first (leftmost/original
+    client) entry is what actually identifies the requester. Falls back to
+    `request.client.host` for local/dev runs where there's no proxy at all."""
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.client.host if request.client else None
 
 
 def require_access(function_key: str, level: AccessLevel = "read"):

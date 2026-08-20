@@ -104,6 +104,14 @@ DEFAULT_MATRIX = {
         "no_access",
         {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
     ),
+    # STORY 16.34 — Login audit log, same write tier as the rest of Admin.
+    # Sensitive account-activity data, so no read-only access for anyone
+    # outside the 3 named board positions (unlike some other Admin sections,
+    # nothing here grants a broader default "read").
+    "admin.connection_log": (
+        "no_access",
+        {"President": "write", "President Elect": "write", "Secretary": "write", "*": "no_access"},
+    ),
     # Story 16.10 — same write tier as NGO Classifications/PPT Template
     # (Secretary/President/President Elect manage the Dinner Event Types
     # list; everyone else has no access).

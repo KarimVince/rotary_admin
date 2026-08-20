@@ -4,6 +4,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionsProvider } from "./context/PermissionsContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import AdminConnectionLog from "./pages/AdminConnectionLog";
 import AdminImportantInformation from "./pages/AdminImportantInformation";
 import AdminPptTemplate from "./pages/AdminPptTemplate";
 import AttendanceSheet from "./pages/AttendanceSheet";
@@ -73,6 +74,7 @@ function App() {
                   path="/admin/important-information"
                   element={<AdminImportantInformation />}
                 />
+                <Route path="/admin/connection-log" element={<AdminConnectionLog />} />
                 <Route path="/finance" element={<FinanceSummary />} />
                 <Route path="/finance/donations" element={<FinanceDonations />} />
                 <Route path="/finance/fundraising" element={<FinanceFundraising />} />

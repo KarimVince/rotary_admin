@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_client_ip, get_current_user
 from app.core.config import settings
 from app.core.email_client import EmailSendError, send_email
 from app.core.security import (
@@ -15,7 +15,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
-from app.models import AuthToken, User
+from app.models import AuthToken, ConnectionLog, User
 from app.schemas.auth import ForgotPasswordRequest, LoginRequest, RefreshRequest, TokenResponse, UserRead
 from app.schemas.user import PasswordResetConfirm
 
@@ -46,7 +46,7 @@ def _issue_tokens(db: Session, user: User) -> TokenResponse:
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if (
         user is None
@@ -58,6 +58,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         )
 
     user.last_login_at = datetime.now(timezone.utc)
+    # STORY 16.34 — successful logins only (not failed attempts, a separate
+    # security-alerting concern per the story's own confirmed scope).
+    db.add(ConnectionLog(user_id=user.id, ip_address=get_client_ip(request)))
     db.commit()
 
     return _issue_tokens(db, user)

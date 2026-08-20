@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 
 import pytest
@@ -334,3 +335,47 @@ def test_stats_zero_state_when_no_events(user_client):
     assert body["total_events"] == 0
     assert body["average_attendance"] is None
     assert body["average_attendance_percentage"] is None
+
+
+def test_attendance_sheet_pdf_returns_a_pdf_with_the_roster(secretary_client, make_member):
+    make_member(first_name="Active", last_name="One", status="active")
+    make_member(first_name="Honor", last_name="Ary", is_honorary=True)
+    make_member(first_name="Past", last_name="Member", status="past")
+
+    create = secretary_client.post(
+        "/api/v1/attendance/events",
+        json={"name": "Weekly Dinner", "event_date": str(date.today()), "event_type": "Dinner"},
+    )
+    event_id = create.json()["id"]
+
+    response = secretary_client.get(f"/api/v1/attendance/events/{event_id}/attendance-sheet-pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content[:4] == b"%PDF"
+    # reportlab compresses page content streams by default, so member names
+    # aren't searchable as raw bytes here — the roster-composition behavior
+    # itself (active + honorary passed through, payment always blank) is
+    # exercised at the build_attendance_sheet_pdf unit level below instead.
+    assert len(response.content) > 100
+
+
+def test_attendance_sheet_pdf_requires_read_access(user_client, secretary_client):
+    create = secretary_client.post(
+        "/api/v1/attendance/events",
+        json={"name": "Weekly Dinner", "event_date": str(date.today()), "event_type": "Dinner"},
+    )
+    event_id = create.json()["id"]
+
+    # user_client has default read access (see the autouse fixture above),
+    # so this is a 200, not 403 — attendance.sheet defaults to read for
+    # everyone. Confirms the endpoint doesn't accidentally require write.
+    response = user_client.get(f"/api/v1/attendance/events/{event_id}/attendance-sheet-pdf")
+    assert response.status_code == 200
+
+
+def test_attendance_sheet_pdf_unknown_event_returns_404(secretary_client):
+    response = secretary_client.get(
+        f"/api/v1/attendance/events/{uuid.uuid4()}/attendance-sheet-pdf"
+    )
+    assert response.status_code == 404

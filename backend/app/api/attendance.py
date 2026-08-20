@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.core.attendance_sheet_report import build_attendance_sheet_pdf
 from app.core.attendance_support import (
     compute_attendance_stats,
     compute_event_counts,
@@ -12,6 +13,7 @@ from app.core.attendance_support import (
     member_status_as_of,
     validate_event_type,
 )
+from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
 from app.db.session import get_db
@@ -283,6 +285,27 @@ def get_attendance_sheet(
 ):
     event = _get_event_or_404(db, event_id)
     return _build_sheet_response(db, event)
+
+
+@router.get("/attendance/events/{event_id}/attendance-sheet-pdf")
+def download_attendance_sheet_pdf(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(require_access(ATTENDANCE_SHEET, "read")),
+):
+    # STORY 16.33 — a printable on-site attendance/payment tracking sheet.
+    # Reuses _build_sheet_response for the exact same active/honorary roster
+    # the live Attendance Sheet page shows (past members excluded, same as
+    # the page's own "eligible" definition) rather than re-querying.
+    event = _get_event_or_404(db, event_id)
+    sheet = _build_sheet_response(db, event)
+    content = build_attendance_sheet_pdf(event, sheet.active, sheet.honorary)
+    filename = generate_report_filename("attendance-sheet", "pdf", rotary_year=event.rotary_year)
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/attendance/events/{event_id}/refresh", response_model=AttendanceSheetResponse)
