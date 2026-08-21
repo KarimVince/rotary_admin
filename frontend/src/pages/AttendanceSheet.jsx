@@ -8,8 +8,9 @@ import {
   updateAttendanceRecord,
 } from "../api/attendance";
 import { useAccess } from "../hooks/useAccess";
-import { isFutureEventDate } from "../utils/eventDate";
+import { addDaysToDateString, isBeyondAttendanceEditWindow } from "../utils/eventDate";
 import { formatDate } from "../utils/formatters";
+import AttendanceAuditSection from "../components/AttendanceAuditSection";
 import AttendanceEventFormModal from "../components/AttendanceEventFormModal";
 import EventMinutesSection from "../components/EventMinutesSection";
 
@@ -69,10 +70,13 @@ export default function AttendanceSheet() {
     };
   }, [sheet]);
 
-  // Story 16.9: a future-dated event's attendance is display-only-hidden,
-  // not blocked at the data layer — pre-saved marks stay intact, they're
-  // just not surfaced (or editable) until the event date has passed.
-  const isFuture = Boolean(sheet) && isFutureEventDate(sheet.event.event_date);
+  // Story 16.9, loosened 2026-08-14 then 2026-08-21: only *marking* who
+  // attended is date-gated (now a 2-day-ahead window) — viewing the page,
+  // its live counts, and generating/printing the sheet (Story 16.33) are
+  // never blocked, no matter how far in advance. Pre-saved marks stay
+  // intact either way; this only controls whether the checkbox is
+  // clickable right now.
+  const isMarkingLocked = Boolean(sheet) && isBeyondAttendanceEditWindow(sheet.event.event_date);
 
   function togglePastExpanded() {
     setIsPastExpanded((current) => {
@@ -83,7 +87,7 @@ export default function AttendanceSheet() {
   }
 
   async function handleToggle(section, member) {
-    if (!canWrite || isFuture) return;
+    if (!canWrite || isMarkingLocked) return;
     const nextPresent = !member.present;
 
     // Optimistic UI (Story 10.4): flip the checkbox and recompute the
@@ -174,7 +178,7 @@ export default function AttendanceSheet() {
     const members = sheet[section];
     if (members.length === 0) return null;
     return (
-      <section className="mb-5" style={isFuture ? { opacity: 0.5 } : undefined}>
+      <section className="mb-5">
         <h2 className="mb-2 text-[13px] font-bold uppercase tracking-[0.03em] text-[var(--text-h)]">
           {title} ({members.length})
         </h2>
@@ -189,7 +193,7 @@ export default function AttendanceSheet() {
                 <input
                   type="checkbox"
                   checked={member.present}
-                  disabled={!canWrite || isFuture}
+                  disabled={!canWrite || isMarkingLocked}
                   onChange={() => handleToggle(section, member)}
                   aria-label={`Mark ${memberLabel(member)} present`}
                 />
@@ -289,19 +293,20 @@ export default function AttendanceSheet() {
       {refreshError && <p role="alert">{refreshError}</p>}
       {generatePdfError && <p role="alert">{generatePdfError}</p>}
 
-      {isFuture ? (
-        <div className="mb-5 rounded-xl bg-[var(--tone-amber-bg)] px-4 py-3 text-[13px] font-semibold text-[var(--color-tone-amber-text)]">
-          This event hasn't taken place yet. Attendance will be available from{" "}
-          {formatDate(sheet.event.event_date)}.
-        </div>
-      ) : (
-        <div className="mb-5 inline-flex items-baseline gap-2 rounded-[14px] bg-[var(--tone-teal-bg)] px-[18px] py-[14px]">
+      <div className="mb-5">
+        <div className="inline-flex items-baseline gap-2 rounded-[14px] bg-[var(--tone-teal-bg)] px-[18px] py-[14px]">
           <span className="text-[22px] font-bold text-[var(--color-tone-teal-text)]">
             {counts.present} / {counts.eligible}
           </span>
           <span className="text-[13px] text-[var(--text)]">present ({counts.percentage}%)</span>
         </div>
-      )}
+        {isMarkingLocked && (
+          <p className="mt-2 text-[12px] font-semibold text-[var(--color-tone-amber-text)]">
+            Marking attendance opens {formatDate(addDaysToDateString(sheet.event.event_date, -2))} (2 days
+            before the event) — the sheet itself can still be viewed and printed any time.
+          </p>
+        )}
+      </div>
 
       {/* A slightly-off-white card background so the row list reads as one
           distinct panel instead of blending straight into the page — the
@@ -327,6 +332,7 @@ export default function AttendanceSheet() {
       </div>
 
       <EventMinutesSection eventId={eventId} />
+      <AttendanceAuditSection eventId={eventId} />
 
       {isEditOpen && (
         <AttendanceEventFormModal

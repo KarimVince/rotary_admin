@@ -24,6 +24,12 @@ Story 16.29 adds a third bucket:
   visibility must follow the permission matrix (members only), not be
   reachable via a public URL — served back to the browser through an
   authenticated download endpoint (`app/api/event_minutes.py`).
+
+2026-08-14 reuses `EVENT_MINUTES_BUCKET` for a second, unrelated object
+type rather than provisioning a new bucket: completed/filled-in attendance
+sheets (`AttendanceAudit`, `app/api/attendance_audit.py`) go under an
+`audit/{event_id}/{uuid}.{ext}` prefix in the same bucket, so they never
+collide with EventMinutes' own `{event_id}/{uuid}.{ext}` objects.
 """
 import httpx
 
