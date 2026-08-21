@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import (
     account,
     attendance,
+    attendance_audit,
     auth,
     board,
     connection_logs,
@@ -96,6 +97,7 @@ app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(board.router, prefix="/api/v1", tags=["board"])
 app.include_router(connection_logs.router, prefix="/api/v1", tags=["connection-logs"])
 app.include_router(attendance.router, prefix="/api/v1", tags=["attendance"])
+app.include_router(attendance_audit.router, prefix="/api/v1", tags=["attendance"])
 app.include_router(dinner_forecast.router, prefix="/api/v1", tags=["dinner-forecast"])
 app.include_router(dinner_event_types.router, prefix="/api/v1", tags=["dinner-event-types"])
 app.include_router(event.router, prefix="/api/v1", tags=["events"])

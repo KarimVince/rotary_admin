@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from app.core.attendance_sheet_report import build_attendance_sheet_pdf
+from app.core.attendance_sheet_report import _combined_roster, build_attendance_sheet_pdf
 from app.core.rotary_year import rotary_year
 from app.models import AttendanceEvent
 from app.schemas.attendance import AttendanceRecordRead
@@ -52,3 +52,26 @@ def test_pdf_handles_missing_location(db_session):
     event = _make_event(db_session, location=None)
     pdf_bytes = build_attendance_sheet_pdf(event, [_record("Jane", "Doe")], [_record("Sam", "Lee")])
     assert pdf_bytes[:4] == b"%PDF"
+
+
+def test_combined_roster_merges_and_sorts_active_and_honorary_by_name():
+    # Matches the club's real template — one flat, alphabetically-sorted,
+    # continuously-numbered list, not split by membership status.
+    active = [_record("Karim", "Berrada"), _record("Michael", "Fong")]
+    honorary = [_record("Agnes", "Chow")]
+
+    roster = _combined_roster(active, honorary)
+
+    assert [(m.last_name, m.first_name) for m in roster] == [
+        ("Berrada", "Karim"),
+        ("Chow", "Agnes"),
+        ("Fong", "Michael"),
+    ]
+
+
+def test_combined_roster_sort_is_case_insensitive():
+    active = [_record("bob", "smith"), _record("Amy", "Adams")]
+
+    roster = _combined_roster(active, [])
+
+    assert [m.last_name for m in roster] == ["Adams", "smith"]

@@ -22,6 +22,11 @@ frontend/.env
 # they never reached GitHub — broke the Render production build).
 /Data/
 
+# One-off real-data reference files dropped into doc/ for a design task
+# (e.g. a real attendance sheet used as a PDF-layout template) — real member
+# names/payment IDs, never committed.
+/doc/Attendance*.pdf
+
 # OS / editor
 .DS_Store
 .vscode/

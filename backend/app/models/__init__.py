@@ -1,5 +1,6 @@
 from app.models.adhoc_donation import AdhocDonation
 from app.models.app_function import AppFunction
+from app.models.attendance_audit import AttendanceAudit
 from app.models.attendance_event import AttendanceEvent
 from app.models.attendance_record import AttendanceRecord
 from app.models.auth_token import AuthToken
@@ -44,6 +45,7 @@ from app.models.user import User
 __all__ = [
     "AdhocDonation",
     "AppFunction",
+    "AttendanceAudit",
     "AttendanceEvent",
     "AttendanceRecord",
     "AuthToken",

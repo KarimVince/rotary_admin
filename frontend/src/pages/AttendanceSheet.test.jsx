@@ -220,8 +220,8 @@ describe("AttendanceSheet", () => {
     });
   });
 
-  describe("future-dated event (Story 16.9)", () => {
-    it("shows a banner, hides the stat pill, and disables the checklist even with saved marks", async () => {
+  describe("future-dated event (Story 16.9, loosened 2026-08-21)", () => {
+    it("still shows the stat pill and a marking-locked note, and disables the checklist even with saved marks", async () => {
       mockCanRead = true;
       mockCanWrite = true;
       const futureSheet = {
@@ -237,8 +237,11 @@ describe("AttendanceSheet", () => {
       renderPage();
       await waitForLoaded();
 
-      expect(screen.getByText(/hasn't taken place yet/i)).toBeInTheDocument();
-      expect(screen.queryByText(/present \(/i)).not.toBeInTheDocument();
+      // Viewing the page/counts and generating the sheet stay available
+      // arbitrarily far in advance — only marking is locked (2026-08-21).
+      expect(screen.getByText(/present \(/i)).toBeInTheDocument();
+      expect(screen.getByText(/marking attendance opens/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /generate attendance sheet/i })).toBeEnabled();
       const checkbox = screen.getByLabelText(/mark jane doe present/i);
       expect(checkbox).toBeDisabled();
       expect(checkbox).toBeChecked();

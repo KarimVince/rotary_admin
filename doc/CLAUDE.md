@@ -8,7 +8,79 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-08-19)
+## Current status / resume from here (2026-08-20)
+- **Story 16.33's PDF redesigned around a real reference template** (not
+  yet committed — this happened after `73efea7`). Karim supplied the
+  club's actual paper attendance sheet
+  (`Attendance - 2026 Aug 18.pdf`, real member names + the club's FPS
+  payment ID — **deliberately never committed to git**, gitignored via
+  `/doc/Attendance*.pdf` and deleted from `doc/` once the layout was
+  confirmed) and asked for the table to match it, fit on one page.
+  `backend/app/core/attendance_sheet_report.py` rewritten:
+  - **Flat, alphabetically-sorted, continuously-numbered roster** (active
+    + honorary merged via a new `_combined_roster()` helper — no more
+    separate section headers) with row-number / Last Name / First Name /
+    two blank checkbox columns. Karim's exact call on the column count:
+    *"have two check box, but use the template format"* — the real
+    template shows only one combined checkmark column, but this app keeps
+    both Attendance and Payment (matching the original story), just
+    restyled to the template's plain-black-grid look instead of the
+    app's usual soft blue-grey report style.
+  - Static `PAYMENT:  CASH  ou  FPS ID: 108236613` note line under the
+    title block — confirmed fixed text always, not sourced from
+    event/fee data or a new admin setting.
+  - Blank "Visiting Rotarians" (NAME/CLUB, 4 rows) and "Guests"
+    (NAME/ROTARIAN, 5 rows) tables below the roster, matching the
+    template — no data source for either, always empty.
+  - **Verified one-page fit by actually rendering it**: generated a
+    sample with the reference template's real 18-person roster,
+    confirmed via the PDF's own `/Count` value it was 2 pages on the
+    first pass, tightened padding/spacers/margins
+    (`PAGE_MARGIN` 0.5in→0.4in, table cell padding 4-5pt→3pt, spacers
+    0.2in→0.14in) until it rendered as 1 page with visible margin to
+    spare — don't trust "should fit" math alone for this, re-render and
+    check `/Count` (or view it) after any future spacing change here.
+  - New unit tests for `_combined_roster()`'s merge+sort (including a
+    case-insensitivity check) added to `test_attendance_sheet_report.py`;
+    existing 23 scoped tests (unit + `test_attendance.py`) still green.
+  - **Not committed/pushed yet** — ask before assuming this shipped.
+- **Epic 16 Stories 16.33 and 16.34 implemented** (committed + pushed to
+  `main`, commit `73efea7`). Answers to each story's own Open Questions,
+  confirmed with Karim before dev:
+  - **16.33 (Attendance/Payment PDF)**: attendee names pre-populate from
+    the event's existing eligible roster (active + honorary — reuses
+    `_build_sheet_response`, no duplicate query); the Attendance and
+    Payment columns are **always blank**, never pre-filled from existing
+    fee records, even when available (manual on-site marking only); single
+    layout for every event type. New "Generate Attendance Sheet" button on
+    the Attendance Sheet detail page (`/dinners/:eventId`), visible to
+    Read-only users too. New `backend/app/core/attendance_sheet_report.py`
+    (reportlab platypus, same header/logo pattern as
+    `dinner_forecast_report.py`) + `GET /attendance/events/{id}/
+    attendance-sheet-pdf`.
+  - **16.34 (Login Audit Log)**: successful logins only (not failed
+    attempts — a separate security-alerting concern); IP address captured,
+    not device/user-agent; indefinite retention, no auto-purge (matches
+    this app's existing convention — no data-retention automation exists
+    anywhere else either); all three of the story's own suggested stats
+    implemented (logins-over-time trend, most-active-users, last-login-
+    per-user). New `connection_logs` table (migration `ec721acfb227`, **run
+    against dev DB + re-seeded**), written from `POST /auth/login`. New
+    `app/api/deps.py::get_client_ip()` — **this app had no reverse-proxy
+    header handling anywhere before this** (Render's edge proxies straight
+    to the container, no nginx/gunicorn in front), reads `X-Forwarded-For`
+    first, falls back to `request.client.host` for local/dev. New Admin
+    page `/admin/connection-log` gated by a new `admin.connection_log`
+    permission-matrix key (same board tier as the rest of Admin — sensitive
+    account-activity data). Charts use the app's existing `recharts`
+    convention. **Deliberate choice**: the user-filter dropdown is built
+    from the stats endpoint's own `last_login` list rather than calling the
+    admin-role-only `GET /users`, since a Secretary/board member with
+    matrix write here isn't necessarily `role="admin"` and would 403 on
+    that endpoint.
+  - Tests: 3 new + 3 unit (16.33), 6 new backend + 4 new frontend (16.34),
+    plus 2 new AttendanceSheet.test.jsx cases. Full suites green — backend
+    835/835 (96.4% coverage), frontend 459/459.
 - **Epic 16 Story 16.32 second follow-up round** (same session): more
   spacing above the banner, a proper "Important Information" section
   header matching "Club overview"'s style, and more breathing room between
@@ -752,13 +824,16 @@ fees/invoicing. Small user base (club admins + treasurer), low traffic.
    whatever the batch run turns up.
    **When I ask you to work through several stories in one batch** (e.g.
    "implement 14.6 to 14.11"), the default narrows rather than disappears:
-   run only the **new test file(s) for the story you just finished** before
-   moving to the next one (fast, scoped, catches obvious breakage early) —
-   do **not** run the full backend/frontend suites between stories in that
-   batch. Run the full suites once at the end of the batch/epic, same as the
-   `x.99` story would. If I ask you to run the full suite after every story
-   in a given session, that's a one-off override for that session only —
-   revert to this default afterward unless told otherwise.
+   run only the **test file(s) covering what you actually touched** — not
+   between stories, and **not even once at the end of the batch/epic**.
+   (2026-08-21 correction: an earlier version of this note said to run the
+   full suite once at batch-end, "same as the `x.99` story would" — that's
+   wrong; stay scoped to changed files at every point, batch end included.)
+   Only the epic's dedicated `x.99` "test & fix" story — whose whole job is
+   the full-suite run — or an explicit ask from me should ever trigger the
+   full backend/frontend suites. If I ask you to run the full suite after
+   every story in a given session, that's a one-off override for that
+   session only — revert to this default afterward unless told otherwise.
    **This restraint is about test suites only, not database scripts.**
    Migrations (`alembic upgrade head`) and idempotent seed scripts (e.g.
    `scripts/seed_permission_matrix.py`) for the epic/story currently being
