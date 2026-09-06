@@ -12,7 +12,7 @@ from app.core.attendance_support import (
     started_event_ids,
     validate_event_type,
 )
-from app.core.dinner_forecast_report import build_csv_report, build_pdf_report
+from app.core.dinner_forecast_report import build_csv_report, build_pdf_report, build_pptx_report
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
@@ -35,7 +35,7 @@ FORECAST_KEY = "attendance.forecast"
 # Story 16.17: the report screen's type filter is multi-select — an empty
 # list means "all types" (the old "all" sentinel is no longer sent/needed).
 EventFilter = list[str]
-ReportFormat = Literal["pdf", "csv"]
+ReportFormat = Literal["pdf", "csv", "pptx"]
 
 
 def _get_event_or_404(db: Session, event_id: uuid.UUID) -> AttendanceEvent:
@@ -176,6 +176,9 @@ def generate_dinner_forecast_report(
     # the same report. Checking Forecast narrows it down to upcoming events
     # only, with no participation data yet since they haven't happened.
     forecast: bool = Query(False),
+    # PPTX only: "template" uses the district band asset; "plain" draws a
+    # green band + club logo (same system as the Board Members report).
+    use_template: bool = Query(False, description="PPTX only — use district template chrome"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(FORECAST_KEY, "read")),
 ):
@@ -216,6 +219,17 @@ def generate_dinner_forecast_report(
         for t in db.query(DinnerEventType).all()
         if t.color_bg and t.color_text
     }
+
+    if format == "pptx":
+        chrome = "template" if use_template else "plain"
+        content = build_pptx_report(events, selected_year, type_colors, participation, forecast, chrome)
+        filename = generate_report_filename(topic, "pptx", rotary_year=selected_year)
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     content = build_pdf_report(events, selected_year, type_colors, participation, forecast)
     filename = generate_report_filename(topic, "pdf", rotary_year=selected_year)
     return Response(

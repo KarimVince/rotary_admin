@@ -57,15 +57,34 @@ export default function DinnerEvents() {
   const [startingEventId, setStartingEventId] = useState(null);
   const [rowError, setRowError] = useState(null);
 
-  const [reportFormat, setReportFormat] = useState("pdf");
+  const SESSION_KEY_FORMAT = "dinnerEvents.report.format";
+  const SESSION_KEY_USE_TEMPLATE = "dinnerEvents.report.useTemplate";
+
+  const [reportFormat, setReportFormat] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_FORMAT) || "pdf",
+  );
   // Story 16.17: multi-select — empty array means "all types".
   const [reportEventTypes, setReportEventTypes] = useState([]);
   // Story 16.17: defaults unchecked (all events — past ones show their
   // participation rate); checked narrows to forecast (future events only,
   // no attendance data yet).
   const [reportForecast, setReportForecast] = useState(false);
+  // PPTX only: use the district template chrome (dark band asset).
+  const [useTemplate, setUseTemplate] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
+  );
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
+
+  function handleFormatChange(value) {
+    setReportFormat(value);
+    sessionStorage.setItem(SESSION_KEY_FORMAT, value);
+  }
+
+  function handleUseTemplateChange(checked) {
+    setUseTemplate(checked);
+    sessionStorage.setItem(SESSION_KEY_USE_TEMPLATE, String(checked));
+  }
 
   async function loadData() {
     setIsLoading(true);
@@ -175,6 +194,7 @@ export default function DinnerEvents() {
         format: reportFormat,
         event_type: reportEventTypes,
         forecast: reportForecast,
+        useTemplate: reportFormat === "pptx" ? useTemplate : undefined,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -271,11 +291,33 @@ export default function DinnerEvents() {
               value={reportFormat}
               options={[
                 { value: "pdf", label: "PDF" },
+                { value: "pptx", label: "PowerPoint" },
                 { value: "csv", label: "CSV" },
               ]}
-              onSelect={setReportFormat}
+              onSelect={handleFormatChange}
             />
           </div>
+
+          {reportFormat === "pptx" && (
+            <div className="flex flex-col gap-1.5">
+              <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+                Chrome
+              </span>
+              <label
+                htmlFor="dinner-report-use-template"
+                className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+              >
+                <input
+                  id="dinner-report-use-template"
+                  type="checkbox"
+                  checked={useTemplate}
+                  onChange={(e) => handleUseTemplateChange(e.target.checked)}
+                  disabled={isGeneratingReport}
+                />
+                Use district template
+              </label>
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">

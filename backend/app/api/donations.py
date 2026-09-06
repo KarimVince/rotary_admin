@@ -7,7 +7,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
-from app.api.ppt_templates import download_template_for_year
 from app.core.currency_conversion import convert_totals
 from app.core.donation_statistics_report import (
     build_pdf_report,
@@ -81,7 +80,9 @@ def create_donation(
     _get_organisation_or_404(db, organisation_id)
 
     data = payload.model_dump()
-    if data.get("rotary_year") is None:
+    # Story 16.35: a planned donation carries no donation_date to derive
+    # this from — the schema already requires rotary_year in that case.
+    if data.get("rotary_year") is None and data.get("donation_date") is not None:
         data["rotary_year"] = rotary_year(data["donation_date"])
 
     donation = Donation(
@@ -139,14 +140,25 @@ def _compute_donation_statistics(
 
     by_currency = []
     for currency in currencies:
-        base_query = db.query(Donation).filter(Donation.currency == currency)
+        # Story 16.35: every "actual totals" query below is scoped to
+        # planned=False — a planned donation must never inflate the
+        # actual-donations figures (grand_total, by-year, by-org,
+        # by-classification, all-time/selected-year converted totals). Its
+        # own totals live only in planned_by_rotary_year below.
+        base_query = db.query(Donation).filter(
+            Donation.currency == currency, Donation.planned.is_(False)
+        )
         if classification_org_ids is not None:
             base_query = base_query.filter(Donation.organisation_id.in_(classification_org_ids))
 
         classification_rows = (
             db.query(Organisation.classification_id, func.sum(Donation.amount))
             .join(Donation, Donation.organisation_id == Organisation.id)
-            .filter(Donation.currency == currency, Donation.rotary_year == selected_year)
+            .filter(
+                Donation.currency == currency,
+                Donation.rotary_year == selected_year,
+                Donation.planned.is_(False),
+            )
             .group_by(Organisation.classification_id)
             .all()
         )
@@ -178,7 +190,7 @@ def _compute_donation_statistics(
         total_by_org_query = (
             db.query(Organisation.name, func.sum(Donation.amount))
             .join(Donation, Donation.organisation_id == Organisation.id)
-            .filter(Donation.currency == currency)
+            .filter(Donation.currency == currency, Donation.planned.is_(False))
         )
         if classification_org_ids is not None:
             total_by_org_query = total_by_org_query.filter(
@@ -195,7 +207,11 @@ def _compute_donation_statistics(
         total_by_org_selected_year_query = (
             db.query(Organisation.name, func.sum(Donation.amount))
             .join(Donation, Donation.organisation_id == Organisation.id)
-            .filter(Donation.currency == currency, Donation.rotary_year == selected_year)
+            .filter(
+                Donation.currency == currency,
+                Donation.rotary_year == selected_year,
+                Donation.planned.is_(False),
+            )
         )
         if classification_org_ids is not None:
             total_by_org_selected_year_query = total_by_org_selected_year_query.filter(
@@ -212,7 +228,7 @@ def _compute_donation_statistics(
         classification_all_time_rows = (
             db.query(Organisation.classification_id, func.sum(Donation.amount))
             .join(Donation, Donation.organisation_id == Organisation.id)
-            .filter(Donation.currency == currency)
+            .filter(Donation.currency == currency, Donation.planned.is_(False))
         )
         if classification_org_ids is not None:
             classification_all_time_rows = classification_all_time_rows.filter(
@@ -232,6 +248,30 @@ def _compute_donation_statistics(
         ]
 
         grand_total = sum(float(total) for _, total in total_by_year)
+
+        # Story 16.35 — planned (not-yet-made) donation totals, current
+        # rotary year and any future one, never mixed into the actual-only
+        # totals above.
+        current_system_year = compute_current_rotary_year(date.today())
+        planned_by_year_query = db.query(Donation).filter(
+            Donation.currency == currency,
+            Donation.planned.is_(True),
+            Donation.rotary_year >= current_system_year,
+        )
+        if classification_org_ids is not None:
+            planned_by_year_query = planned_by_year_query.filter(
+                Donation.organisation_id.in_(classification_org_ids)
+            )
+        planned_by_year_rows = (
+            planned_by_year_query.with_entities(Donation.rotary_year, func.sum(Donation.amount))
+            .group_by(Donation.rotary_year)
+            .order_by(Donation.rotary_year)
+            .all()
+        )
+        planned_by_rotary_year = [
+            LabelValueFloat(label=str(year), value=float(total))
+            for year, total in planned_by_year_rows
+        ]
 
         by_currency.append(
             CurrencyStatistics(
@@ -254,6 +294,7 @@ def _compute_donation_statistics(
                     for name, total in total_by_org_selected_year
                 ],
                 total_by_classification_all_time=total_by_classification_all_time,
+                planned_by_rotary_year=planned_by_rotary_year,
             )
         )
 
@@ -262,7 +303,7 @@ def _compute_donation_statistics(
         for rate in db.query(ExchangeRate).all()
     }
 
-    all_time_query = db.query(Donation)
+    all_time_query = db.query(Donation).filter(Donation.planned.is_(False))
     if classification_org_ids is not None:
         all_time_query = all_time_query.filter(
             Donation.organisation_id.in_(classification_org_ids)
@@ -278,7 +319,26 @@ def _compute_donation_statistics(
         or 0
     )
 
-    selected_year_query = db.query(Donation).filter(Donation.rotary_year == selected_year)
+    # Story 16.35 follow-up — "Organisations supported" on the Statistics
+    # page counts either an actual OR a planned donation (unlike
+    # all_time_organisations_count above, which stays actual-only for the
+    # PPTX/PDF report's "Reach" figure) — same query without the
+    # planned=False filter.
+    all_time_with_planned_query = db.query(Donation)
+    if classification_org_ids is not None:
+        all_time_with_planned_query = all_time_with_planned_query.filter(
+            Donation.organisation_id.in_(classification_org_ids)
+        )
+    all_time_organisations_count_with_planned = (
+        all_time_with_planned_query.with_entities(
+            func.count(func.distinct(Donation.organisation_id))
+        ).scalar()
+        or 0
+    )
+
+    selected_year_query = db.query(Donation).filter(
+        Donation.rotary_year == selected_year, Donation.planned.is_(False)
+    )
     if classification_org_ids is not None:
         selected_year_query = selected_year_query.filter(
             Donation.organisation_id.in_(classification_org_ids)
@@ -295,6 +355,39 @@ def _compute_donation_statistics(
         selected_year_query.with_entities(func.count(func.distinct(Donation.organisation_id)))
         .scalar()
         or 0
+    )
+
+    # Story 16.35 follow-up — same actual-vs-actual+planned split as
+    # all_time_organisations_count_with_planned above, scoped to the
+    # selected year.
+    selected_year_with_planned_query = db.query(Donation).filter(Donation.rotary_year == selected_year)
+    if classification_org_ids is not None:
+        selected_year_with_planned_query = selected_year_with_planned_query.filter(
+            Donation.organisation_id.in_(classification_org_ids)
+        )
+    selected_year_organisations_count_with_planned = (
+        selected_year_with_planned_query.with_entities(
+            func.count(func.distinct(Donation.organisation_id))
+        ).scalar()
+        or 0
+    )
+
+    # Story 16.35 — converted planned total for the selected rotary year,
+    # scoped the same as selected_year_totals above but planned=True.
+    selected_year_planned_query = db.query(Donation).filter(
+        Donation.rotary_year == selected_year, Donation.planned.is_(True)
+    )
+    if classification_org_ids is not None:
+        selected_year_planned_query = selected_year_planned_query.filter(
+            Donation.organisation_id.in_(classification_org_ids)
+        )
+    selected_year_planned_rows = selected_year_planned_query.with_entities(
+        Donation.currency, Donation.amount
+    ).all()
+    selected_year_planned_totals = ConvertedTotals(
+        **convert_totals(
+            ((currency, float(amount)) for currency, amount in selected_year_planned_rows), rates
+        )
     )
 
     # Story 16.14 — volunteer service hours, scoped by the same
@@ -334,36 +427,66 @@ def _compute_donation_statistics(
         total_service_hours_selected_year=total_service_hours_selected_year,
         service_hours_by_rotary_year=service_hours_by_rotary_year,
         all_time=all_time,
+        selected_year_planned=selected_year_planned_totals,
+        selected_year_organisations_count_with_planned=selected_year_organisations_count_with_planned,
+        all_time_organisations_count_with_planned=all_time_organisations_count_with_planned,
     )
 
 
-def _ngo_breakdown_for_selected_year(
+def _ngo_report_rows_for_selected_year(
     db: Session,
     selected_year: int,
     currency: str | None,
     classification_org_ids,
 ) -> list[dict]:
-    """Story 8.32 Integral detail — per-NGO totals for the selected year and
-    currency, ordered descending, including id/logo for image embedding.
-    Separate from `_compute_donation_statistics`'s LabelValueFloat rows
-    (name only) since the report needs the logo file too."""
+    """Story 16.35, redesigned per the district-template handoff — one row
+    per NGO with a donation (actual OR planned) in the selected rotary year,
+    feeding both the PDF's organisation table and the PPTX's Organisations
+    slide(s). "Area" maps to NGO Classification (`ngo_classifications`) —
+    this app has no separate geographic/area field on Organisation, and
+    classification is the only existing per-NGO grouping, so it's reused
+    here. Supersedes the old separate Integral-only breakdown and the
+    previous flat NGO-cards list — one function now, since the new design
+    has a single Organisations view regardless of report_type."""
     if currency is None:
         return []
     query = (
-        db.query(Organisation.name, Organisation.logo_url, func.sum(Donation.amount))
+        db.query(
+            Organisation.name,
+            Organisation.country,
+            Organisation.logo_url,
+            Organisation.contact_name,
+            NgoClassification.name,
+            func.sum(Donation.amount),
+        )
         .join(Donation, Donation.organisation_id == Organisation.id)
+        .outerjoin(NgoClassification, Organisation.classification_id == NgoClassification.id)
         .filter(Donation.currency == currency, Donation.rotary_year == selected_year)
     )
     if classification_org_ids is not None:
         query = query.filter(Donation.organisation_id.in_(classification_org_ids))
     rows = (
-        query.group_by(Organisation.id, Organisation.name, Organisation.logo_url)
-        .order_by(func.sum(Donation.amount).desc())
+        query.group_by(
+            Organisation.id,
+            Organisation.name,
+            Organisation.country,
+            Organisation.logo_url,
+            Organisation.contact_name,
+            NgoClassification.name,
+        )
+        .order_by(NgoClassification.name, func.sum(Donation.amount).desc())
         .all()
     )
     return [
-        {"name": name, "total": float(total), "logo_bytes": resolve_logo_bytes(logo_url)}
-        for name, logo_url, total in rows
+        {
+            "name": name,
+            "country": country,
+            "area": area_name or "Unclassified",
+            "contact_name": contact_name,
+            "total": float(total),
+            "logo_bytes": resolve_logo_bytes(logo_url),
+        }
+        for name, country, logo_url, contact_name, area_name, total in rows
     ]
 
 
@@ -386,8 +509,20 @@ def donation_statistics(
 @router.post("/donations/statistics/report")
 def generate_donation_statistics_report(
     report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    # Story 16.35 redesign: the district-template handoff replaced the old
+    # chart-heavy Simplified/Integral reports with one fixed design (Summary
+    # + Organisations). `type` is still accepted so existing frontend calls
+    # don't 422, but no longer changes the output — flagged here, not
+    # silently dropped.
     report_type: Literal["simplified", "integral"] = Query("simplified", alias="type"),
-    use_template: bool = Query(False),
+    use_template: bool = Query(
+        False,
+        description="Story 16.35 redesign: PPTX chrome variant — the District "
+        "3450 template band/logo (via a shipped static asset) instead of the "
+        "plain green band + club logo. No longer needs an admin-uploaded PPT "
+        "template file (see Admin → PPT Template) — that upload feature is "
+        "unrelated to this toggle now.",
+    ),
     rotary_year: int | None = Query(None, description="Defaults to the current rotary year"),
     classification_id: uuid.UUID | None = Query(None),
     currency: str | None = Query(
@@ -404,34 +539,25 @@ def generate_donation_statistics_report(
         classification_org_ids = db.query(Organisation.id).filter(
             Organisation.classification_id == classification_id
         )
-    ngo_breakdown = _ngo_breakdown_for_selected_year(
+    ngo_rows = _ngo_report_rows_for_selected_year(
         db, stats.selected_rotary_year, selected_currency, classification_org_ids
     )
 
-    template_path = None
-    if use_template:
-        if report_format != "pptx":
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="The annual club template only applies to PowerPoint (PPTX) reports",
-            )
-        template_path = download_template_for_year(compute_current_rotary_year(date.today()))
-        if template_path is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No annual template uploaded for this rotary year",
-            )
+    if use_template and report_format != "pptx":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The district template chrome only applies to PowerPoint (PPTX) reports",
+        )
 
     if report_format == "pdf":
-        content = build_pdf_report(stats, selected_currency, ngo_breakdown, report_type=report_type)
+        content = build_pdf_report(stats, selected_currency, ngo_rows)
         media_type = "application/pdf"
         filename = generate_report_filename(
             "ngo-statistics", "pdf", rotary_year=stats.selected_rotary_year
         )
     else:
         content = build_pptx_report(
-            stats, selected_currency, ngo_breakdown, report_type=report_type,
-            template_path=template_path,
+            stats, selected_currency, ngo_rows, chrome="template" if use_template else "plain"
         )
         media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         filename = generate_report_filename(
@@ -457,8 +583,24 @@ def update_donation(
     data = payload.model_dump(exclude_unset=True)
     # If the date moved but the caller didn't explicitly override rotary_year,
     # keep the bucket in sync with the new date.
-    if "donation_date" in data and "rotary_year" not in data:
+    if data.get("donation_date") is not None and "rotary_year" not in data:
         data["rotary_year"] = rotary_year(data["donation_date"])
+
+    # Story 16.35: resolve what planned/donation_date will be *after* this
+    # partial update is applied, and validate the combination — same rule as
+    # DonationCreate, enforced here since PATCH only carries the changed
+    # fields. Covers both directions: converting a planned donation to an
+    # actual one (planned -> False + donation_date supplied) and editing an
+    # already-actual donation (donation_date must stay set).
+    resulting_planned = data.get("planned", donation.planned)
+    resulting_date = data.get("donation_date", donation.donation_date)
+    if resulting_planned:
+        data["donation_date"] = None
+    elif resulting_date is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="donation_date is required for an actual (non-planned) donation",
+        )
 
     for field, value in data.items():
         setattr(donation, field, value)

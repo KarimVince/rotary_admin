@@ -55,7 +55,14 @@ class OrganisationRead(OrganisationBase):
     created_at: datetime
     updated_at: datetime
     # Only populated when the list endpoint is called with ?rotary_year=... —
-    # the org's donations for that year, converted to HKD (best-effort; a
-    # donation in a currency with no exchange rate on file is excluded from
-    # this total, same non-silent-drop behaviour as the statistics endpoint).
+    # the org's *actual* (non-planned) donations for that year, converted to
+    # HKD (best-effort; a donation in a currency with no exchange rate on
+    # file is excluded from this total, same non-silent-drop behaviour as
+    # the statistics endpoint).
     year_total: float | None = None
+    # Story 16.35 follow-up: the *planned* (not-yet-made) donation total for
+    # the same year — kept as a separate field rather than folded into
+    # year_total, so an org with only planned donations still shows up in
+    # the year-filtered list (year_total alone would be 0/None for it) and
+    # the two figures never get conflated into one number.
+    year_total_planned: float | None = None

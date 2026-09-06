@@ -30,6 +30,10 @@ class CurrencyStatistics(BaseModel):
     # rather than a second round-trip.
     total_by_organisation_selected_year: list[LabelValueFloat]
     total_by_classification_all_time: list[LabelValueFloat]
+    # Story 16.35: total *planned* (not-yet-made) donation amount for the
+    # current rotary year and any future year that has planned donations —
+    # never conflated into the actual-donation totals above.
+    planned_by_rotary_year: list[LabelValueFloat]
 
 
 class ConvertedTotals(BaseModel):
@@ -59,3 +63,19 @@ class DonationStatistics(BaseModel):
     total_service_hours_all_time: float
     total_service_hours_selected_year: float
     service_hours_by_rotary_year: list[LabelValueFloat]
+
+    # Story 16.35 — converted (HKD/USD) total of *planned* donations for the
+    # selected rotary year, same shape as `selected_year` above but never
+    # added into it (planned amounts are shown as an adjacent figure, not
+    # conflated into the actual-donations total).
+    selected_year_planned: ConvertedTotals
+
+    # Story 16.35 follow-up: "Organisations supported" on the Statistics
+    # *page* counts an org supported by either an actual OR a planned
+    # donation — distinct from `selected_year_organisations_count`/
+    # `all_time_organisations_count` above (actual-only), which the
+    # PPTX/PDF report's own "Reach" figure still uses unchanged (that
+    # report's design explicitly distinguishes "organisations supported"
+    # from "organisations listed", the latter already counting planned).
+    selected_year_organisations_count_with_planned: int
+    all_time_organisations_count_with_planned: int

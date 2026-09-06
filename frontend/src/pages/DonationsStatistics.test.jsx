@@ -56,12 +56,19 @@ const STATS = {
       grand_total: 1300,
       total_by_classification: [{ label: "Unclassified", value: 900 }],
       total_by_classification_all_time: [{ label: "Unclassified", value: 1300 }],
+      // Story 16.35
+      planned_by_rotary_year: [{ label: String(THIS_YEAR), value: 250 }],
     },
   ],
   selected_rotary_year: THIS_YEAR,
   selected_year_organisations_count: 2,
+  // Story 16.35 follow-up: "Organisations supported" includes planned-only
+  // orgs too — deliberately different from the actual-only count above, to
+  // prove the page renders the *_with_planned field, not the actual-only one.
+  selected_year_organisations_count_with_planned: 3,
   selected_year: SELECTED_YEAR_FIXTURE,
   all_time_organisations_count: 3,
+  all_time_organisations_count_with_planned: 4,
   all_time: ALL_TIME_FIXTURE,
   total_service_hours_all_time: 42,
   total_service_hours_selected_year: 18,
@@ -69,6 +76,9 @@ const STATS = {
     { label: String(THIS_YEAR - 1), value: 24 },
     { label: String(THIS_YEAR), value: 18 },
   ],
+  // Story 16.35 — planned (not-yet-made) donation total for the selected
+  // year, never conflated into selected_year above.
+  selected_year_planned: { total_hkd: 250, total_usd: 32, unconverted_count: 0, unconverted_currencies: [] },
 };
 
 // recharts' ResponsiveContainer needs real layout dimensions jsdom doesn't
@@ -173,10 +183,11 @@ describe("DonationsStatistics", () => {
 
     renderPage();
 
-    // All-time cards.
+    // All-time cards. Story 16.35 follow-up: "Organisations supported"
+    // renders the *_with_planned count (4), not the actual-only one (3).
     expect(await screen.findByText("1,300 HKD")).toBeInTheDocument();
     expect(screen.getByText("166 USD")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getAllByText(/organisations supported/i).length).toBeGreaterThan(0);
 
     // Selected-year cards.
@@ -185,6 +196,21 @@ describe("DonationsStatistics", () => {
     expect(
       screen.getAllByText(new RegExp(`Total donated.*${THIS_YEAR}`, "i")).length,
     ).toBeGreaterThan(0);
+  });
+
+  // Story 16.35 — planned (not-yet-made) donation total shown as an
+  // adjacent card, never merged into the actual selected-year total.
+  it("shows the planned-donations card alongside the actual selected-year totals", async () => {
+    server.use(
+      http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
+    );
+
+    renderPage();
+
+    expect(await screen.findAllByText(/Planned donations/i)).not.toHaveLength(0);
+    expect(screen.getByText("250 HKD")).toBeInTheDocument();
+    // The actual selected-year total (900) is unaffected by the 250 planned.
+    expect(screen.getByText("900 HKD")).toBeInTheDocument();
   });
 
   it("warns when donations exist in a currency with no exchange rate", async () => {
@@ -214,6 +240,7 @@ describe("DonationsStatistics", () => {
       by_currency: [],
       selected_rotary_year: THIS_YEAR,
       selected_year_organisations_count: 0,
+      selected_year_organisations_count_with_planned: 0,
       selected_year: {
         total_hkd: 0,
         total_usd: 0,
@@ -221,6 +248,7 @@ describe("DonationsStatistics", () => {
         unconverted_currencies: [],
       },
       all_time_organisations_count: 0,
+      all_time_organisations_count_with_planned: 0,
       all_time: {
         total_hkd: 0,
         total_usd: 0,
@@ -230,6 +258,7 @@ describe("DonationsStatistics", () => {
       total_service_hours_all_time: 0,
       total_service_hours_selected_year: 0,
       service_hours_by_rotary_year: [],
+      selected_year_planned: { total_hkd: 0, total_usd: 0, unconverted_count: 0, unconverted_currencies: [] },
     };
 
     server.use(

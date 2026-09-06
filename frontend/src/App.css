@@ -984,6 +984,34 @@ select:focus {
   background: var(--tone-amber-bg);
 }
 
+/* Story 16.35 — NGO Planned Donations: purple = planned, blue = actual. */
+.donation-amount-planned {
+  color: var(--color-donation-planned);
+}
+
+.donation-amount-actual {
+  color: var(--color-donation-actual);
+}
+
+.donation-planned-badge {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--tone-lavender-bg);
+  color: var(--color-donation-planned);
+  vertical-align: middle;
+}
+
+/* Story 16.35 follow-up — same purple as .donation-planned-badge above, but
+   sized to sit alongside .inline-badge (NGO Directory card) rather than
+   inline with amount text. */
+.donation-planned-badge-lg {
+  background: var(--tone-lavender-bg);
+  color: var(--color-donation-planned);
+}
+
 .service-hour-row-current {
   background: var(--tone-teal-bg);
 }

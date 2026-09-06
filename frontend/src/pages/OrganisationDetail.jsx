@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { Building2, Calendar } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { API_ORIGIN } from "../api/client";
@@ -18,7 +18,9 @@ import {
   updateServiceHour,
 } from "../api/serviceHours";
 import Card from "../components/Card";
+import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
+import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS, INPUT_CLASS } from "../styles/formControls";
 import { classificationColorClass } from "../utils/classificationColors";
 import { currentRotaryYear, rotaryYear, rotaryYearLabel } from "../utils/rotaryYear";
@@ -52,7 +54,18 @@ function EntryTable({ columns, rows, isAdmin }) {
   );
 }
 
-const EMPTY_FORM = { amount: "", donation_date: "", currency: "HKD", notes: "" };
+// Story 16.35: `planned` + `rotary_year` added — a planned donation has no
+// donation_date yet, so its rotary_year can't be derived from one and is
+// picked directly instead (see the form's Rotary year select, only shown
+// while Planned is checked).
+const EMPTY_FORM = {
+  amount: "",
+  donation_date: "",
+  currency: "HKD",
+  notes: "",
+  planned: false,
+  rotary_year: "",
+};
 // Story 16.14: same shape as EMPTY_FORM, hours instead of amount/currency.
 const EMPTY_SERVICE_HOUR_FORM = { member_id: "", hours: "", service_date: "", notes: "" };
 
@@ -79,6 +92,10 @@ export default function OrganisationDetail() {
   const { organisationId } = useParams();
   const { canRead, canWrite: isAdmin } = useAccess("ngos.organisations");
   const thisRotaryYear = currentRotaryYear();
+  // Story 16.35: central Rotary Years list, reused for the donation year
+  // filter's options and the planned-donation form's Rotary year select
+  // (same source every other year selector in the app uses).
+  const { yearOptions: allRotaryYearOptions, currentYear: centralCurrentYear } = useRotaryYears();
 
   const ACTION_BUTTON_CLASS =
     "bg-transparent border-none p-0 mr-4 text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)] cursor-pointer";
@@ -112,6 +129,11 @@ export default function OrganisationDetail() {
     classifications.forEach((classification) => map.set(classification.id, classification));
     return map;
   }, [classifications]);
+
+  // Story 16.35: "all" (default) or a specific rotary year — replaces the
+  // old always-both "current year / past years" split with a proper filter,
+  // matching the story's "All years" vs "a specific year" list-view spec.
+  const [donationYearFilter, setDonationYearFilter] = useState("all");
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
@@ -159,25 +181,53 @@ export default function OrganisationDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRead, organisationId]);
 
-  const formRotaryYear = useMemo(() => rotaryYear(form.donation_date), [form.donation_date]);
+  // Story 16.35: while Planned, the rotary year comes straight from the
+  // form's own select (no date to derive it from); otherwise unchanged.
+  const formRotaryYear = useMemo(
+    () => (form.planned ? (form.rotary_year === "" ? null : Number(form.rotary_year)) : rotaryYear(form.donation_date)),
+    [form.planned, form.rotary_year, form.donation_date],
+  );
   const hoursFormRotaryYear = useMemo(
     () => rotaryYear(hoursForm.service_date),
     [hoursForm.service_date],
   );
 
-  const { currentYearDonations, pastDonations, totalsByCurrency } = useMemo(() => {
-    const current = [];
-    const past = [];
-    // Totals are kept separate per currency — summing HKD + USD into one
-    // number would be meaningless without FX conversion (Story 3.7).
+  // Story 16.35: totals only ever count actual (non-planned) donations —
+  // a planned/forecast amount must never be conflated into "total donated".
+  const totalsByCurrency = useMemo(() => {
     const totals = {};
-    donations.forEach((donation) => {
-      totals[donation.currency] = (totals[donation.currency] ?? 0) + Number(donation.amount);
-      if (donation.rotary_year === thisRotaryYear) current.push(donation);
-      else past.push(donation);
-    });
-    return { currentYearDonations: current, pastDonations: past, totalsByCurrency: totals };
+    donations
+      .filter((donation) => !donation.planned)
+      .forEach((donation) => {
+        totals[donation.currency] = (totals[donation.currency] ?? 0) + Number(donation.amount);
+      });
+    return totals;
+  }, [donations]);
+
+  // Story 16.35: every rotary year that has at least one donation (plus the
+  // current year, always offered even with none yet) — options for the
+  // donation list's year filter.
+  const donationYearOptions = useMemo(() => {
+    const years = new Set(donations.map((donation) => donation.rotary_year));
+    years.add(thisRotaryYear);
+    return Array.from(years).sort((a, b) => b - a);
   }, [donations, thisRotaryYear]);
+
+  const filteredDonations = useMemo(() => {
+    const rows =
+      donationYearFilter === "all"
+        ? donations
+        : donations.filter((donation) => donation.rotary_year === Number(donationYearFilter));
+    // Newest first; a planned donation (no date) sorts after actual ones in
+    // the same year.
+    return [...rows].sort((a, b) => {
+      if (a.rotary_year !== b.rotary_year) return b.rotary_year - a.rotary_year;
+      if (!a.donation_date && !b.donation_date) return 0;
+      if (!a.donation_date) return 1;
+      if (!b.donation_date) return -1;
+      return a.donation_date < b.donation_date ? 1 : -1;
+    });
+  }, [donations, donationYearFilter]);
 
   const { currentYearServiceHours, pastServiceHours, totalHours, totalHoursCurrentYear } =
     useMemo(() => {
@@ -212,9 +262,27 @@ export default function OrganisationDetail() {
     setEditingId(donation.id);
     setForm({
       amount: String(donation.amount),
-      donation_date: donation.donation_date,
+      donation_date: donation.donation_date ?? "",
       currency: donation.currency,
       notes: donation.notes ?? "",
+      planned: donation.planned,
+      rotary_year: String(donation.rotary_year),
+    });
+    setSaveError(null);
+  }
+
+  // Story 16.35: converting a planned donation to actual is the same edit
+  // form — pre-fills today's date and unchecks Planned, so Save just does
+  // the in-place conversion (no new record, no separate flow).
+  function startConvert(donation) {
+    setEditingId(donation.id);
+    setForm({
+      amount: String(donation.amount),
+      donation_date: new Date().toISOString().slice(0, 10),
+      currency: donation.currency,
+      notes: donation.notes ?? "",
+      planned: false,
+      rotary_year: String(donation.rotary_year),
     });
     setSaveError(null);
   }
@@ -226,9 +294,12 @@ export default function OrganisationDetail() {
     try {
       const payload = {
         amount: Number(form.amount),
-        donation_date: form.donation_date,
         currency: form.currency || "HKD",
         notes: form.notes === "" ? null : form.notes,
+        planned: form.planned,
+        ...(form.planned
+          ? { donation_date: null, rotary_year: Number(form.rotary_year) }
+          : { donation_date: form.donation_date }),
       };
       if (editingId) {
         await updateDonation(editingId, payload);
@@ -328,18 +399,40 @@ export default function OrganisationDetail() {
     );
   }
 
-  function renderRow(donation, highlight) {
+  // Story 16.35: planned donations render in purple, actual (already-made)
+  // donations in blue — applied to the amount cell rather than the whole
+  // row, so the existing amber "this rotary year" row highlight still shows
+  // through underneath.
+  function renderRow(donation, highlight, showYearColumn) {
     return (
       <tr
         key={donation.id}
         className={`border-b border-[var(--color-border-light)] last:border-b-0 ${highlight ? "donation-row-current" : ""}`}
       >
-        <td className={CELL_CLASS}>{rotaryYearLabel(donation.rotary_year)}</td>
-        <td className={CELL_STRONG_CLASS}>{formatAmount(donation.amount, donation.currency)}</td>
-        <td className={CELL_CLASS}>{donation.donation_date}</td>
+        {showYearColumn && (
+          <td className={CELL_CLASS}>{rotaryYearLabel(donation.rotary_year)}</td>
+        )}
+        <td
+          className={`px-5 py-[14px] text-[14px] font-semibold ${
+            donation.planned ? "donation-amount-planned" : "donation-amount-actual"
+          }`}
+        >
+          {formatAmount(donation.amount, donation.currency)}
+          {donation.planned && <span className="donation-planned-badge">Planned</span>}
+        </td>
+        <td className={CELL_CLASS}>{donation.donation_date ?? "—"}</td>
         <td className={CELL_CLASS}>{donation.notes ?? "—"}</td>
         {isAdmin && (
           <td className="px-5 py-[14px] text-right whitespace-nowrap">
+            {donation.planned && (
+              <button
+                type="button"
+                onClick={() => startConvert(donation)}
+                className={ACTION_BUTTON_CLASS}
+              >
+                Mark as received
+              </button>
+            )}
             <button type="button" onClick={() => startEdit(donation)} className={ACTION_BUTTON_CLASS}>
               Edit
             </button>
@@ -439,16 +532,45 @@ export default function OrganisationDetail() {
       </div>
 
       <section className="donation-current-section">
-        <h2 className="seclabel">
-          Current rotary year ({rotaryYearLabel(thisRotaryYear)})
-        </h2>
-        {currentYearDonations.length === 0 ? (
-          <p className="member-empty-state">No donations recorded this rotary year yet.</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="seclabel !mt-0">Donations</h2>
+          <div className="flex flex-col gap-1.5 mb-2">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Rotary year
+            </span>
+            <SingleSelectDropdown
+              icon={Calendar}
+              ariaLabel="Filter donations by rotary year"
+              minWidthClass="min-w-[170px]"
+              value={String(donationYearFilter)}
+              options={[
+                { value: "all", label: "All years" },
+                ...donationYearOptions.map((year) => ({
+                  value: String(year),
+                  label: `${rotaryYearLabel(year)}${year === thisRotaryYear ? " (current)" : ""}`,
+                })),
+              ]}
+              onSelect={setDonationYearFilter}
+            />
+          </div>
+        </div>
+        {/* Story 16.35: purple = planned, blue = actual. When "All years" is
+            selected the Rotary year column stays so forecast-vs-actuals can
+            be told apart across years at a glance; a specific year drops it
+            since the filter already implies it. */}
+        {filteredDonations.length === 0 ? (
+          <p className="member-empty-state">No donations recorded for this selection yet.</p>
         ) : (
           <EntryTable
-            columns={["Rotary year", "Amount", "Date", "Notes"]}
+            columns={
+              donationYearFilter === "all"
+                ? ["Rotary year", "Amount", "Date", "Notes"]
+                : ["Amount", "Date", "Notes"]
+            }
             isAdmin={isAdmin}
-            rows={currentYearDonations.map((donation) => renderRow(donation, true))}
+            rows={filteredDonations.map((donation) =>
+              renderRow(donation, donation.rotary_year === thisRotaryYear, donationYearFilter === "all"),
+            )}
           />
         )}
       </section>
@@ -488,28 +610,72 @@ export default function OrganisationDetail() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label htmlFor="donation-date">Date</label>
+              {/* Story 16.35: Planned toggles which of Date / Rotary year is
+                  the real input — a planned donation is scoped by rotary
+                  year only (no date yet); an actual one keeps the existing
+                  date-driven behavior unchanged. */}
+              <div className="field-full flex items-center gap-2">
                 <input
-                  id="donation-date"
-                  type="date"
-                  value={form.donation_date}
-                  onChange={(event) => setForm({ ...form, donation_date: event.target.value })}
-                  className={INPUT_CLASS}
-                  required
+                  id="donation-planned"
+                  type="checkbox"
+                  checked={form.planned}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      planned: event.target.checked,
+                      rotary_year: event.target.checked
+                        ? form.rotary_year || String(centralCurrentYear ?? thisRotaryYear)
+                        : form.rotary_year,
+                    })
+                  }
                 />
+                <label htmlFor="donation-planned" className="!mb-0">
+                  Planned donation (not yet made — target/forecast for a rotary year)
+                </label>
               </div>
-              <div>
-                <label htmlFor="donation-rotary-year">Rotary year</label>
-                <input
-                  id="donation-rotary-year"
-                  type="text"
-                  readOnly
-                  value={formRotaryYear === null ? "" : rotaryYearLabel(formRotaryYear)}
-                  placeholder="Auto from date"
-                  className={INPUT_CLASS}
-                />
-              </div>
+              {form.planned ? (
+                <div>
+                  <label htmlFor="donation-rotary-year-select">Rotary year</label>
+                  <select
+                    id="donation-rotary-year-select"
+                    value={form.rotary_year}
+                    onChange={(event) => setForm({ ...form, rotary_year: event.target.value })}
+                    className={SELECT_CLASS}
+                    required
+                  >
+                    {allRotaryYearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {rotaryYearLabel(year)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="donation-date">Date</label>
+                    <input
+                      id="donation-date"
+                      type="date"
+                      value={form.donation_date}
+                      onChange={(event) => setForm({ ...form, donation_date: event.target.value })}
+                      className={INPUT_CLASS}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="donation-rotary-year">Rotary year</label>
+                    <input
+                      id="donation-rotary-year"
+                      type="text"
+                      readOnly
+                      value={formRotaryYear === null ? "" : rotaryYearLabel(formRotaryYear)}
+                      placeholder="Auto from date"
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                </>
+              )}
               <div className="field-full">
                 <label htmlFor="donation-notes">Notes</label>
                 <input
@@ -536,20 +702,6 @@ export default function OrganisationDetail() {
         </section>
       )}
 
-      <section className="donation-history-section mt-6">
-        <h2 className="seclabel">
-          Donation history (past years)
-        </h2>
-        {pastDonations.length === 0 ? (
-          <p className="member-empty-state">No historical donations.</p>
-        ) : (
-          <EntryTable
-            columns={["Rotary year", "Amount", "Date", "Notes"]}
-            isAdmin={isAdmin}
-            rows={pastDonations.map((donation) => renderRow(donation, false))}
-          />
-        )}
-      </section>
 
       <h2 className="service-hours-heading text-[19px] font-bold text-[var(--ink)] mt-8">
         Services

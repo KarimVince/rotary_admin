@@ -250,3 +250,47 @@ def test_rotary_year_filter_excludes_donations_from_other_years(
     response = admin_client.get("/api/v1/organisations", params={"rotary_year": 2024})
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_rotary_year_filter_includes_planned_only_organisations(
+    admin_client, make_organisation
+):
+    # Story 16.35 follow-up — an org with only a *planned* (not-yet-made)
+    # donation this year must still appear in the year-filtered list (the
+    # NGO Directory needs this to show planned donations), with its
+    # planned amount kept in the separate year_total_planned field rather
+    # than folded into year_total.
+    org = make_organisation(name="Forecast Donor")
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/donations",
+        json={"amount": 999.0, "planned": True, "rotary_year": 2024},
+    )
+
+    response = admin_client.get("/api/v1/organisations", params={"rotary_year": 2024})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["name"] == "Forecast Donor"
+    assert body[0]["year_total"] == 0.0
+    assert body[0]["year_total_planned"] == 999.0
+
+
+def test_rotary_year_filter_keeps_actual_and_planned_totals_separate(
+    admin_client, make_organisation
+):
+    org = make_organisation(name="Mixed Donor")
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/donations",
+        json={"amount": 100.0, "donation_date": "2025-03-01"},  # rotary_year 2024
+    )
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/donations",
+        json={"amount": 500.0, "planned": True, "rotary_year": 2024},
+    )
+
+    response = admin_client.get("/api/v1/organisations", params={"rotary_year": 2024})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["year_total"] == 100.0
+    assert body[0]["year_total_planned"] == 500.0

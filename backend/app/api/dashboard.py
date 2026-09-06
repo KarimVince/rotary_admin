@@ -20,9 +20,11 @@ def dashboard_summary(
     _current_user=Depends(get_current_user),
 ):
     this_rotary_year = rotary_year(date.today())
+    # Story 16.35: Dashboard's donations figure is actual-only — a planned
+    # (not-yet-made) donation must not inflate it before it's actually given.
     donations_this_year = (
         db.query(func.coalesce(func.sum(Donation.amount), 0))
-        .filter(Donation.rotary_year == this_rotary_year)
+        .filter(Donation.rotary_year == this_rotary_year, Donation.planned.is_(False))
         .scalar()
     )
     # Story 16.26: replaces the old "Fees Collected" card — event

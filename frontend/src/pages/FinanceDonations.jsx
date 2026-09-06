@@ -54,7 +54,10 @@ export default function FinanceDonations() {
       .then(([orgsData, donationsData, statsData]) => {
         if (cancelled) return;
         setOrganisations(orgsData);
-        setDonations(donationsData);
+        // Story 16.35: this recap is actual-donations only — a planned
+        // (not-yet-made) donation belongs on the NGO detail page's forecast
+        // view, not mixed into this "what's been donated" list.
+        setDonations(donationsData.filter((donation) => !donation.planned));
         setStats(statsData);
       })
       .catch((err) => {
@@ -76,9 +79,14 @@ export default function FinanceDonations() {
       if (!group) return;
       group.entries.push(donation);
     });
-    return Array.from(grouped.values()).sort((a, b) =>
-      a.organisation.name.localeCompare(b.organisation.name),
-    );
+    // Story 16.35 follow-up: `organisations` now also includes orgs with
+    // only a *planned* donation this year (so the NGO Directory can show
+    // them) — but `donations` here is filtered to actual-only above, so
+    // such an org would otherwise render as an empty block on this
+    // actual-donations-only recap. Drop it instead of showing "nothing".
+    return Array.from(grouped.values())
+      .filter((group) => group.entries.length > 0)
+      .sort((a, b) => a.organisation.name.localeCompare(b.organisation.name));
   }, [organisations, donations]);
 
   if (!canRead) {
@@ -116,7 +124,10 @@ export default function FinanceDonations() {
       {!isLoading && !loadError && (
         <>
           <div className="grid grid-cols-2 gap-4 mb-6 stat-duo-grid">
-            <StatCard value={organisations.length} label="Organisations supported" />
+            {/* Story 16.35 follow-up: `organisations` can include planned-only
+                orgs now — count actual-donation orgs only (donationsByOrg is
+                already filtered to entries.length > 0). */}
+            <StatCard value={donationsByOrg.length} label="Organisations supported" />
             <StatCard
               value={formatCurrency(stats?.selected_year?.total_hkd, "HKD")}
               label="Total donated (HKD equiv.)"

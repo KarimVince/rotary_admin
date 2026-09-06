@@ -8,7 +8,331 @@ Internal admin web app for the Rotary Club of Discovery Bay. Manages members,
 NGOs/organisations & donations, "Rotary Friends" contacts, and annual membership
 fees/invoicing. Small user base (club admins + treasurer), low traffic.
 
-## Current status / resume from here (2026-08-20)
+## Current status / resume from here (2026-09-06) — Reports: NGO Statistics + Board Members
+
+Both the **NGO & Services Project — Statistics** report and a brand-new
+**Board Members** report share one card-based design system, built this
+session per a design handoff the user supplied (a zip —
+`design_handoff_ngo_export/`: README + two approved-design HTML files + a
+printable spec + 4 PNG assets extracted from the club's real
+`2026-27 PPT Template.pptx`). Read the design handoff's own README first if
+you need the *why* behind a geometry/colour choice — this section is the
+current *what/where*.
+
+### Where things live
+- `backend/app/core/report_images.py` — shared image helpers used by
+  **both** reports: `resolve_stored_image_bytes(url, local_subdir)` (fetches
+  a Supabase Storage URL, local-disk fallback pre-migration;
+  `local_subdir="organisations"` for NGO logos, `"members"` for board
+  photos) and `pptx_safe_image()` (re-encodes to PNG via Pillow — python-
+  pptx's `add_picture` rejects WEBP outright, which a real upload can be;
+  returns `None` — image silently skipped — for an undecodable file).
+- `backend/app/core/donation_statistics_report.py` — NGO report. Exports
+  `build_pdf_report(stats, currency, ngo_rows)` and
+  `build_pptx_report(stats, currency, ngo_rows, chrome="plain"|"template")`.
+  Endpoint: `POST /donations/statistics/report` in `app/api/donations.py`
+  (`?format=pdf|pptx&type=...&use_template=...&rotary_year=...
+  &classification_id=...&currency=...`). Row data from
+  `_ngo_report_rows_for_selected_year()`.
+- `backend/app/core/board_members_report.py` — Board report, reusing the
+  NGO module's chrome/colour/geometry helpers via import
+  (`_draw_chrome`, `_px_len`, `_px_pt`, `_rgb`, `_paginate`, the `COLOR_*`
+  tokens, `ORGS_PER_SLIDE`/`ORG_GRID_COLUMNS`). Exports
+  `build_pdf_report(year, rows)` and
+  `build_pptx_report(year, rows, chrome="plain"|"template")`. Endpoint:
+  `POST /board/assignments/report` in `app/api/board.py`
+  (`?format=pdf|pptx&year=...&use_template=...`). Row data from
+  `_board_report_rows(db, year)`.
+- Frontend: `DonationsStatistics.jsx` and `BoardMembers.jsx` each have a
+  "Generate Report" row — Format (PDF/PPTX) +, for PPTX, a "Use district
+  template" checkbox. Client calls:
+  `generateDonationStatisticsReport()` (`api/donations.js`) /
+  `generateBoardMembersReport()` (`api/boardAssignments.js`).
+- Shipped chrome assets (both reports): `app/assets/ngo-report-district-
+  band.png` (the "template" chrome's full-bleed background) and
+  `app/assets/club-logo-lockup.png` (the "plain" chrome's logo).
+
+### How chrome works (read this before touching either report)
+"Template" vs "plain" is a **shipped static image**, not the admin-uploaded
+PPT Template file (Admin → PPT Template, Story 8.23) — that upload
+mechanism was the NGO report's old approach and is **no longer used by
+either report** (Members Statistics is the only remaining consumer of the
+upload feature). Both chrome variants build a fresh
+`Presentation()` at 13.333×7.5in — `use_template=true` never needs
+anything uploaded, and both reports' own tests prove that (`test_
+generate_report_use_template_pptx_works_without_any_uploaded_template`,
+one per report).
+
+### Design-canvas conversion
+Both PPTX builders work in the handoff's 1920×1080px design canvas, with
+its own two exact conversions used everywhere via `_px_len`/`_px_pt`:
+`inches = px/144`, `points = px/2`. The PDF's own HTML spec instead gives
+plain pt/in values directly — no px conversion needed there.
+
+### Known deviations / deliberate choices (won't look like bugs if you know why)
+- **`report_type` (Simplified/Integral) on the NGO endpoint is a no-op** —
+  the handoff has one fixed design for both. The frontend's Content
+  dropdown still sends it and still renders (a stale, harmless UI control)
+  — flagged as a cleanup opportunity, not removed yet.
+- **NGO Reach card vs. "Organisations supported" on the web page differ on
+  purpose**: the PPTX/PDF "Reach" figure
+  (`selected_year_organisations_count`/`all_time_organisations_count`) is
+  actual-donations-only, per the handoff's own worked example ("one
+  organisation supported" vs. "five organisations are listed"). The web
+  Statistics page's own stat cards use separate `*_with_planned` fields
+  (counts either actual or planned) — added alongside, not a rename.
+- **"Area" maps to NGO Classification** — there's no separate geographic
+  field on `Organisation`; carried over from the original Story 16.35 work.
+- **Board "years as Rotarian"** = from `rotarian_since`, falling back to
+  `join_date` (every member has one; `rotarian_since` is nullable, added
+  later per Story 8.3).
+- **Board report has no Summary slide** — no natural "four headline
+  figures" equivalent for a roster (no donation totals), so it's just the
+  one paginated card-grid view, in both formats.
+- **Footnote "Detail follows on the next N slide(s)"** is appended
+  whenever there's at least one Organisations page — the handoff's prose
+  reads as an ">12 organisations only" gate, but its own rendered example
+  shows the suffix at just 5 orgs (1 page); followed the example.
+- **PDF and PPTX are meant to show identical data** — they share one
+  `ngo_rows`/`rows` list and the same `_summary_cards`/sort/paginate/
+  footnote helpers; only *how* Area is shown differs (a literal column in
+  the PDF vs. a colour bar + key in the PPTX), which is the handoff's own
+  choice. If you add a field to one card layout, add it to the other too —
+  a missing-currency-unit bug like this already happened once this session
+  (the PPTX Organisations card was missing the currency unit the PDF
+  table already had).
+
+### Testing
+Per this repo's rule, reports are **never verified by running pytest** —
+verify by writing a short one-off Python script that calls
+`build_pdf_report`/`build_pptx_report` directly with synthetic data
+(mixed PNG/WEBP/corrupt/missing images, a zero-figure case, >12 rows for
+pagination) and inspecting the returned bytes / re-opening the file with
+`pptx.Presentation`/checking the `%PDF` header — this has caught every
+real bug found so far (a WEBP crash, a missing currency unit, two broken
+test helpers). Test files exist for pytest to run later:
+`tests/unit/test_donation_statistics_report.py`,
+`tests/unit/test_board_members_report.py`,
+`tests/integration/test_donation_statistics.py`,
+`tests/integration/test_board_assignments.py`.
+
+### Not done / state to know before resuming
+- **Nothing from this session is committed or pushed.** Push only when
+  explicitly asked.
+- The Story 16.35 planned-donations migration (`a9c3e6b1d4f7`, see
+  2026-09-05 below) is unrelated to any of this and is already applied to
+  the dev DB — no migration pending for the report work itself.
+- If the user reports a new report bug: reproduce it first with a manual
+  script (per Testing above) before changing code — every fix this session
+  started that way.
+
+## Previous status (2026-09-05)
+- **Epic 16 Story 16.35 implemented** (NGO Module: Planned Donations — flag,
+  purple display, conversion — plus Statistics/Report enhancements). Pulled
+  from ClickUp directly this session (task `86eyun917`); per the user's
+  instruction this session, **no ClickUp comment/status update was posted**
+  (kept deliberately off, to limit connections) — the deviations below live
+  only here, not as a ClickUp comment like prior stories' convention.
+  - **Data model**: `Donation.planned` (boolean, default false) +
+    `donation_date` now nullable (migration `a9c3e6b1d4f7`, **not yet run
+    against the dev DB** — do that before this is usable there). A planned
+    donation carries `rotary_year` only; an actual one still requires
+    `donation_date` — enforced in `DonationCreate`'s model_validator and,
+    for PATCH (partial updates), in `update_donation` itself since a PATCH
+    only carries the changed fields and has to resolve the *resulting*
+    planned/date combination against the existing row.
+  - **Conversion is a true in-place edit**: `PATCH /donations/{id}` with
+    `{planned: false, donation_date: ...}` clears nothing extra and creates
+    no new row — same endpoint as any other edit. Frontend's "Mark as
+    received" button (`OrganisationDetail.jsx`) just pre-fills the edit form
+    (today's date, Planned unchecked) rather than being a separate flow.
+  - **Conflation guard (Requirement 4)**: every *actual*-donations total
+    already in `_compute_donation_statistics` (grand_total, by-year, by-org,
+    by-classification, all-time/selected-year converted totals) got an
+    explicit `Donation.planned.is_(False)` filter added — before this
+    story a planned donation would have silently inflated all of them.
+    Same fix applied to two other pre-existing consumers that would have
+    had the same bug: `GET /organisations?rotary_year=` (Finance → Donation
+    Results' `year_total`) and the Dashboard summary's donations-this-year
+    figure. `FinanceDonations.jsx` also filters planned out of its own raw
+    donations list client-side for the same reason.
+  - New `CurrencyStatistics.planned_by_rotary_year` (current + future years
+    only, per currency) and top-level `DonationStatistics.selected_year_planned`
+    (converted HKD/USD, selected year only) — both additive, never merged
+    into existing fields. Wired into `DonationsStatistics.jsx` as an extra
+    stat card + a "Planned donations — current & future years" chart.
+  - **List view** (`OrganisationDetail.jsx`): the old always-both "current
+    year / past years" split is now a single filtered list — a Rotary year
+    dropdown (`SingleSelectDropdown`, "All years" + every year with a
+    donation) replaces it. Planned amounts render purple
+    (`.donation-amount-planned`, plus a small "Planned" badge), actual
+    amounts blue (`.donation-amount-actual`) — new tokens
+    `--color-donation-planned`/`--color-donation-actual` in `index.css`.
+    The Rotary year column only shows in "All years"; a specific-year
+    selection drops it (per the story's own AC).
+  - **Report** (`donation_statistics_report.py`): added a 7th stat card
+    ("Planned donations — <year>") to both PDF and PPTX — the PDF's card
+    grid was hardcoded to exactly 6 cards/2 rows, generalized to any count.
+    Added a new page/slide, present in **both** Simplified and Integral
+    reports (not gated by report_type, unlike the pre-existing Integral-only
+    detail page): one row per NGO with a donation (actual or planned) in the
+    selected year, grouped by Area, via new
+    `_ngo_cards_by_area_for_selected_year()`.
+  - **Deliberate deviation, not posted to ClickUp this session (see above)**:
+    **"Area" maps to NGO Classification** (`ngo_classifications`) — this app
+    has no separate geographic/area field on `Organisation`, and
+    classification is the only existing per-NGO grouping concept, so it's
+    reused rather than adding a new one. Also, the new report page renders
+    each NGO as a table row (grouped under an Area heading in the PDF, a
+    single Area+Organisation+Total table in the PPTX) rather than a literal
+    visual "card" — matches the existing Integral detail page's own
+    convention (`_add_ngo_detail_slide`), which is a table too despite
+    similar wording; the PPTX version also has no logo column, again
+    matching that existing precedent (only the PDF embeds logo thumbnails).
+  - New backend tests added to `test_donations.py` (planned validation,
+    in-place conversion, clearing/requiring date) and
+    `test_donation_statistics.py` (conflation guard, planned-by-year,
+    selected-year-planned, report generation with planned donations), plus a
+    `stat_cards()` unit test in `test_donation_statistics_report.py`.
+    Frontend: new cases in `OrganisationDetail.test.jsx` (purple/badge,
+    total excludes planned, year-filter column toggle, mark-as-received,
+    add-planned-via-checkbox) and `DonationsStatistics.test.jsx` (planned
+    card). **Per this repo's testing rule, none of these were run this
+    session** — written only, not executed.
+  - **Migration `a9c3e6b1d4f7` since run against the dev DB, confirmed**
+    (`donations.planned` present, `donation_date` nullable) — the user hit
+    the `column donations.planned does not exist` error live, which is what
+    prompted running it. **Standing rule going forward** (added to
+    `feedback_rotaryadmin_workflow` memory): run new/changed Alembic
+    migrations against dev immediately as part of finishing that change,
+    don't leave them pending. Still never push to GitHub or touch prod
+    without being explicitly told.
+  - **Follow-up polish, same session, after the user tried it live**: on the
+    Statistics page (`DonationsStatistics.jsx`), the Planned Donations card
+    moved from last to right after the two "Total donated" (actual) cards
+    in the Selected Year row, and given its own fixed `stat-rose` tone
+    (reddish-pink background + the same purple ink as the donation list's
+    purple/blue coloring) instead of cycling through the row's usual
+    blue/lavender/teal/amber palette — a card can now pass an explicit
+    `variant` to override the row's per-position color. That row is also
+    now `sm:grid-cols-5` (was 4) so all 5 cards sit on one line on desktop.
+    New `theme-minimal.css` override: Minimal's `.stat-duo-grid` normally
+    forces strict blue/gold alternation by card *position* regardless of
+    variant (see the rule's own comment) — added a `[data-variant="stat-
+    rose"]` rule of matching specificity, appended after the general one so
+    it wins the cascade, so Planned keeps its rose tone under Minimal too.
+    The PDF/PPTX report's own card order/coloring was **not** touched this
+    round — the ask was specifically about the Statistics page.
+  - **Second follow-up, same session**: swapped Planned with the
+    selected-year USD card on both the Statistics page (now HKD → Planned →
+    USD → Organisations → Hours) and the shared `stat_cards()` used by
+    **both** the PDF and PPTX report (the two formats share one card list,
+    so a report-only change isn't possible without splitting it — asked-for
+    "ppt report" change applied here rather than duplicating the function).
+    Card colors are otherwise unchanged (report cards don't have the
+    Statistics page's per-card `variant` override — `CARD_TONES` just cycles
+    by position, so the swap reshuffles which pastel tone Planned/USD get,
+    nothing further needed there). Updated `stat_cards()`'s own unit test to
+    check the new index (4, not 6).
+  - **Third follow-up, same session — real bug found via the NGO Directory**:
+    the earlier conflation guard had over-corrected. `GET /organisations?
+    rotary_year=` (used by both `OrganisationsList.jsx` NGO Directory and
+    `FinanceDonations.jsx`) had its org-membership query filtered to
+    `planned=False`, so an org with **only** a planned donation that year
+    disappeared from the Directory entirely when filtered by year — exactly
+    what the user hit. Fixed: membership is now by either an actual or
+    planned donation; `year_total` stays actual-only and a new
+    `year_total_planned` field (schema + endpoint) carries the planned
+    figure separately (never merged). `OrganisationsList.jsx` shows both as
+    separate badges (a new `.donation-planned-badge-lg`, same purple as the
+    donation list's badge), each only rendered when > 0. `FinanceDonations.jsx`
+    (an actual-donations-only recap per its own docstring) filters out
+    orgs with zero actual entries so a planned-only org doesn't show up as
+    an empty block there, and its "Organisations supported" stat now counts
+    `donationsByOrg.length` instead of the raw (now planned-inclusive)
+    `organisations.length`. Replaced the now-wrong
+    `test_rotary_year_filter_excludes_planned_donations` test (which asserted
+    the old, incorrect exclude-entirely behavior) with two tests asserting
+    the org appears with the right actual/planned split; added
+    `OrganisationsList.test.jsx` coverage for both badges and the
+    planned-only case.
+  - **Fourth/fifth follow-up, same session**: dropped the "· {rotary year}"
+    suffix from both the actual and planned amount badges on the NGO
+    Directory card (redundant once a specific year is the active filter),
+    then dropped the word "planned" too — the badge is just the amount now,
+    color alone (purple `.donation-planned-badge-lg` vs. the default badge
+    tone) tells actual and planned apart. Updated
+    `OrganisationsList.test.jsx`'s two badge assertions to match on the
+    plain amount text + assert the CSS class instead of matching "planned"
+    in the text.
+  - **Sixth follow-up, same session**: the PDF's NGO-cards second page (not
+    the PPTX slide, which keeps its existing table per the user's own
+    scoping) now renders as actual visual cards instead of a plain table —
+    matching the NGO Directory's card look (logo + name + area on top,
+    amount below, light-blue bordered box), 2 per row per Area section, via
+    new `_build_ngo_card()`/`_build_ngo_card_grid()` helpers in
+    `donation_statistics_report.py`. **Verified by actually rendering a
+    sample PDF** (synthetic stats, 3 NGOs across 2 areas including an
+    odd-count row) directly via `build_pdf_report()` — not through the test
+    suite, a one-off manual script — confirmed it builds without error (3
+    pages, `%PDF` header) and sent the sample to the user to eyeball the
+    layout. No existing test asserts the old table's structure (both
+    `test_donation_statistics.py` report tests only check the `%PDF`
+    header), so nothing needed updating there.
+  - **Seventh follow-up, same session**: extended to the PPTX slide too
+    (dropped the earlier "PPTX keeps its table" scoping — user asked for it
+    there as well), plus card-style polish and two new fields on both
+    formats:
+    - Cards are now **white background, thin border, rounded corners**
+      (was a flat pastel-tinted box on the PDF) — PDF via reportlab's
+      `ROUNDEDCORNERS` `TableStyle` command (confirmed supported, this repo
+      runs reportlab 5.0.0); PPTX via a real `MSO_SHAPE.ROUNDED_RECTANGLE`
+      autoshape (gets rounded corners natively, unlike a table) with
+      `shadow.inherit = False` so it doesn't inherit a default drop-shadow.
+    - **Organisation contact name** added to both card layouts (new
+      `Organisation.contact_name` column pulled into
+      `_ngo_cards_by_area_for_selected_year`'s query/dict — small gray text
+      under the Area line, omitted entirely when an org has none).
+    - **Logo now actually embedded on the PPTX card** (the PDF already had
+      it) — new `_add_ngo_pptx_card()` helper replaces the old table-slide
+      code: a rounded-rect shape for the card body, `add_picture()` for the
+      logo top-left (skipped when no logo, text starts flush left instead),
+      a stacked textbox for name/area/contact to the logo's right, and an
+      amount textbox along the bottom. Cards are laid out 3-per-row, area
+      by area, with a manual vertical cursor (mirrors the PDF's per-area
+      grouping) — stops adding cards/headings past ~7in down the slide so
+      content can't run off the bottom (single-slide limitation, same as
+      the table version had; a very long NGO list still won't paginate).
+      All padding/logo/text sizing inside the new helper goes through the
+      same `sc()` template-scale function as the rest of the slide, so it
+      stays proportional if a real uploaded template has a different aspect
+      ratio.
+    - **Verified by actually rendering both formats** with synthetic data
+      (5 NGOs across 2 areas, mixing cards with/without a logo and
+      with/without a contact name, one area with 4 cards to exercise the
+      row-wrap) via `build_pptx_report()`/`build_pdf_report()` directly —
+      a one-off manual script, not the test suite — both built without
+      error and were sent to the user to check visually.
+  - **Real bug hit live, same session, fixed**: generating the PPTX crashed
+    (`ValueError: unsupported image format ... got 'WEBP'`) the moment a
+    real org's logo happened to be a WEBP file — python-pptx's
+    `add_picture` only accepts BMP/GIF/JPEG/PNG/TIFF/WMF, no WEBP, even
+    though Story 16.6's logo upload validation allows WEBP uploads. The
+    PDF side never hit this (reportlab's `Image` flowable decodes via PIL
+    directly, no format allowlist). Fixed with a new `_pptx_safe_image()`
+    helper — re-encodes any logo to PNG via Pillow before handing it to
+    `add_picture`; returns `None` (logo silently skipped, same as no logo
+    at all) if the bytes can't be decoded as an image at all (e.g. a
+    corrupt file). **Reproduced the exact crash first** with a synthetic
+    WEBP image via a manual script (not the test suite), confirmed the fix
+    resolves it and that a genuinely corrupt image degrades gracefully
+    instead of 500ing, then sent the fixed PPTX to the user. Added
+    `test_pptx_safe_image_*` unit tests and a
+    `test_generate_pptx_report_with_webp_organisation_logo` integration
+    test (mirrors the existing WEBP-agnostic PDF logo test's pattern).
+  - **Not committed or pushed** — only do so when explicitly asked.
+
+## Previous status (2026-08-20)
 - **Story 16.33's PDF redesigned around a real reference template** (not
   yet committed — this happened after `73efea7`). Karim supplied the
   club's actual paper attendance sheet

@@ -1,30 +1,43 @@
-"""Story 8.32 — PDF/PPTX export of the NGO (Donations) statistics page.
+"""Story 16.35 — NGO & Services Project Statistics report (PDF + PPTX).
 
-Mirrors the pattern established for Members (Story 2b.14): charts
-re-rendered server-side via matplotlib from the same data backing the live
-page, reusing shared constants/chart helpers from `statistics_report.py`.
+Redesigned 2026-09-05 per a district-template design handoff (an HTML/asset
+bundle the user supplied — "design_handoff_ngo_export"), which fully
+replaces the older chart-heavy report this module used to build. Two PPTX
+slide types — Summary (four year-figure cards) and paginated Organisations
+(12 NGO cards/slide, area-of-focus colour bar + a key) — each in two chrome
+variants (District 3450 template band, or a plain green band + club logo),
+plus a matching Letter-portrait PDF with the same data as one flowing table.
 
-Donation totals are per-currency and never summed across currencies (Story
-3.7), same as the live page — a report covers exactly one currency at a
-time, chosen by the caller (defaults to the first currency block, same as
-the frontend's initial selection).
+**Deliberate scope note**: the handoff has no Simplified/Integral
+distinction — one fixed design covers both. `report_type` is still accepted
+by the API for backward compatibility but no longer changes this module's
+output (see `app/api/donations.py`'s endpoint docstring/comment).
+
+**Chrome no longer depends on an admin-uploaded PPT template file.** The
+old `build_pptx_report(..., template_path=...)` mechanism (Story 8.23, an
+uploaded .pptx used as the base `Presentation`) is NOT used here — the
+handoff's "template" chrome is a fixed backing image
+(`app/assets/ngo-report-district-band.png`, extracted from the district's
+own template) drawn behind our own from-scratch slide, not a live upload.
+That decoupling is what let this redesign sidestep whatever was going wrong
+with the old uploaded-template code path.
 """
 
 from datetime import date
 from io import BytesIO
 from pathlib import Path
 
-import httpx
+from PIL import Image as PILImage
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import (
-    Image,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -32,390 +45,702 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.core.config import settings
-from app.core.statistics_report import (
-    CLUB_NAME,
-    LOGO_PATH,
-    ROTARY_BLUE,
-    TONE_AMBER_BG,
-    TONE_BLUE_BG,
-    TONE_LAVENDER_BG,
-    TONE_TEAL_BG,
-    _bar_chart_png,
-    _horizontal_bar_chart_png,
-    _line_chart_png,
-    _pick_blank_layout,
-    _title_placeholder,
-    add_heading,
-    style_card_fill,
-    style_card_text_color,
-)
-from app.schemas.donation_statistics import CurrencyStatistics, DonationStatistics
+from app.core.report_images import pptx_safe_image, resolve_stored_image_bytes
+from app.core.statistics_report import CLUB_NAME
+from app.schemas.donation_statistics import DonationStatistics
 
-REPORT_TITLE = "NGO & Services Project — Statistics"
-TOP_ORGS_LIMIT = 10
-CARD_TONES = [TONE_BLUE_BG, TONE_BLUE_BG, TONE_LAVENDER_BG, TONE_TEAL_BG, TONE_TEAL_BG, TONE_AMBER_BG]
+REPORT_TITLE = "NGO & Services Projects"
+ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
+DISTRICT_BAND_IMAGE = ASSETS_DIR / "ngo-report-district-band.png"
+CLUB_LOGO_LOCKUP_IMAGE = ASSETS_DIR / "club-logo-lockup.png"
+
+# Design tokens, taken verbatim from the handoff's colour table.
+COLOR_DISTRICT_GREEN = "#375E3A"
+COLOR_ROTARY_BLUE = "#17458F"
+COLOR_BAND_KICKER_GOLD = "#D9BE86"
+COLOR_ROTARY_GOLD = "#F7A81B"
+COLOR_INK = "#201E1D"
+COLOR_BODY_GREY = "#5B5F5B"
+COLOR_META_GREY = "#6B6F6B"
+COLOR_CARD_BORDER = "#E4E3E0"
+COLOR_STAT_CARD_FILL = "#FBFAF9"
+COLOR_ORG_CARD_FILL = "#FFFFFF"
+
+# Area-of-focus colours, mapped by exact NGO Classification name. Anything
+# unmapped (including "Unclassified" — no classification set at all) falls
+# back to district green. `AREA_ORDER` is the canonical sort/legend order
+# ("sort by area of focus in the key's order").
+AREA_COLORS: dict[str, str] = {
+    "Education & Literacy": "#16803C",
+    "Health & Medical": "#7E22CE",
+    "Poverty Alleviation & Social Welfare": "#BE123C",
+    "Youth Development": "#4338CA",
+    "Humanitarian Relief & Disaster Response": "#A16207",
+    "Others": "#1D4ED8",
+}
+AREA_ORDER: list[str] = [*AREA_COLORS.keys(), "Unclassified"]
+ORGS_PER_SLIDE = 12
+ORG_GRID_COLUMNS = 4
 
 
-def _format_currency(value: float, currency: str) -> str:
-    return f"{value:,.0f} {currency}"
+def _area_color(area: str) -> str:
+    return AREA_COLORS.get(area, COLOR_DISTRICT_GREEN)
+
+
+def _area_sort_key(area: str) -> tuple[int, str]:
+    try:
+        return (AREA_ORDER.index(area), "")
+    except ValueError:
+        # An area name outside the known table (shouldn't normally happen —
+        # classifications are managed centrally) sorts after every known
+        # one, alphabetically among themselves, rather than crashing.
+        return (len(AREA_ORDER), area)
+
+
+def _sorted_ngo_rows(ngo_rows: list[dict]) -> list[dict]:
+    """"Sort by area of focus in the key's order, then by organisation
+    name" — the handoff's own rule, so colour bars group across the grid."""
+    return sorted(ngo_rows, key=lambda row: (_area_sort_key(row["area"]), row["name"]))
+
+
+def _format_amount(value: float) -> str:
+    return f"{value:,.0f}"
 
 
 def _rotary_year_label(year: int) -> str:
     return f"{year}–{year + 1}"
 
 
-def _current_currency_stats(
-    stats: DonationStatistics, currency: str | None
-) -> CurrencyStatistics | None:
-    if not stats.by_currency:
-        return None
-    if currency is None:
-        return stats.by_currency[0]
-    return next((block for block in stats.by_currency if block.currency == currency), None)
+def _paginate(rows: list[dict], page_size: int) -> list[list[dict]]:
+    if not rows:
+        return []
+    return [rows[i : i + page_size] for i in range(0, len(rows), page_size)]
 
 
-def stat_cards(stats: DonationStatistics) -> list[tuple[str, str]]:
-    year_label = _rotary_year_label(stats.selected_rotary_year)
-    return [
-        ("Total donated (all-time)", _format_currency(stats.all_time.total_hkd, "HKD")),
-        ("Total donated (all-time)", _format_currency(stats.all_time.total_usd, "USD")),
-        ("Organisations supported (all-time)", str(stats.all_time_organisations_count)),
-        (f"Total donated — {year_label}", _format_currency(stats.selected_year.total_hkd, "HKD")),
-        (f"Total donated — {year_label}", _format_currency(stats.selected_year.total_usd, "USD")),
-        (f"Organisations supported — {year_label}", str(stats.selected_year_organisations_count)),
+def _page_area_counts(page_rows: list[dict]) -> list[tuple[str, int]]:
+    """Areas present on one page, with that page's own counts, in the
+    canonical key order — "the key lists only the areas present on that
+    page, with that page's counts.\""""
+    counts: dict[str, int] = {}
+    for row in page_rows:
+        counts[row["area"]] = counts.get(row["area"], 0) + 1
+    return sorted(counts.items(), key=lambda pair: _area_sort_key(pair[0]))
+
+
+def _summary_cards(stats: DonationStatistics) -> list[dict]:
+    """The four Summary-slide cards. "If a currency has no activity in the
+    selected year, drop that card" / "Never render a zero card" — applied
+    to the three money/reach cards that can legitimately be zero-and-absent
+    (Donated HKD, Planned HKD, Donated USD); the Reach card always shows,
+    since "0 organisations supported" is still meaningful information."""
+    all_cards = [
+        {
+            "kicker": "Donated",
+            "value": stats.selected_year.total_hkd,
+            "figure": _format_amount(stats.selected_year.total_hkd),
+            "unit": "HKD",
+            "label": "Total donated to date",
+            "droppable": True,
+        },
+        {
+            "kicker": "Planned",
+            "value": stats.selected_year_planned.total_hkd,
+            "figure": _format_amount(stats.selected_year_planned.total_hkd),
+            "unit": "HKD",
+            "label": "Planned donations",
+            "droppable": True,
+        },
+        {
+            "kicker": "Donated",
+            "value": stats.selected_year.total_usd,
+            "figure": _format_amount(stats.selected_year.total_usd),
+            "unit": "USD",
+            "label": "Total donated to date",
+            "droppable": True,
+        },
+        {
+            "kicker": "Reach",
+            "value": stats.selected_year_organisations_count,
+            "figure": str(stats.selected_year_organisations_count),
+            "unit": "",
+            "label": "Organisations supported",
+            "droppable": False,
+        },
     ]
+    return [card for card in all_cards if not (card["droppable"] and card["value"] == 0)]
 
 
-def render_charts(
-    stats: DonationStatistics, currency_stats: CurrencyStatistics | None
-) -> dict[str, bytes]:
-    charts: dict[str, bytes] = {}
-    if currency_stats is None:
-        return charts
-
-    year_labels = [entry.label for entry in currency_stats.total_by_rotary_year]
-    year_values = [entry.value for entry in currency_stats.total_by_rotary_year]
-    charts[f"Total donated per rotary year ({currency_stats.currency})"] = _bar_chart_png(
-        year_labels, year_values, "Total donated per rotary year"
-    )
-    charts[f"Year-over-year trend ({currency_stats.currency})"] = _line_chart_png(
-        year_labels, year_values, "Year-over-year trend"
-    )
-
-    top_orgs_selected = currency_stats.total_by_organisation_selected_year[:TOP_ORGS_LIMIT]
-    charts["Top organisations — Selected Year"] = _horizontal_bar_chart_png(
-        [entry.label for entry in top_orgs_selected],
-        [entry.value for entry in top_orgs_selected],
-        "Top organisations — Selected Year",
-    )
-    charts["By classification — Selected Year"] = _horizontal_bar_chart_png(
-        [entry.label for entry in currency_stats.total_by_classification],
-        [entry.value for entry in currency_stats.total_by_classification],
-        "By classification — Selected Year",
-    )
-
-    top_orgs_all_time = currency_stats.total_by_organisation[:TOP_ORGS_LIMIT]
-    charts["Top organisations — All Years"] = _horizontal_bar_chart_png(
-        [entry.label for entry in top_orgs_all_time],
-        [entry.value for entry in top_orgs_all_time],
-        "Top organisations — All Years",
-    )
-    charts["By classification — All Years"] = _horizontal_bar_chart_png(
-        [entry.label for entry in currency_stats.total_by_classification_all_time],
-        [entry.value for entry in currency_stats.total_by_classification_all_time],
-        "By classification — All Years",
-    )
-    return charts
+def _footnote_text(stats: DonationStatistics, ngo_rows: list[dict], org_pages: list[list[dict]]) -> str:
+    org_count = len(ngo_rows)
+    area_count = len({row["area"] for row in ngo_rows})
+    text = f"{org_count} organisation{'s' if org_count != 1 else ''} " \
+        f"{'are' if org_count != 1 else 'is'} listed for the year across " \
+        f"{area_count} area{'s' if area_count != 1 else ''} of focus."
+    # The approved deck's own example always names the next slide once
+    # there's at least one Organisations page — not only past 12 orgs (the
+    # handoff's prose reads as a stricter >12 gate, but its own rendered
+    # example contradicts that at just 5 orgs). Following the example: any
+    # non-empty Organisations section gets named, pluralised by page count.
+    if org_pages:
+        pages = len(org_pages)
+        text += f" Detail follows on the next {pages if pages > 1 else ''} slide{'s' if pages > 1 else ''}.".replace(
+            "next  slide", "next slide"
+        )
+    return text
 
 
 def resolve_logo_bytes(logo_url: str | None) -> BytesIO | None:
-    """Story 16.6 — logo_url is now a full Supabase Storage public URL for any
-    logo uploaded after the migration; fetch it directly. A pre-migration
-    relative "/static/..." path is tried against local disk as a best-effort
-    fallback, in case the ephemeral filesystem still happens to have it since
-    the last restart."""
-    if not logo_url:
-        return None
-    if logo_url.startswith("http://") or logo_url.startswith("https://"):
-        try:
-            response = httpx.get(logo_url, timeout=10.0)
-        except httpx.HTTPError:
-            return None
-        return BytesIO(response.content) if response.status_code == 200 else None
-    filename = logo_url.rsplit("/", 1)[-1]
-    path = Path(settings.upload_dir) / "organisations" / filename
-    return BytesIO(path.read_bytes()) if path.exists() else None
+    """Story 16.6 — logo_url is now a full Supabase Storage public URL for
+    any logo uploaded after the migration; fetch it directly. A
+    pre-migration relative path is tried against local disk as a
+    best-effort fallback. Thin wrapper over the shared
+    `report_images.resolve_stored_image_bytes` (also used by the Board
+    Members report for member photos) — kept as its own named function
+    since existing callers/tests import it from here."""
+    return resolve_stored_image_bytes(logo_url, "organisations")
+
+
+# `_pptx_safe_image` — kept as a module-level alias (existing tests import
+# it by this name) over the shared `report_images.pptx_safe_image`.
+_pptx_safe_image = pptx_safe_image
+
+
+# ---------------------------------------------------------------------------
+# PDF — Letter portrait, per the handoff's "NGO Services Report PDF.html".
+# No organisation logos here — the approved PDF table has no logo column
+# (Organisation, Country, Area of focus, Contact, Amount only).
+# ---------------------------------------------------------------------------
+
+_pdf_kicker_style = ParagraphStyle(
+    "NgoPdfKicker", fontName="Helvetica-Bold", fontSize=9, leading=11,
+    textColor=colors.HexColor(COLOR_DISTRICT_GREEN),
+)
+_pdf_h1_style = ParagraphStyle(
+    "NgoPdfH1", fontName="Helvetica-Bold", fontSize=34, leading=34,
+    textColor=colors.HexColor(COLOR_ROTARY_BLUE),
+)
+_pdf_subtitle_style = ParagraphStyle(
+    "NgoPdfSubtitle", fontName="Helvetica", fontSize=14, leading=17,
+    textColor=colors.HexColor(COLOR_INK),
+)
+_pdf_section_style = ParagraphStyle(
+    "NgoPdfSection", fontName="Helvetica-Bold", fontSize=11, leading=13,
+    textColor=colors.HexColor(COLOR_DISTRICT_GREEN),
+)
+_pdf_figure_label_style = ParagraphStyle(
+    "NgoPdfFigureLabel", fontName="Helvetica", fontSize=9.5, leading=12,
+    textColor=colors.HexColor(COLOR_BODY_GREY),
+)
+_pdf_footnote_style = ParagraphStyle(
+    "NgoPdfFootnote", fontName="Helvetica", fontSize=11, leading=16,
+    textColor=colors.HexColor("#3A3D3A"),
+)
+_pdf_orgs_heading_style = ParagraphStyle(
+    "NgoPdfOrgsHeading", fontName="Helvetica-Bold", fontSize=16, leading=19,
+    textColor=colors.HexColor(COLOR_INK),
+)
+_pdf_table_header_style = ParagraphStyle(
+    "NgoPdfTableHeader", fontName="Helvetica-Bold", fontSize=8.5, leading=10,
+    textColor=colors.HexColor(COLOR_DISTRICT_GREEN),
+)
+_pdf_table_name_style = ParagraphStyle(
+    "NgoPdfTableName", fontName="Helvetica-Bold", fontSize=10.5, leading=13,
+    textColor=colors.HexColor(COLOR_INK),
+)
+_pdf_table_cell_style = ParagraphStyle(
+    "NgoPdfTableCell", fontName="Helvetica", fontSize=10.5, leading=13,
+    textColor=colors.HexColor("#4A4D4A"),
+)
+_pdf_table_amount_style = ParagraphStyle(
+    "NgoPdfTableAmount", fontName="Helvetica-Bold", fontSize=10.5, leading=13,
+    textColor=colors.HexColor(COLOR_ROTARY_BLUE), alignment=2,  # right
+)
+_pdf_table_footer_style = ParagraphStyle(
+    "NgoPdfTableFooter", fontName="Helvetica", fontSize=9.5, leading=12,
+    textColor=colors.HexColor(COLOR_META_GREY),
+)
+_pdf_table_footer_amount_style = ParagraphStyle(
+    "NgoPdfTableFooterAmount", fontName="Helvetica-Bold", fontSize=9.5, leading=12,
+    textColor=colors.HexColor(COLOR_INK), alignment=2,
+)
+
+
+def _pdf_header_footer(canvas_obj, doc, *, year_label: str, generated_date: str) -> None:
+    """Repeating header/footer, drawn on every page — same
+    canvasmaker-callback pattern as this app's other multi-page PDF reports
+    (see e.g. `dinner_forecast_report.py`'s `_NumberedCanvas`), just via
+    `onFirstPage`/`onLaterPages` since neither line here needs a page
+    number (the handoff's footer is static text only)."""
+    canvas_obj.saveState()
+    page_width, page_height = letter
+    left = doc.leftMargin
+    right = page_width - doc.rightMargin
+
+    header_y = page_height - doc.topMargin + 0.2 * inch
+    canvas_obj.setStrokeColor(colors.HexColor(COLOR_DISTRICT_GREEN))
+    canvas_obj.setLineWidth(1.5)
+    canvas_obj.line(left, header_y, right, header_y)
+    canvas_obj.setFont("Helvetica-Bold", 8)
+    canvas_obj.setFillColor(colors.HexColor(COLOR_DISTRICT_GREEN))
+    canvas_obj.drawString(left, header_y + 4, f"{CLUB_NAME} · District 3450")
+    canvas_obj.setFont("Helvetica", 8)
+    canvas_obj.setFillColor(colors.HexColor(COLOR_META_GREY))
+    canvas_obj.drawRightString(right, header_y + 4, f"{REPORT_TITLE} · {year_label}")
+
+    footer_y = doc.bottomMargin - 0.2 * inch
+    canvas_obj.setStrokeColor(colors.HexColor("#D8D7D4"))
+    canvas_obj.setLineWidth(0.75)
+    canvas_obj.line(left, footer_y + 12, right, footer_y + 12)
+    canvas_obj.setFont("Helvetica", 8)
+    canvas_obj.setFillColor(colors.HexColor(COLOR_META_GREY))
+    canvas_obj.drawString(left, footer_y, "Statistics report")
+    canvas_obj.drawRightString(right, footer_y, f"Generated {generated_date}")
+    canvas_obj.restoreState()
 
 
 def build_pdf_report(
     stats: DonationStatistics,
     currency: str | None,
-    ngo_breakdown: list[dict],
-    report_type: str = "simplified",
+    ngo_rows: list[dict],
 ) -> bytes:
-    currency_stats = _current_currency_stats(stats, currency)
-    report_type_label = "Integral" if report_type == "integral" else "Simplified"
+    year_label = _rotary_year_label(stats.selected_rotary_year)
+    sorted_rows = _sorted_ngo_rows(ngo_rows)
+    org_pages = _paginate(sorted_rows, ORGS_PER_SLIDE) if sorted_rows else []
 
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.5 * inch, bottomMargin=0.5 * inch)
-    styles = getSampleStyleSheet()
-    story = []
-
-    if LOGO_PATH.exists():
-        story.append(Image(str(LOGO_PATH), width=0.6 * inch, height=0.6 * inch))
-    story.append(Paragraph(CLUB_NAME, styles["Title"]))
-    story.append(Paragraph(f"{REPORT_TITLE} — {report_type_label} Report", styles["Heading2"]))
-    story.append(
-        Paragraph(f"Rotary Year {_rotary_year_label(stats.selected_rotary_year)}", styles["Normal"])
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        topMargin=0.7 * inch, bottomMargin=0.7 * inch,
+        leftMargin=0.7 * inch, rightMargin=0.7 * inch,
     )
-    story.append(Paragraph(f"Generated {date.today().isoformat()}", styles["Normal"]))
+    story: list = []
+
+    kicker_row = Table(
+        [[
+            "",
+            Paragraph(REPORT_TITLE.upper(), _pdf_kicker_style),
+        ]],
+        colWidths=[0.35 * inch, 5 * inch],
+    )
+    kicker_row.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), colors.HexColor(COLOR_ROTARY_GOLD)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LINEBELOW", (0, 0), (0, 0), 3, colors.HexColor(COLOR_ROTARY_GOLD)),
+            ]
+        )
+    )
+    story.append(kicker_row)
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(Paragraph("Giving on record", _pdf_h1_style))
+    story.append(Paragraph(f"Rotary year {year_label} · {CLUB_NAME}", _pdf_subtitle_style))
     story.append(Spacer(1, 0.15 * inch))
 
-    cards = stat_cards(stats)
-    table_data = [[label for label, _ in cards[:3]], [value for _, value in cards[:3]]]
-    table_data += [[label for label, _ in cards[3:]], [value for _, value in cards[3:]]]
-    cards_table = Table(table_data, colWidths=[2.1 * inch] * 3)
-    card_style_commands = [
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("FONTSIZE", (0, 1), (-1, 1), 13),
-        ("FONTSIZE", (0, 3), (-1, 3), 13),
-        ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
-        ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"),
-        ("TEXTCOLOR", (0, 1), (-1, 1), colors.HexColor(ROTARY_BLUE)),
-        ("TEXTCOLOR", (0, 3), (-1, 3), colors.HexColor(ROTARY_BLUE)),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dde3ec")),
-    ]
-    for card_index in range(len(cards)):
-        col = card_index % 3
-        label_row = 0 if card_index < 3 else 2
-        value_row = label_row + 1
-        tone = colors.HexColor(CARD_TONES[card_index])
-        card_style_commands.append(("BACKGROUND", (col, label_row), (col, value_row), tone))
-    cards_table.setStyle(TableStyle(card_style_commands))
-    story.append(cards_table)
-    story.append(Spacer(1, 0.2 * inch))
+    rule = Table([[""]], colWidths=[7.1 * inch], rowHeights=[2])
+    rule.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(COLOR_INK))]))
+    story.append(rule)
 
-    if currency_stats is None:
-        story.append(Paragraph("No donations recorded yet.", styles["Normal"]))
+    story.append(Spacer(1, 0.15 * inch))
+    story.append(Paragraph(f"Rotary year {year_label}".upper(), _pdf_section_style))
+    story.append(Spacer(1, 0.05 * inch))
+
+    figure_cards = _summary_cards(stats)
+    figure_cells = []
+    for card in figure_cards:
+        unit_suffix = f" {card['unit']}" if card["unit"] else ""
+        figure_cells.append(
+            [
+                Paragraph(
+                    f"<font color='{COLOR_ROTARY_BLUE}'><b>{card['figure']}</b></font>"
+                    f"<font color='{COLOR_DISTRICT_GREEN}' size='11'>{unit_suffix}</font>",
+                    ParagraphStyle(
+                        "NgoPdfFigure", fontName="Helvetica-Bold", fontSize=20, leading=22,
+                    ),
+                ),
+                Paragraph(card["label"], _pdf_figure_label_style),
+            ]
+        )
+    figure_table = Table(
+        [[cell for cell in col] for col in zip(*figure_cells)] if figure_cells else [[]],
+        colWidths=[7.1 * inch / max(len(figure_cells), 1)] * max(len(figure_cells), 1),
+    )
+    figure_table.setStyle(
+        TableStyle(
+            [
+                ("LINEABOVE", (0, 0), (-1, 0), 2, colors.HexColor(COLOR_INK)),
+                ("LINEAFTER", (0, 0), (-2, -1), 0.75, colors.HexColor("#DFDEDB")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(figure_table)
+
+    footnote_table = Table(
+        [[
+            "",
+            Paragraph(_footnote_text(stats, sorted_rows, org_pages), _pdf_footnote_style),
+        ]],
+        colWidths=[0.15 * inch, 6.95 * inch],
+    )
+    footnote_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), colors.HexColor(COLOR_ROTARY_GOLD)),
+                ("LINEABOVE", (0, 0), (-1, 0), 2, colors.HexColor(COLOR_INK)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    story.append(Spacer(1, 0.05 * inch))
+    story.append(footnote_table)
+
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(Paragraph("NGOs supported by area", _pdf_orgs_heading_style))
+    story.append(Spacer(1, 0.08 * inch))
+
+    if not sorted_rows:
+        story.append(Paragraph("No organisations funded (actual or planned) this year.", _pdf_figure_label_style))
     else:
-        chart_title_style = styles["Heading4"]
-        chart_title_style.fontSize = 9
-        chart_title_style.spaceAfter = 2
-        chart_items = list(render_charts(stats, currency_stats).items())
-        chart_cell_width, chart_cell_height = 3.3 * inch, 1.9 * inch
-        grid_rows = []
-        for i in range(0, len(chart_items), 2):
-            pair = chart_items[i : i + 2]
-            cells = []
-            for title, png_bytes in pair:
-                cells.append(
-                    [
-                        Paragraph(title, chart_title_style),
-                        Image(BytesIO(png_bytes), width=chart_cell_width, height=chart_cell_height),
-                    ]
-                )
-            if len(cells) == 1:
-                cells.append("")
-            grid_rows.append(cells)
-        charts_table = Table(grid_rows, colWidths=[3.6 * inch, 3.6 * inch])
-        charts_table.setStyle(
+        header_row = [
+            Paragraph("Organisation", _pdf_table_header_style),
+            Paragraph("Country", _pdf_table_header_style),
+            Paragraph("Area of focus", _pdf_table_header_style),
+            Paragraph("Contact", _pdf_table_header_style),
+            Paragraph("Amount", _pdf_table_header_style),
+        ]
+        data_rows = [header_row]
+        for row in sorted_rows:
+            amount_text = f"{_format_amount(row['total'])} {currency}" if currency else _format_amount(row["total"])
+            data_rows.append(
+                [
+                    Paragraph(row["name"], _pdf_table_name_style),
+                    Paragraph(row["country"] or "—", _pdf_table_cell_style),
+                    Paragraph(row["area"], _pdf_table_cell_style),
+                    Paragraph(row["contact_name"] or "—", _pdf_table_cell_style),
+                    Paragraph(amount_text, _pdf_table_amount_style),
+                ]
+            )
+        org_count = len(sorted_rows)
+        area_count = len({row["area"] for row in sorted_rows})
+        total_actual = sum(row["total"] for row in sorted_rows)
+        footer_summary = f"{org_count} organisation{'s' if org_count != 1 else ''} listed · " \
+            f"{area_count} area{'s' if area_count != 1 else ''} of focus"
+        footer_amount = f"{_format_amount(total_actual)} {currency}" if currency else _format_amount(total_actual)
+        data_rows.append(
+            [
+                Paragraph(footer_summary, _pdf_table_footer_style),
+                "", "", "",
+                Paragraph(footer_amount, _pdf_table_footer_amount_style),
+            ]
+        )
+        org_table = Table(
+            data_rows,
+            colWidths=[2.1 * inch, 1.0 * inch, 1.7 * inch, 1.3 * inch, 1.0 * inch],
+            repeatRows=1,
+        )
+        org_table.setStyle(
             TableStyle(
                 [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LINEABOVE", (0, 0), (-1, 0), 2, colors.HexColor(COLOR_INK)),
+                    ("LINEBELOW", (0, 0), (-1, 0), 2, colors.HexColor(COLOR_INK)),
+                    ("LINEBELOW", (0, 1), (-1, -2), 0.75, colors.HexColor("#DFDEDB")),
+                    ("LINEABOVE", (0, -1), (-1, -1), 2, colors.HexColor(COLOR_INK)),
+                    ("TOPPADDING", (0, 0), (-1, 0), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                    ("TOPPADDING", (0, 1), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 1), (-1, -1), 8),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                 ]
             )
         )
-        story.append(charts_table)
+        story.append(org_table)
 
-    if report_type == "integral":
-        story.append(PageBreak())
-        story.append(
-            Paragraph(
-                f"Detail — Organisations funded ({_rotary_year_label(stats.selected_rotary_year)})",
-                styles["Heading2"],
-            )
-        )
-        story.append(Spacer(1, 0.1 * inch))
-        if not ngo_breakdown:
-            story.append(Paragraph("No organisations funded this year.", styles["Normal"]))
-        else:
-            rows = []
-            for row in ngo_breakdown:
-                logo_bytes = row.get("logo_bytes")
-                logo_cell = Image(logo_bytes, width=0.3 * inch, height=0.3 * inch) if logo_bytes else "—"
-                rows.append(
-                    [logo_cell, row["name"], _format_currency(row["total"], currency_stats.currency)]
-                )
-            detail_table = Table(
-                [["", "Organisation", "Total donated"]] + rows,
-                colWidths=[0.45 * inch, 3.5 * inch, 2.0 * inch],
-                hAlign="LEFT",
-            )
-            detail_table.setStyle(
-                TableStyle(
-                    [
-                        ("FONTSIZE", (0, 0), (-1, -1), 9),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dde3ec")),
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(TONE_BLUE_BG)),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 3),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                    ]
-                )
-            )
-            story.append(detail_table)
+    generated_date = date.today().strftime("%-d %B %Y") if hasattr(date, "strftime") else date.today().isoformat()
 
-    doc.build(story)
+    def _draw(canvas_obj, doc_):
+        _pdf_header_footer(canvas_obj, doc_, year_label=year_label, generated_date=generated_date)
+
+    doc.build(story, onFirstPage=_draw, onLaterPages=_draw)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# PPTX — 13.333×7.5in (16:9), matching the handoff's 1920×1080 design canvas
+# exactly (1920/1080 == 13.333/7.5), so every geometry value below converts
+# with the handoff's own two formulas: inches = px/144, points = px/2.
+# ---------------------------------------------------------------------------
+
+
+def _px_len(value_px: float) -> int:
+    return Inches(value_px / 144)
+
+
+def _px_pt(value_px: float) -> float:
+    return value_px / 2
+
+
+def _rgb(hex_color: str) -> RGBColor:
+    return RGBColor.from_string(hex_color.lstrip("#").upper())
+
+
+def _draw_chrome(slide, chrome: str, year_label: str, kicker: str, title: str) -> None:
+    """Backgrounds/kicker/title — "identical in both variants" except the
+    background layer and the logo, per the handoff. `chrome` is "template"
+    (District 3450 band asset) or "plain" (drawn green band + club logo)."""
+    if chrome == "template" and DISTRICT_BAND_IMAGE.exists():
+        slide.shapes.add_picture(
+            str(DISTRICT_BAND_IMAGE), 0, 0, width=_px_len(1920), height=_px_len(1080)
+        )
+    else:
+        band = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, _px_len(1920), _px_len(192))
+        band.fill.solid()
+        band.fill.fore_color.rgb = _rgb(COLOR_DISTRICT_GREEN)
+        band.line.fill.background()
+        band.shadow.inherit = False
+        band.text_frame.clear()
+        if CLUB_LOGO_LOCKUP_IMAGE.exists():
+            with PILImage.open(CLUB_LOGO_LOCKUP_IMAGE) as logo_im:
+                aspect = logo_im.width / logo_im.height
+            logo_height = _px_len(120)
+            logo_width = int(logo_height * aspect)
+            slide.shapes.add_picture(
+                str(CLUB_LOGO_LOCKUP_IMAGE),
+                _px_len(1824) - logo_width,
+                _px_len(96) - logo_height // 2,
+                width=logo_width,
+                height=logo_height,
+            )
+
+    kicker_box = slide.shapes.add_textbox(_px_len(96), _px_len(52), _px_len(1200), _px_len(40))
+    kicker_tf = kicker_box.text_frame
+    kicker_tf.text = kicker
+    kicker_tf.paragraphs[0].font.size = Pt(_px_pt(24))
+    kicker_tf.paragraphs[0].font.bold = True
+    kicker_tf.paragraphs[0].font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
+
+    title_box = slide.shapes.add_textbox(_px_len(96), _px_len(100), _px_len(1300), _px_len(70))
+    title_tf = title_box.text_frame
+    title_tf.word_wrap = True
+    title_tf.text = title
+    title_tf.paragraphs[0].font.size = Pt(_px_pt(46))
+    title_tf.paragraphs[0].font.bold = True
+    title_tf.paragraphs[0].font.color.rgb = _rgb("#FFFFFF")
+
+
+def _add_summary_slide(prs: Presentation, blank_layout, stats: DonationStatistics, ngo_rows: list[dict], org_pages: list[list[dict]], chrome: str) -> None:
+    slide = prs.slides.add_slide(blank_layout)
+    year_label = _rotary_year_label(stats.selected_rotary_year)
+    _draw_chrome(slide, chrome, year_label, REPORT_TITLE, f"Summary — Rotary year {year_label}")
+
+    cards = _summary_cards(stats)
+    columns = len(cards) or 1
+    row_left, row_top, row_width, row_height = _px_len(96), _px_len(352), _px_len(1728), _px_len(392)
+    gap = _px_len(28)
+    card_width = int((row_width - gap * (columns - 1)) / columns) if columns > 1 else row_width
+
+    for index, card in enumerate(cards):
+        left = row_left + index * (card_width + gap)
+        card_shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, row_top, card_width, row_height)
+        card_shape.fill.solid()
+        card_shape.fill.fore_color.rgb = _rgb(COLOR_STAT_CARD_FILL)
+        card_shape.line.color.rgb = _rgb(COLOR_CARD_BORDER)
+        card_shape.line.width = Pt(1.5)
+        card_shape.shadow.inherit = False
+        card_shape.text_frame.clear()
+
+        top_bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, row_top, card_width, _px_len(8))
+        top_bar.fill.solid()
+        top_bar.fill.fore_color.rgb = _rgb(COLOR_DISTRICT_GREEN)
+        top_bar.line.fill.background()
+        top_bar.shadow.inherit = False
+        top_bar.text_frame.clear()
+
+        pad_x, pad_top = _px_len(28), _px_len(40)
+        kicker_box = slide.shapes.add_textbox(left + pad_x, row_top + pad_top, card_width - 2 * pad_x, _px_len(40))
+        kicker_tf = kicker_box.text_frame
+        kicker_tf.text = card["kicker"]
+        kicker_tf.paragraphs[0].font.size = Pt(_px_pt(24))
+        kicker_tf.paragraphs[0].font.bold = True
+        kicker_tf.paragraphs[0].font.color.rgb = _rgb(COLOR_DISTRICT_GREEN)
+
+        figure_box = slide.shapes.add_textbox(
+            left + pad_x, row_top + pad_top + _px_len(56), card_width - 2 * pad_x, _px_len(110)
+        )
+        figure_tf = figure_box.text_frame
+        figure_tf.word_wrap = True
+        figure_run_text = card["figure"]
+        figure_tf.text = figure_run_text
+        figure_tf.paragraphs[0].font.size = Pt(_px_pt(84))
+        figure_tf.paragraphs[0].font.bold = True
+        figure_tf.paragraphs[0].font.color.rgb = _rgb(COLOR_ROTARY_BLUE)
+        if card["unit"]:
+            unit_run = figure_tf.paragraphs[0].add_run()
+            unit_run.text = f"  {card['unit']}"
+            unit_run.font.size = Pt(_px_pt(32))
+            unit_run.font.bold = True
+            unit_run.font.color.rgb = _rgb(COLOR_DISTRICT_GREEN)
+
+        label_box = slide.shapes.add_textbox(
+            left + pad_x, row_top + row_height - _px_len(70), card_width - 2 * pad_x, _px_len(50)
+        )
+        label_tf = label_box.text_frame
+        label_tf.word_wrap = True
+        label_tf.text = card["label"]
+        label_tf.paragraphs[0].font.size = Pt(_px_pt(26))
+        label_tf.paragraphs[0].font.color.rgb = _rgb(COLOR_BODY_GREY)
+
+    footnote_box = slide.shapes.add_textbox(_px_len(96), _px_len(944), _px_len(1728), _px_len(90))
+    footnote_tf = footnote_box.text_frame
+    footnote_tf.word_wrap = True
+    footnote_tf.text = _footnote_text(stats, ngo_rows, org_pages)
+    footnote_tf.paragraphs[0].font.size = Pt(_px_pt(27))
+    footnote_tf.paragraphs[0].font.color.rgb = _rgb("#3A3D3A")
+
+
+def _add_organisations_slide(
+    prs: Presentation, blank_layout, stats: DonationStatistics, page_rows: list[dict],
+    page_number: int, total_pages: int, chrome: str, currency: str | None,
+) -> None:
+    slide = prs.slides.add_slide(blank_layout)
+    year_label = _rotary_year_label(stats.selected_rotary_year)
+    title = "Organisations supported"
+    if total_pages > 1:
+        title += f" ({page_number} of {total_pages})"
+    _draw_chrome(slide, chrome, year_label, f"Rotary year {year_label}", title)
+
+    grid_left, grid_top = _px_len(96), _px_len(214)
+    grid_width = _px_len(1728)
+    gap = _px_len(20)
+    card_height = _px_len(238.664)
+    columns = ORG_GRID_COLUMNS
+    card_width = int((grid_width - gap * (columns - 1)) / columns)
+
+    for index, row in enumerate(page_rows):
+        col, grid_row = index % columns, index // columns
+        left = grid_left + col * (card_width + gap)
+        top = grid_top + grid_row * (card_height + gap)
+        _add_org_card(slide, row, left, top, card_width, card_height, currency)
+
+    key_top = _px_len(1080) - _px_len(38) - _px_len(30)
+    rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, _px_len(96), key_top, _px_len(1728), _px_len(2))
+    rule.fill.solid()
+    rule.fill.fore_color.rgb = _rgb(COLOR_INK)
+    rule.line.fill.background()
+    rule.shadow.inherit = False
+    rule.text_frame.clear()
+
+    key_box = slide.shapes.add_textbox(_px_len(96), key_top + _px_len(10), _px_len(1728), _px_len(30))
+    key_tf = key_box.text_frame
+    key_tf.word_wrap = True
+    key_p = key_tf.paragraphs[0]
+    key_p.font.size = Pt(_px_pt(24))
+    lead_run = key_p.add_run()
+    lead_run.text = "Country · Contact    "
+    lead_run.font.size = Pt(_px_pt(24))
+    lead_run.font.color.rgb = _rgb(COLOR_INK)
+    for area, count in _page_area_counts(page_rows):
+        area_run = key_p.add_run()
+        area_run.text = f"■ {area} ({count:02d})    "
+        area_run.font.size = Pt(_px_pt(24))
+        area_run.font.color.rgb = _rgb(_area_color(area))
+
+
+def _add_org_card(slide, row: dict, left, top, width, height, currency: str | None) -> None:
+    card_shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
+    card_shape.fill.solid()
+    card_shape.fill.fore_color.rgb = _rgb(COLOR_ORG_CARD_FILL)
+    card_shape.line.color.rgb = _rgb(COLOR_CARD_BORDER)
+    card_shape.line.width = Pt(1.5)
+    card_shape.shadow.inherit = False
+    card_shape.text_frame.clear()
+
+    top_bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, _px_len(8))
+    top_bar.fill.solid()
+    top_bar.fill.fore_color.rgb = _rgb(_area_color(row["area"]))
+    top_bar.line.fill.background()
+    top_bar.shadow.inherit = False
+    top_bar.text_frame.clear()
+
+    pad_x = _px_len(18)
+    # Follow-up: logo bigger again (44px -> 64px -> 90px) and the name box
+    # now fills whatever space is actually left between the logo and the
+    # amount (vertically centered in it) instead of a fixed-height box with
+    # a gap above/below — so a bigger logo automatically leaves less dead
+    # space rather than more. Same card shape/border/colours otherwise.
+    logo_top = top + _px_len(14)
+    logo_size = _px_len(90)
+    logo_png = _pptx_safe_image(row["logo_bytes"]) if row.get("logo_bytes") else None
+    if logo_png:
+        slide.shapes.add_picture(
+            logo_png, left + (width - logo_size) // 2, logo_top, width=logo_size, height=logo_size
+        )
+
+    amount_top = top + height - _px_len(66)
+    name_top = logo_top + logo_size + _px_len(4)
+    name_box = slide.shapes.add_textbox(
+        left + pad_x, name_top, width - 2 * pad_x, amount_top - name_top - _px_len(4)
+    )
+    name_tf = name_box.text_frame
+    name_tf.word_wrap = True
+    name_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    name_tf.text = row["name"]
+    name_p = name_tf.paragraphs[0]
+    name_p.alignment = PP_ALIGN.CENTER
+    name_p.font.size = Pt(_px_pt(26))
+    name_p.font.bold = True
+    name_p.font.color.rgb = _rgb(COLOR_INK)
+
+    amount_box = slide.shapes.add_textbox(left + pad_x, amount_top, width - 2 * pad_x, _px_len(34))
+    amount_tf = amount_box.text_frame
+    amount_p = amount_tf.paragraphs[0]
+    amount_p.alignment = PP_ALIGN.CENTER
+    amount_text = f"{_format_amount(row['total'])} {currency}" if currency else _format_amount(row["total"])
+    amount_p.text = amount_text
+    amount_p.font.size = Pt(_px_pt(28))
+    amount_p.font.bold = True
+    amount_p.font.color.rgb = _rgb(COLOR_ROTARY_BLUE)
+
+    meta_parts = [part for part in (row.get("country"), row.get("contact_name")) if part]
+    meta_box = slide.shapes.add_textbox(left + pad_x, amount_top + _px_len(30), width - 2 * pad_x, _px_len(30))
+    meta_tf = meta_box.text_frame
+    meta_p = meta_tf.paragraphs[0]
+    meta_p.alignment = PP_ALIGN.CENTER
+    meta_p.text = " · ".join(meta_parts)
+    meta_p.font.size = Pt(_px_pt(24))
+    meta_p.font.color.rgb = _rgb(COLOR_META_GREY)
 
 
 def build_pptx_report(
     stats: DonationStatistics,
     currency: str | None,
-    ngo_breakdown: list[dict],
-    report_type: str = "simplified",
-    template_path: BytesIO | None = None,
+    ngo_rows: list[dict],
+    chrome: str = "plain",
 ) -> bytes:
-    currency_stats = _current_currency_stats(stats, currency)
-    report_type_label = "Integral" if report_type == "integral" else "Simplified"
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    blank_layout = prs.slide_layouts[6]
 
-    using_template = template_path is not None
-    if using_template:
-        prs = Presentation(template_path)
-        blank_layout = _pick_blank_layout(prs)
-    else:
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-        blank_layout = prs.slide_layouts[6]
+    sorted_rows = _sorted_ngo_rows(ngo_rows)
+    org_pages = _paginate(sorted_rows, ORGS_PER_SLIDE) if sorted_rows else []
 
-    scale = prs.slide_width / Inches(13.333)
-
-    def sc(emu):
-        return int(emu * scale)
-
-    slide = prs.slides.add_slide(blank_layout)
-
-    logo_right_edge = sc(Inches(0.3))
-    if LOGO_PATH.exists():
-        logo_pic = slide.shapes.add_picture(
-            str(LOGO_PATH), sc(Inches(0.3)), sc(Inches(0.2)), height=sc(Inches(0.6))
-        )
-        logo_right_edge = logo_pic.left + logo_pic.width
-
-    heading_left = logo_right_edge + sc(Inches(0.2))
-    add_heading(
-        slide,
-        using_template,
-        f"{CLUB_NAME} — {REPORT_TITLE} — {report_type_label} Report",
-        f"Rotary Year {_rotary_year_label(stats.selected_rotary_year)} — "
-        f"Generated {date.today().isoformat()}",
-        (heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)), sc(Inches(0.65))),
-    )
-
-    cards = stat_cards(stats)
-    columns = 3
-    card_width, card_height = sc(Inches(3.9)), sc(Inches(0.7))
-    gap_x, gap_y = sc(Inches(0.12)), sc(Inches(0.08))
-    start_x, start_y = sc(Inches(0.3)), sc(Inches(0.95))
-    for index, (label, value) in enumerate(cards):
-        col = index % columns
-        row = index // columns
-        left = start_x + col * (card_width + gap_x)
-        top = start_y + row * (card_height + gap_y)
-        box = slide.shapes.add_textbox(left, top, card_width, card_height)
-        style_card_fill(box, CARD_TONES[index], using_template)
-        tf = box.text_frame
-        tf.margin_left = Pt(6)
-        tf.margin_top = Pt(4)
-        tf.text = value
-        tf.paragraphs[0].font.size = Pt(16)
-        tf.paragraphs[0].font.bold = True
-        style_card_text_color(tf.paragraphs[0], using_template)
-        label_p = tf.add_paragraph()
-        label_p.text = label
-        label_p.font.size = Pt(9)
-
-    if currency_stats is not None:
-        chart_columns = 3
-        chart_width = sc(Inches(4.15))
-        chart_gap_x, chart_gap_y = sc(Inches(0.08)), sc(Inches(0.15))
-        chart_start_x, chart_start_y = sc(Inches(0.25)), sc(Inches(2.75))
-        chart_row_height = sc(Inches(2.2))
-        for index, (title, png_bytes) in enumerate(render_charts(stats, currency_stats).items()):
-            col = index % chart_columns
-            row = index // chart_columns
-            left = chart_start_x + col * (chart_width + chart_gap_x)
-            top = chart_start_y + row * (chart_row_height + chart_gap_y)
-            slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_width)
-
-    if report_type == "integral":
-        _add_ngo_detail_slide(
-            prs, blank_layout, stats, currency_stats, ngo_breakdown, sc, using_template
+    _add_summary_slide(prs, blank_layout, stats, sorted_rows, org_pages, chrome)
+    for page_number, page_rows in enumerate(org_pages, start=1):
+        _add_organisations_slide(
+            prs, blank_layout, stats, page_rows, page_number, len(org_pages), chrome, currency
         )
 
     buf = BytesIO()
     prs.save(buf)
     return buf.getvalue()
-
-
-def _add_ngo_detail_slide(
-    prs: Presentation,
-    blank_layout,
-    stats: DonationStatistics,
-    currency_stats: CurrencyStatistics | None,
-    ngo_breakdown: list[dict],
-    sc,
-    using_template: bool = False,
-) -> None:
-    slide = prs.slides.add_slide(blank_layout)
-
-    title_text = f"Detail — Organisations funded ({_rotary_year_label(stats.selected_rotary_year)})"
-    placeholder = _title_placeholder(slide) if using_template else None
-    if placeholder is not None:
-        placeholder.text_frame.text = title_text
-    else:
-        title_box = slide.shapes.add_textbox(
-            sc(Inches(0.4)), sc(Inches(0.3)), sc(Inches(9)), sc(Inches(0.6))
-        )
-        title_tf = title_box.text_frame
-        title_tf.text = title_text
-        title_tf.paragraphs[0].font.size = Pt(20)
-        title_tf.paragraphs[0].font.bold = True
-        if not using_template:
-            title_tf.paragraphs[0].font.color.rgb = RGBColor.from_string("17458F")
-
-    if not ngo_breakdown or currency_stats is None:
-        empty_box = slide.shapes.add_textbox(
-            sc(Inches(0.4)), sc(Inches(1.1)), sc(Inches(9)), sc(Inches(0.5))
-        )
-        empty_box.text_frame.text = "No organisations funded this year."
-        return
-
-    headers = ["Organisation", "Total donated"]
-    rows = [[row["name"], _format_currency(row["total"], currency_stats.currency)] for row in ngo_breakdown]
-
-    table_rows = len(rows) + 1
-    table_shape = slide.shapes.add_table(
-        table_rows, len(headers), sc(Inches(0.4)), sc(Inches(1.1)), sc(Inches(9)),
-        sc(Inches(min(0.4 * table_rows, 5.5))),
-    )
-    table = table_shape.table
-    for col_index, header in enumerate(headers):
-        cell = table.cell(0, col_index)
-        cell.text = header
-        cell.text_frame.paragraphs[0].font.bold = True
-        cell.text_frame.paragraphs[0].font.size = Pt(11)
-    for row_index, row_values in enumerate(rows, start=1):
-        for col_index, value in enumerate(row_values):
-            cell = table.cell(row_index, col_index)
-            cell.text = value
-            cell.text_frame.paragraphs[0].font.size = Pt(10)

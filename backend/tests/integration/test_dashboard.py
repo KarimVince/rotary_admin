@@ -81,6 +81,29 @@ def test_dashboard_summary_sums_current_rotary_year_donations(
     assert response.json()["donations_this_year"] == 120.5
 
 
+def test_dashboard_summary_excludes_planned_donations(user_client, admin_client, make_organisation):
+    # Story 16.35 — a planned (not-yet-made) donation must not inflate this
+    # figure before it's actually given.
+    from datetime import date
+
+    from app.core.rotary_year import rotary_year
+
+    org = make_organisation(name="Donee")
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/donations",
+        json={"amount": 120.5, "donation_date": date.today().isoformat()},
+    )
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/donations",
+        json={"amount": 999, "planned": True, "rotary_year": rotary_year(date.today())},
+    )
+
+    response = user_client.get("/api/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    assert response.json()["donations_this_year"] == 120.5
+
+
 def test_dashboard_summary_sums_current_rotary_year_ad_hoc_donations(
     user_client, admin_client
 ):

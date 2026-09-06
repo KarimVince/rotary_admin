@@ -148,7 +148,7 @@ describe("BoardMembers", () => {
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: /^assign$/i }));
-    await userEvent.type(screen.getByLabelText(/member/i), "Jane");
+    await userEvent.type(screen.getByLabelText("Member"), "Jane");
     await userEvent.click(await screen.findByRole("button", { name: /jane doe/i }));
     await userEvent.click(screen.getByRole("button", { name: /confirm assignment/i }));
 
@@ -166,7 +166,7 @@ describe("BoardMembers", () => {
     await waitForLoaded();
 
     await userEvent.click(screen.getByRole("button", { name: /^assign$/i }));
-    await userEvent.type(screen.getByLabelText(/member/i), "Jane");
+    await userEvent.type(screen.getByLabelText("Member"), "Jane");
     await userEvent.click(await screen.findByRole("button", { name: /jane doe/i }));
 
     expect(await screen.findByText(/already holds secretary/i)).toBeInTheDocument();
@@ -205,5 +205,81 @@ describe("BoardMembers", () => {
     expect(boardSection).not.toHaveTextContent("Speaker Coordinator");
     expect(nonBoardSection).toHaveTextContent("Speaker Coordinator");
     expect(nonBoardSection).not.toHaveTextContent("President");
+  });
+
+  describe("Board Members report", () => {
+    it("posts to the report endpoint with the selected format and year", async () => {
+      mockAccess = { canRead: true, canWrite: false };
+      mockBaseData({ assignments: [assignment()] });
+      let requestUrl;
+      server.use(
+        http.post(`${API_BASE_URL}/board/assignments/report`, ({ request }) => {
+          requestUrl = new URL(request.url);
+          return new HttpResponse("fake-pdf-bytes", {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": 'attachment; filename="board-members.pdf"',
+            },
+          });
+        }),
+      );
+
+      render(<BoardMembers />);
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(requestUrl).toBeDefined());
+      expect(requestUrl.searchParams.get("format")).toBe("pdf");
+      expect(requestUrl.searchParams.get("year")).toBe(String(CURRENT_YEAR));
+      expect(requestUrl.searchParams.get("use_template")).toBeNull();
+    });
+
+    it("only sends use_template when PPTX is selected and the checkbox is checked", async () => {
+      mockAccess = { canRead: true, canWrite: false };
+      mockBaseData({ assignments: [assignment()] });
+      let requestUrl;
+      server.use(
+        http.post(`${API_BASE_URL}/board/assignments/report`, ({ request }) => {
+          requestUrl = new URL(request.url);
+          return new HttpResponse("fake-pptx-bytes", {
+            headers: {
+              "Content-Type":
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+              "Content-Disposition": 'attachment; filename="board-members.pptx"',
+            },
+          });
+        }),
+      );
+
+      render(<BoardMembers />);
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Format" }));
+      await userEvent.click(screen.getByRole("option", { name: /powerpoint/i }));
+      await userEvent.click(screen.getByLabelText(/use district template/i));
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      await waitFor(() => expect(requestUrl).toBeDefined());
+      expect(requestUrl.searchParams.get("format")).toBe("pptx");
+      expect(requestUrl.searchParams.get("use_template")).toBe("true");
+    });
+
+    it("shows an error message when report generation fails", async () => {
+      mockAccess = { canRead: true, canWrite: false };
+      mockBaseData({ assignments: [assignment()] });
+      server.use(
+        http.post(`${API_BASE_URL}/board/assignments/report`, () =>
+          HttpResponse.json({ detail: "No board members this term" }, { status: 400 }),
+        ),
+      );
+
+      render(<BoardMembers />);
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
+
+      expect(await screen.findByText("No board members this term")).toBeInTheDocument();
+    });
   });
 });

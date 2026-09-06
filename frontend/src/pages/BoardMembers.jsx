@@ -1,12 +1,21 @@
+import { Download } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { listBoardPositions } from "../api/boardPositions";
-import { createBoardAssignment, listBoardAssignments } from "../api/boardAssignments";
+import {
+  createBoardAssignment,
+  generateBoardMembersReport,
+  listBoardAssignments,
+} from "../api/boardAssignments";
 import { listMembers } from "../api/members";
 import Card from "../components/Card";
+import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
 import { useRotaryYears } from "../hooks/useRotaryYears";
 import { SELECT_CLASS } from "../styles/formControls";
 import { rotaryYearLabel } from "../utils/rotaryYear";
+
+const SESSION_KEY_REPORT_USE_TEMPLATE = "boardMembers.report.useTemplate";
+const SESSION_KEY_INCLUDE_NON_BOARD = "boardMembers.report.includeNonBoard";
 
 function latestAssignmentFor(assignments, positionId) {
   const forPosition = assignments.filter((a) => a.board_position_id === positionId);
@@ -32,6 +41,50 @@ export default function BoardMembers() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [saveError, setSaveError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const [reportFormat, setReportFormat] = useState("pdf");
+  const [useTemplate, setUseTemplate] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_REPORT_USE_TEMPLATE) === "true",
+  );
+  const [includeNonBoard, setIncludeNonBoard] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_INCLUDE_NON_BOARD) === "true",
+  );
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState(null);
+
+  function handleUseTemplateChange(checked) {
+    setUseTemplate(checked);
+    sessionStorage.setItem(SESSION_KEY_REPORT_USE_TEMPLATE, String(checked));
+  }
+
+  function handleIncludeNonBoardChange(checked) {
+    setIncludeNonBoard(checked);
+    sessionStorage.setItem(SESSION_KEY_INCLUDE_NON_BOARD, String(checked));
+  }
+
+  async function handleGenerateReport() {
+    setIsGeneratingReport(true);
+    setReportError(null);
+    try {
+      const { blob, filename } = await generateBoardMembersReport(reportFormat, {
+        year,
+        useTemplate: useTemplate && reportFormat === "pptx",
+        includeNonBoard,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(err.detail || "Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }
 
   const isCurrentTerm = year === currentYear;
   const canAssign = canManage && isCurrentTerm;
@@ -171,6 +224,78 @@ export default function BoardMembers() {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Board Members report — same PDF/PPTX card-based design and chrome
+          toggle as the NGO Statistics report (see DonationsStatistics.jsx). */}
+      <div className="mb-5 flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+            Format
+          </span>
+          <SingleSelectDropdown
+            ariaLabel="Format"
+            minWidthClass="min-w-[170px]"
+            disabled={isGeneratingReport}
+            value={reportFormat}
+            options={[
+              { value: "pdf", label: "PDF" },
+              { value: "pptx", label: "PowerPoint (PPTX)" },
+            ]}
+            onSelect={setReportFormat}
+          />
+        </div>
+
+        <label
+          htmlFor="board-report-use-template"
+          className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+          title={
+            reportFormat !== "pptx"
+              ? "The district template only applies to PowerPoint (PPTX) reports"
+              : undefined
+          }
+        >
+          <input
+            id="board-report-use-template"
+            type="checkbox"
+            checked={useTemplate}
+            onChange={(event) => handleUseTemplateChange(event.target.checked)}
+            disabled={isGeneratingReport || reportFormat !== "pptx"}
+          />
+          Use district template
+        </label>
+
+        <label
+          htmlFor="board-report-include-non-board"
+          className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+        >
+          <input
+            id="board-report-include-non-board"
+            type="checkbox"
+            checked={includeNonBoard}
+            onChange={(event) => handleIncludeNonBoardChange(event.target.checked)}
+            disabled={isGeneratingReport}
+          />
+          Include committee members
+        </label>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="pl-0.5 text-[11px]">&nbsp;</span>
+          <button
+            type="button"
+            onClick={handleGenerateReport}
+            disabled={isGeneratingReport}
+            className="inline-flex h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" aria-hidden="true" />
+            {isGeneratingReport ? "Generating…" : "Generate Report"}
+          </button>
+        </div>
+        {reportError && (
+          <p role="alert" className="w-full text-[13px] text-[var(--low)]">
+            {reportError}
+          </p>
+        )}
       </div>
 
       {!isCurrentTerm && <p className="text-sm text-[var(--color-muted-text)] mb-4">Viewing a past term — read-only.</p>}

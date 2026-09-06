@@ -220,6 +220,27 @@
   color: var(--gold-ink) !important;
 }
 
+/* Story 16.35 follow-up: the Planned Donations card keeps its own reddish/
+   purple tone (stat-rose) regardless of where it lands in the row — every
+   other `.stat-duo-grid` card alternates blue/gold purely by position
+   (rules above), but a planned/forecast figure needs to read as visually
+   distinct from the actual-donation cards next to it, not just "whichever
+   of blue/gold its slot happens to be". Same selector shape (and
+   specificity) as the odd/even rules above, just also keyed on the
+   variant, so it wins regardless of odd/even position. */
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant="stat-rose"]:nth-child(odd),
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant="stat-rose"]:nth-child(even) {
+  background: var(--tone-rose-bg) !important;
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant="stat-rose"]:nth-child(odd)::before,
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant="stat-rose"]:nth-child(even)::before {
+  background: var(--color-donation-planned);
+}
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant="stat-rose"]:nth-child(odd) > span:first-child,
+:root[data-theme="minimal"] .stat-duo-grid > [data-variant="stat-rose"]:nth-child(even) > span:first-child {
+  color: var(--color-donation-planned) !important;
+}
+
 /* App-wide stat-card format (2026-08-06 request): every page's stat-card
    row should look *exactly* like Dashboard.jsx's "Club overview" grid —
    compact padding/tick/type-scale, not just the blue/gold alternation

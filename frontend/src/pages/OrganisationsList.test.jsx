@@ -123,4 +123,71 @@ describe("OrganisationsList", () => {
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0].name).toBe("New Org");
   });
+
+  // Story 16.35 follow-up — filtering by a rotary year must show orgs with
+  // a planned-only donation too, with the planned amount kept separate
+  // from the actual total rather than merged into one figure.
+  describe("Rotary year filter with planned donations", () => {
+    beforeEach(() => {
+      server.use(
+        http.get(`${API_BASE_URL}/rotary-years`, () =>
+          HttpResponse.json([{ id: "ry-1", year: 2024, is_current: true }]),
+        ),
+      );
+    });
+
+    it("shows both an actual and a planned badge, never merged", async () => {
+      useAuth.mockReturnValue({ user: { role: "user" } });
+      mockRole("user");
+      server.use(
+        http.get(`${API_BASE_URL}/organisations`, ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get("rotary_year") === "2024") {
+            return HttpResponse.json([
+              { ...ORG_A, year_total: 100, year_total_planned: 500 },
+            ]);
+          }
+          return HttpResponse.json([ORG_A, ORG_B]);
+        }),
+      );
+
+      renderList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Rotary year" }));
+      await userEvent.click(screen.getByRole("option", { name: /2024–2025 \(current\)/i }));
+
+      await waitFor(() => expect(screen.getByText("100 HKD")).toBeInTheDocument());
+      // Story 16.35 follow-up: no "planned" text or year suffix — the
+      // purple badge color alone marks it as planned.
+      const plannedBadge = screen.getByText("500 HKD");
+      expect(plannedBadge.className).toContain("donation-planned-badge-lg");
+    });
+
+    it("shows a planned-only organisation with no actual-donation badge", async () => {
+      useAuth.mockReturnValue({ user: { role: "user" } });
+      mockRole("user");
+      server.use(
+        http.get(`${API_BASE_URL}/organisations`, ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get("rotary_year") === "2024") {
+            return HttpResponse.json([
+              { ...ORG_A, year_total: 0, year_total_planned: 999 },
+            ]);
+          }
+          return HttpResponse.json([ORG_A, ORG_B]);
+        }),
+      );
+
+      renderList();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByRole("button", { name: "Rotary year" }));
+      await userEvent.click(screen.getByRole("option", { name: /2024–2025 \(current\)/i }));
+
+      await waitFor(() => expect(screen.getByText("999 HKD")).toBeInTheDocument());
+      expect(screen.getByText("999 HKD").className).toContain("donation-planned-badge-lg");
+      expect(screen.queryByText("0 HKD")).not.toBeInTheDocument();
+    });
+  });
 });

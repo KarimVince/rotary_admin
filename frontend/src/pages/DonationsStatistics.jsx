@@ -12,7 +12,6 @@ import {
   YAxis,
 } from "recharts";
 import { fetchDonationStatistics, generateDonationStatisticsReport } from "../api/donations";
-import { fetchCurrentPptTemplate } from "../api/pptTemplates";
 import { listNgoClassifications } from "../api/ngoClassifications";
 import Card from "../components/Card";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
@@ -46,7 +45,6 @@ export default function DonationsStatistics() {
   const [useTemplate, setUseTemplate] = useState(
     () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
   );
-  const [hasTemplate, setHasTemplate] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
   const [classifications, setClassifications] = useState([]);
@@ -68,7 +66,7 @@ export default function DonationsStatistics() {
     try {
       const { blob, filename } = await generateDonationStatisticsReport(reportFormat, {
         reportType,
-        useTemplate: useTemplate && reportFormat === "pptx" && hasTemplate,
+        useTemplate: useTemplate && reportFormat === "pptx",
         rotaryYear: selectedYear,
         classificationId: classificationFilter || undefined,
         currency: selectedCurrency,
@@ -87,14 +85,6 @@ export default function DonationsStatistics() {
       setIsGeneratingReport(false);
     }
   }
-
-  useEffect(() => {
-    fetchCurrentPptTemplate()
-      .then((template) => setHasTemplate(Boolean(template)))
-      .catch(() => {
-        // non-fatal — checkbox stays disabled
-      });
-  }, []);
 
   useEffect(() => {
     // Non-fatal — the filter just doesn't render if this fails.
@@ -195,7 +185,15 @@ export default function DonationsStatistics() {
   const allTimeCards = [
     { value: formatCurrency(stats.all_time.total_hkd, "HKD"), label: "Total donated (all-time)" },
     { value: formatCurrency(stats.all_time.total_usd, "USD"), label: "Total donated (all-time)" },
-    { value: stats.all_time_organisations_count, label: "Organisations supported (all-time)" },
+    // Story 16.35 follow-up: counts an org supported by either an actual
+    // OR a planned donation (was actual-only) — the page's own PPTX/PDF
+    // export keeps a stricter actual-only "Reach" figure by design, but
+    // this page's card is meant to reflect who the club is engaged with,
+    // planned included.
+    {
+      value: stats.all_time_organisations_count_with_planned ?? stats.all_time_organisations_count,
+      label: "Organisations supported (all-time)",
+    },
     {
       value: `${stats.total_service_hours_all_time.toLocaleString()} h`,
       label: "Volunteer service hours (all-time)",
@@ -207,12 +205,23 @@ export default function DonationsStatistics() {
       value: formatCurrency(stats.selected_year.total_hkd, "HKD"),
       label: `Total donated — ${rotaryYearLabel(stats.selected_rotary_year)}`,
     },
+    // Story 16.35 follow-up — moved right after the "given" (actual) HKD
+    // total, swapped with USD (was HKD, USD, Planned — now HKD, Planned,
+    // USD), and given its own dedicated reddish/purple tone (stat-rose)
+    // instead of cycling through the other cards' palette, so it reads as
+    // visually distinct from the actual-donation figures.
+    {
+      value: formatCurrency(stats.selected_year_planned?.total_hkd ?? 0, "HKD"),
+      label: `Planned donations — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+      variant: "stat-rose",
+    },
     {
       value: formatCurrency(stats.selected_year.total_usd, "USD"),
       label: `Total donated — ${rotaryYearLabel(stats.selected_rotary_year)}`,
     },
     {
-      value: stats.selected_year_organisations_count,
+      value:
+        stats.selected_year_organisations_count_with_planned ?? stats.selected_year_organisations_count,
       label: `Organisations supported — ${rotaryYearLabel(stats.selected_rotary_year)}`,
     },
     {
@@ -220,6 +229,13 @@ export default function DonationsStatistics() {
       label: `Volunteer service hours — ${rotaryYearLabel(stats.selected_rotary_year)}`,
     },
   ];
+
+  // Story 16.35 — planned totals by rotary year (current + future only),
+  // for the currently selected currency block.
+  const plannedByYearData = (currentStats?.planned_by_rotary_year ?? []).map((row) => ({
+    year: rotaryYearLabel(Number(row.label)),
+    total: row.value,
+  }));
 
   // Story 8.30: the 4 chart types are reused for both the "Selected Year"
   // and "All Years" sections — factored out so each section is a short list
@@ -278,6 +294,27 @@ export default function DonationsStatistics() {
               <YAxis />
               <Tooltip formatter={(value) => `${value} h`} />
               <Bar dataKey="total" fill="#5f55ee" name="Service hours" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    );
+  }
+
+  function renderPlannedChart() {
+    return (
+      <div className="chart-card">
+        <h2>Planned donations — current &amp; future years</h2>
+        {plannedByYearData.length === 0 ? (
+          <p className="member-empty-state">No planned donations recorded yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={plannedByYearData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis />
+              <Tooltip formatter={(value) => formatCurrency(value, currentStats.currency)} />
+              <Bar dataKey="total" fill="#6b46c1" name="Planned donations" />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -410,15 +447,18 @@ export default function DonationsStatistics() {
             </div>
           )}
 
+          {/* Story 16.35 redesign: this is now a chrome variant (District
+              3450 template band vs. plain green band + club logo), drawn
+              from a shipped design asset — it no longer needs an
+              admin-uploaded PPT Template file (Admin → PPT Template is
+              unrelated to this toggle now). */}
           <label
             htmlFor="report-use-template"
             className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
             title={
               reportFormat !== "pptx"
-                ? "The annual club template only applies to PowerPoint (PPTX) reports"
-                : !hasTemplate
-                  ? "No annual template uploaded yet. Go to Admin → PPT Template to upload one."
-                  : undefined
+                ? "The district template only applies to PowerPoint (PPTX) reports"
+                : undefined
             }
           >
             <input
@@ -426,9 +466,9 @@ export default function DonationsStatistics() {
               type="checkbox"
               checked={useTemplate}
               onChange={(event) => handleUseTemplateChange(event.target.checked)}
-              disabled={isGeneratingReport || reportFormat !== "pptx" || !hasTemplate}
+              disabled={isGeneratingReport || reportFormat !== "pptx"}
             />
-            Use annual club template
+            Use district template
           </label>
 
           <div className="ml-auto flex flex-col gap-1.5">
@@ -505,11 +545,15 @@ export default function DonationsStatistics() {
           </div>
 
           <h2 className="seclabel">Selected Year — {rotaryYearLabel(stats.selected_rotary_year)}</h2>
-          <div className="ngo-stats-grid stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* 5 cards, one row on desktop (was a 4-col grid before the
+              Planned Donations card was added) — a card can request its
+              own fixed tone (e.g. Planned's stat-rose) instead of the
+              row's blue/gold position-based alternation. */}
+          <div className="ngo-stats-grid stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
             {selectedYearCards.map((card, index) => (
               <Card
                 key={card.label + index}
-                variant={STAT_VARIANTS[(index + 1) % STAT_VARIANTS.length]}
+                variant={card.variant ?? STAT_VARIANTS[(index + 1) % STAT_VARIANTS.length]}
                 className="flex flex-col"
               >
                 <span className="text-3xl font-bold">{card.value}</span>
@@ -527,6 +571,7 @@ export default function DonationsStatistics() {
           title: `By classification — ${rotaryYearLabel(stats.selected_rotary_year)}`,
           emptyFallback: "No donations recorded for this year yet.",
         })}
+        {renderPlannedChart()}
       </div>
 
       <h2 className="seclabel">All Years</h2>

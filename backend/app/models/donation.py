@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -41,7 +42,17 @@ class Donation(Base):
     rotary_year: Mapped[int] = mapped_column(Integer, nullable=False)
     amount: Mapped["Numeric"] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="HKD")
-    donation_date: Mapped["Date"] = mapped_column(Date, nullable=False)
+    # Story 16.35: nullable now that a donation can be `planned` (not yet
+    # made) — a planned donation is scoped by rotary_year only, no date.
+    # An actual donation (planned=False) always has one; enforced in the
+    # Pydantic schema, not a DB CHECK constraint (matches this app's existing
+    # convention of validating conditional-required fields at the API layer).
+    donation_date: Mapped["Date | None"] = mapped_column(Date, nullable=True)
+    # Story 16.35: NGO Module Planned Donations. True = target/forecast for
+    # the rotary year, not yet made. Converting to an actual donation is an
+    # in-place edit of this same row (planned=False + donation_date set) —
+    # no separate table/history.
+    planned: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     notes: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")

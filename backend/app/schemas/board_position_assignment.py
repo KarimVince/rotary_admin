@@ -19,6 +19,11 @@ class AssignmentMemberSummary(BaseModel):
     date_of_birth: date | None = None
     gender: str | None = None
     nationality: str | None = None
+    # Board Members report — "years as Rotarian" is computed from this,
+    # falling back to join_date when a member has no rotarian_since set
+    # (see app/api/board.py's report row builder).
+    rotarian_since: date | None = None
+    join_date: date
 
 
 class BoardPositionAssignmentCreate(BaseModel):

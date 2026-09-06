@@ -60,6 +60,18 @@ const PAST_DONATION = {
   notes: "Older gift",
 };
 
+// Story 16.35 — a planned (not-yet-made) donation: no donation_date, scoped
+// by rotary_year only.
+const PLANNED_DONATION = {
+  ...CURRENT_DONATION,
+  id: "don-planned",
+  rotary_year: THIS_YEAR,
+  amount: 1000,
+  donation_date: null,
+  notes: "Pledged gift",
+  planned: true,
+};
+
 const MEMBERS = [
   { id: "member-1", first_name: "Jane", last_name: "Doe" },
   { id: "member-2", first_name: "John", last_name: "Smith" },
@@ -120,6 +132,15 @@ describe("OrganisationDetail", () => {
       // Story 11.4 — fetched non-fatally on mount for the classification
       // badge; default to empty so existing tests don't need to know about it.
       http.get(`${API_BASE_URL}/ngo-classifications`, () => HttpResponse.json([])),
+      // Story 16.28 — central Rotary Years list, now used by the donation
+      // year filter and the planned-donation form's Rotary year select.
+      http.get(`${API_BASE_URL}/rotary-years`, () =>
+        HttpResponse.json([
+          { id: "ry-1", year: THIS_YEAR - 1, is_current: false },
+          { id: "ry-2", year: THIS_YEAR, is_current: true },
+          { id: "ry-3", year: THIS_YEAR + 1, is_current: false },
+        ]),
+      ),
     );
   });
 
@@ -263,6 +284,112 @@ describe("OrganisationDetail", () => {
 
       await waitFor(() => expect(deleted).toBe(true));
       window.confirm.mockRestore();
+    });
+  });
+
+  describe("Planned donations (Story 16.35)", () => {
+    beforeEach(() => {
+      server.use(
+        http.get(`${API_BASE_URL}/organisations/org-1/donations`, () =>
+          HttpResponse.json([CURRENT_DONATION, PAST_DONATION, PLANNED_DONATION]),
+        ),
+      );
+    });
+
+    it("shows a planned donation in purple with a Planned badge, dash for date", async () => {
+      useAuth.mockReturnValue({ user: { role: "user" } });
+      mockRole("user");
+      renderDetail();
+      await waitForLoaded();
+
+      const amountCell = screen.getByText("1,000.00 EUR").closest("td");
+      expect(amountCell.className).toContain("donation-amount-planned");
+      expect(screen.getByText("Planned")).toBeInTheDocument();
+    });
+
+    it("excludes planned amounts from the all-years total", async () => {
+      useAuth.mockReturnValue({ user: { role: "user" } });
+      mockRole("user");
+      renderDetail();
+      await waitForLoaded();
+
+      // 500 (current) + 200 (past) actual — the 1000 planned amount must
+      // not be added in.
+      expect(
+        screen.getByText(/Total donated \(all years\)/i).closest("[data-variant]"),
+      ).toHaveTextContent("700");
+    });
+
+    it("filtering to a specific rotary year drops the Rotary year column", async () => {
+      useAuth.mockReturnValue({ user: { role: "user" } });
+      mockRole("user");
+      renderDetail();
+      await waitForLoaded();
+
+      await userEvent.click(screen.getByLabelText("Filter donations by rotary year"));
+      await userEvent.click(screen.getByText(`${THIS_YEAR}–${THIS_YEAR + 1} (current)`));
+
+      // Scope to the donations section — the service-hours table also has a
+      // "Rotary year" header and is unaffected by the donation year filter.
+      const donationsSection = screen
+        .getByRole("heading", { name: "Donations" })
+        .closest("section");
+      expect(within(donationsSection).queryAllByRole("columnheader", { name: "Rotary year" })).toHaveLength(0);
+      expect(screen.getByText("Pledged gift")).toBeInTheDocument();
+      expect(screen.queryByText("Older gift")).not.toBeInTheDocument();
+    });
+
+    it("lets an admin mark a planned donation as received", async () => {
+      useAuth.mockReturnValue({ user: { role: "admin" } });
+      mockRole("admin");
+      const patched = [];
+      server.use(
+        http.patch(`${API_BASE_URL}/donations/don-planned`, async ({ request }) => {
+          patched.push(await request.json());
+          return HttpResponse.json({ ...PLANNED_DONATION, planned: false });
+        }),
+      );
+
+      renderDetail();
+      await waitForLoaded();
+
+      const row = screen.getByText("Pledged gift").closest("tr");
+      await userEvent.click(within(row).getByRole("button", { name: "Mark as received" }));
+      await userEvent.click(screen.getByRole("button", { name: /update donation/i }));
+
+      await waitFor(() => expect(patched).toHaveLength(1));
+      expect(patched[0].planned).toBe(false);
+      expect(patched[0].donation_date).toBeTruthy();
+    });
+
+    it("lets an admin add a planned donation via the Planned checkbox", async () => {
+      useAuth.mockReturnValue({ user: { role: "admin" } });
+      mockRole("admin");
+      const posted = [];
+      server.use(
+        http.post(`${API_BASE_URL}/organisations/org-1/donations`, async ({ request }) => {
+          posted.push(await request.json());
+          return HttpResponse.json({ ...PLANNED_DONATION, id: "don-new" }, { status: 201 });
+        }),
+      );
+
+      renderDetail();
+      await waitForLoaded();
+
+      const donationSection = screen
+        .getByRole("heading", { name: /^add donation$/i })
+        .closest("section");
+
+      await userEvent.type(within(donationSection).getByLabelText("Amount"), "750");
+      await userEvent.click(
+        within(donationSection).getByLabelText(/Planned donation/i),
+      );
+      await userEvent.click(within(donationSection).getByRole("button", { name: /add donation/i }));
+
+      await waitFor(() => expect(posted).toHaveLength(1));
+      expect(posted[0].planned).toBe(true);
+      expect(posted[0].donation_date).toBeNull();
+      expect(posted[0].rotary_year).toBe(THIS_YEAR);
     });
   });
 });

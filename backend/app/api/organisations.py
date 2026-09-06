@@ -47,6 +47,12 @@ def list_organisations(
     _current_user=Depends(require_access(NGOS_ORGANISATIONS, "read")),
 ):
     if rotary_year is not None:
+        # Story 16.35 follow-up: membership is by EITHER an actual or a
+        # planned donation in this year — an org with only a planned
+        # donation must still show up in a year-filtered list (the NGO
+        # Directory needs this). `year_total` below stays actual-only and
+        # the new `year_total_planned` carries the planned figure
+        # separately, so the two are never conflated into one number.
         org_ids_with_donation = db.query(Donation.organisation_id).filter(
             Donation.rotary_year == rotary_year
         )
@@ -72,10 +78,12 @@ def list_organisations(
         for rate in db.query(ExchangeRate).all()
     }
     rows_by_org: dict[uuid.UUID, list[tuple[str, float]]] = {}
-    for org_id, currency, amount in db.query(
-        Donation.organisation_id, Donation.currency, Donation.amount
+    planned_rows_by_org: dict[uuid.UUID, list[tuple[str, float]]] = {}
+    for org_id, currency, amount, planned in db.query(
+        Donation.organisation_id, Donation.currency, Donation.amount, Donation.planned
     ).filter(Donation.rotary_year == rotary_year):
-        rows_by_org.setdefault(org_id, []).append((currency, float(amount)))
+        target = planned_rows_by_org if planned else rows_by_org
+        target.setdefault(org_id, []).append((currency, float(amount)))
 
     results = []
     for organisation in organisations:
@@ -83,6 +91,9 @@ def list_organisations(
         item.year_total = convert_totals(rows_by_org.get(organisation.id, []), rates)[
             "total_hkd"
         ]
+        item.year_total_planned = convert_totals(
+            planned_rows_by_org.get(organisation.id, []), rates
+        )["total_hkd"]
         results.append(item)
     return results
 

@@ -39,8 +39,12 @@ export function deleteDinnerForecastEvent(eventId) {
   return apiFetch(`/dinner-forecast/events/${eventId}`, { method: "DELETE" });
 }
 
-export function downloadDinnerForecastReport({ forecast, ...filters } = {}) {
+export function downloadDinnerForecastReport({ forecast, useTemplate, ...filters } = {}) {
   return apiDownload(
-    `/dinner-forecast/report${buildQuery({ ...filters, forecast: forecast ? "true" : undefined })}`,
+    `/dinner-forecast/report${buildQuery({
+      ...filters,
+      forecast: forecast ? "true" : undefined,
+      use_template: useTemplate ? "true" : undefined,
+    })}`,
   );
 }

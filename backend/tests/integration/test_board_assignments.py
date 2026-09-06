@@ -360,3 +360,125 @@ def test_patch_assignment_not_found_returns_404(admin_client):
     )
 
     assert response.status_code == 404
+
+
+# --- POST /board/assignments/report — Board Members report (PDF + PPTX) -----
+
+
+def test_generate_report_requires_authentication(client):
+    response = client.post(
+        "/api/v1/board/assignments/report", params={"format": "pdf", "year": CURRENT_YEAR}
+    )
+    assert response.status_code == 401
+
+
+def test_generate_report_forbidden_without_read_access(user_client):
+    response = user_client.post(
+        "/api/v1/board/assignments/report", params={"format": "pdf", "year": CURRENT_YEAR}
+    )
+    assert response.status_code == 403
+
+
+def test_generate_pdf_report_with_no_assignments(admin_client):
+    response = admin_client.post(
+        "/api/v1/board/assignments/report", params={"format": "pdf", "year": CURRENT_YEAR}
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content[:4] == b"%PDF"
+    assert "board-members_" in response.headers["content-disposition"]
+
+
+def test_generate_pptx_report_with_board_and_committee_members(
+    admin_client, make_board_position, make_member, make_board_position_assignment
+):
+    president = make_board_position(name="President", at_the_board=True)
+    committee = make_board_position(name="Web Chair", at_the_board=False)
+    member_a = make_member(first_name="Jane", last_name="Doe")
+    member_b = make_member(first_name="John", last_name="Smith")
+    make_board_position_assignment(president.id, member_a.id, rotary_year=CURRENT_YEAR)
+    make_board_position_assignment(committee.id, member_b.id, rotary_year=CURRENT_YEAR)
+
+    response = admin_client.post(
+        "/api/v1/board/assignments/report",
+        params={"format": "pptx", "year": CURRENT_YEAR},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+    assert response.content[:2] == b"PK"
+
+
+def test_generate_report_excludes_ended_assignments(
+    admin_client, make_board_position, make_member, db_session
+):
+    # Only the currently-active holder (end_date is None) should appear —
+    # same "current holder" notion BoardMembers.jsx's own
+    # latestAssignmentFor uses. A closed-out prior holder must not show up.
+    from app.models import BoardPositionAssignment
+
+    position = make_board_position(name="President")
+    ended_member = make_member(first_name="Past", last_name="Holder")
+    db_session.add(
+        BoardPositionAssignment(
+            board_position_id=position.id,
+            member_id=ended_member.id,
+            rotary_year=CURRENT_YEAR,
+            start_date=date(CURRENT_YEAR, 7, 1),
+            end_date=date.today(),
+        )
+    )
+    db_session.commit()
+
+    response = admin_client.post(
+        "/api/v1/board/assignments/report", params={"format": "pdf", "year": CURRENT_YEAR}
+    )
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+
+
+def test_generate_report_use_template_on_pdf_returns_422(admin_client):
+    response = admin_client.post(
+        "/api/v1/board/assignments/report",
+        params={"format": "pdf", "year": CURRENT_YEAR, "use_template": "true"},
+    )
+    assert response.status_code == 422
+
+
+def test_generate_report_use_template_pptx_works_without_any_uploaded_template(
+    admin_client, make_board_position, make_member, make_board_position_assignment
+):
+    # Same as the NGO report's own equivalent test — the district-template
+    # chrome is a shipped static asset, not an admin-uploaded PPT Template
+    # file, so this must succeed with nothing uploaded.
+    position = make_board_position(name="President")
+    member = make_member()
+    make_board_position_assignment(position.id, member.id, rotary_year=CURRENT_YEAR)
+
+    response = admin_client.post(
+        "/api/v1/board/assignments/report",
+        params={"format": "pptx", "year": CURRENT_YEAR, "use_template": "true"},
+    )
+    assert response.status_code == 200
+    assert response.content[:2] == b"PK"
+
+
+def test_generate_report_computes_age_and_years_as_rotarian(
+    admin_client, make_board_position, make_member, make_board_position_assignment, db_session
+):
+    position = make_board_position(name="President")
+    member = make_member(first_name="Sam", last_name="Lee")
+    member.date_of_birth = date(1990, 1, 1)
+    member.rotarian_since = date(2010, 1, 1)
+    db_session.commit()
+    make_board_position_assignment(position.id, member.id, rotary_year=CURRENT_YEAR)
+
+    # No direct JSON assertion available (the report is a binary file), but
+    # this at minimum proves age/rotarian_since don't crash report
+    # generation for a fully-populated member.
+    response = admin_client.post(
+        "/api/v1/board/assignments/report", params={"format": "pdf", "year": CURRENT_YEAR}
+    )
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"

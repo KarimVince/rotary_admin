@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
@@ -7,6 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_access, require_admin
 from app.core.access_control import clear_access_cache, get_access
+from app.core.board_members_report import (
+    build_pdf_report as build_board_pdf_report,
+    build_pptx_report as build_board_pptx_report,
+    resolve_member_photo_bytes,
+)
+from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.db.session import get_db
 from app.models import AppFunction, BoardPosition, BoardPositionAssignment, Member, PermissionMatrix
@@ -203,6 +210,94 @@ def list_board_position_assignments(
         .all()
     )
     return [_build_assignment_read(*row) for row in rows]
+
+
+def _board_report_rows(db: Session, year: int) -> list[dict]:
+    """Board Members report — the currently-active roster for a term (an
+    assignment with no end_date, same "current holder" notion
+    `BoardMembers.jsx`'s own `latestAssignmentFor` uses client-side — a
+    closed-out/past holder for this same year is excluded, matching what
+    the page actually displays as the position's occupant)."""
+    rows = (
+        db.query(BoardPositionAssignment, BoardPosition, Member)
+        .join(BoardPosition, BoardPositionAssignment.board_position_id == BoardPosition.id)
+        .join(Member, BoardPositionAssignment.member_id == Member.id)
+        .filter(
+            BoardPositionAssignment.rotary_year == year,
+            BoardPositionAssignment.end_date.is_(None),
+        )
+        .order_by(BoardPosition.display_order)
+        .all()
+    )
+    today = date.today()
+    report_rows = []
+    for _assignment, position, member in rows:
+        age = (today - member.date_of_birth).days // 365 if member.date_of_birth else None
+        # "Years as Rotarian" — rotarian_since is the intended source, but
+        # it's nullable (Story 8.3 added it after join_date already
+        # existed for every member), so fall back to join_date rather than
+        # showing "—" for a member who simply predates that field.
+        rotarian_start = member.rotarian_since or member.join_date
+        years_as_rotarian = (today - rotarian_start).days // 365 if rotarian_start else None
+        report_rows.append(
+            {
+                "name": f"{member.first_name} {member.last_name}",
+                "role": position.name,
+                "at_the_board": position.at_the_board,
+                "age": age,
+                "years_as_rotarian": years_as_rotarian,
+                "photo_bytes": resolve_member_photo_bytes(member.photo_url),
+            }
+        )
+    return report_rows
+
+
+@router.post("/board/assignments/report")
+def generate_board_members_report(
+    report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
+    use_template: bool = Query(
+        False,
+        description="PPTX chrome variant — the District 3450 template band "
+        "(a shipped static asset) instead of the plain green band + club "
+        "logo. Same mechanism as the NGO Statistics report's own toggle — "
+        "no admin-uploaded PPT Template file needed.",
+    ),
+    include_non_board: bool = Query(
+        False,
+        description="Include non-board committee members in the report in "
+        "addition to the board seats.  When False (default) only positions "
+        "whose at_the_board flag is True are shown.",
+    ),
+    year: int = Query(..., description="Rotary year to report the roster for"),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(BOARD_MEMBERS, "read")),
+):
+    if use_template and report_format != "pptx":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The district template chrome only applies to PowerPoint (PPTX) reports",
+        )
+
+    rows = _board_report_rows(db, year)
+
+    if report_format == "pdf":
+        content = build_board_pdf_report(year, rows, include_non_board=include_non_board)
+        media_type = "application/pdf"
+        filename = generate_report_filename("board-members", "pdf", rotary_year=year)
+    else:
+        content = build_board_pptx_report(
+            year, rows,
+            chrome="template" if use_template else "plain",
+            include_non_board=include_non_board,
+        )
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        filename = generate_report_filename("board-members", "pptx", rotary_year=year)
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/board/assignments", response_model=BoardPositionAssignmentRead, status_code=201)

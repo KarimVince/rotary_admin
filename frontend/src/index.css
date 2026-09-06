@@ -23,6 +23,12 @@
   --tone-rose-bg: #fbe3e6;
   --tone-green-bg: #e4f5e3;
 
+  /* Story 16.35: NGO Planned Donations — purple for a planned (not-yet-made)
+     donation, blue for an actual one, distinct from the tone-* backgrounds
+     above since these color the amount text itself, not a card fill. */
+  --color-donation-planned: #6b46c1;
+  --color-donation-actual: var(--rotary-blue);
+
   /* Story 8.22: shared diameter for the member profile photo circle and its
      initials/monogram fallback, so every view stays in sync (was a bare
      56px/w-14 h-14 duplicated at each call site). */
