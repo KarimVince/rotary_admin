@@ -615,7 +615,17 @@ def generate_donation_comparison_report(
         )
         .scalar()
     )
-    total_donated_b = sum(r["total"] for r in rows_b)
+    # Actual (non-planned) donated total for year B
+    total_donated_b = float(
+        db.query(func.sum(Donation.amount))
+        .filter(
+            Donation.rotary_year == year_b,
+            Donation.planned.is_(False),
+            Donation.currency == selected_currency,
+        )
+        .scalar()
+        or 0
+    )
 
     # USD equivalent for the Donated card (only meaningful when primary currency is not USD)
     total_donated_usd = 0.0

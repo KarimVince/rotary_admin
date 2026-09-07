@@ -1068,27 +1068,33 @@ def _add_cmp_stat_card(
     kp.font.bold = True
     kp.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
 
-    # Amount — large white, vertically centred in the remaining middle zone.
-    # When `secondary` is set (e.g. "(44,872 USD)"), it appears as a second
-    # smaller paragraph in the same textbox.
-    amt_top_offset = 12 + _KICKER_H + 4
-    amt_h = card_h_px - amt_top_offset - _DESC_H
+    # Main amount — fixed vertical position so it lines up across both cards
+    # regardless of whether a secondary line is present.
+    _AMT_H  = 40   # px — row height for the main amount line
+    _SEC_H  = 22   # px — row height for the secondary "(X USD)" line
+    _AMT_Y  = 12 + _KICKER_H + 6   # px from card top
+
     amount_box = slide.shapes.add_textbox(
-        left + pad_x, top + _px_len(amt_top_offset), w - 2 * pad_x, _px_len(amt_h)
+        left + pad_x, top + _px_len(_AMT_Y), w - 2 * pad_x, _px_len(_AMT_H)
     )
     amt_tf = amount_box.text_frame
-    amt_tf.word_wrap = True
-    amt_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    amt_tf.word_wrap = False
     ap = amt_tf.paragraphs[0]
     ap.alignment = PP_ALIGN.CENTER
     ap.text = f"{_format_amount(amount)} {currency}" if currency else _format_amount(amount)
     ap.font.size = Pt(_px_pt(32))
     ap.font.bold = True
     ap.font.color.rgb = _rgb("#FFFFFF")
+
+    # Secondary line "(X USD)" — sits directly below the main amount
     if secondary:
-        sec_para = amt_tf.add_paragraph()
-        sec_para.alignment = PP_ALIGN.CENTER
-        sec_run = sec_para.add_run()
+        sec_box = slide.shapes.add_textbox(
+            left + pad_x, top + _px_len(_AMT_Y + _AMT_H + 2),
+            w - 2 * pad_x, _px_len(_SEC_H),
+        )
+        sp = sec_box.text_frame.paragraphs[0]
+        sp.alignment = PP_ALIGN.CENTER
+        sec_run = sp.add_run()
         sec_run.text = secondary
         sec_run.font.size = Pt(_px_pt(16))
         sec_run.font.bold = False
