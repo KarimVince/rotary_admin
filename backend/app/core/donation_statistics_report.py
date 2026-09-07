@@ -834,7 +834,7 @@ def _draw_cmp_section_label(
             _px_len(chip_w), _px_len(28),
         )
         chip.fill.solid()
-        chip.fill.fore_color.rgb = _rgb(COLOR_ROTARY_GOLD)
+        chip.fill.fore_color.rgb = _rgb("#FFD600")
         chip.line.fill.background()
         chip.shadow.inherit = False
         chip.adjustments[0] = 0.5
@@ -1038,18 +1038,10 @@ def _add_cmp_stat_card(
 
     card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
     card.fill.solid()
-    card.fill.fore_color.rgb = _rgb(COLOR_STAT_CARD_FILL)
-    card.line.color.rgb = _rgb(COLOR_CARD_BORDER)
-    card.line.width = Pt(1.5)
+    card.fill.fore_color.rgb = _rgb(COLOR_ROTARY_BLUE)
+    card.line.fill.background()
     card.shadow.inherit = False
     card.text_frame.clear()
-
-    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, w, _px_len(6))
-    bar.fill.solid()
-    bar.fill.fore_color.rgb = _rgb(COLOR_ROTARY_GOLD)
-    bar.line.fill.background()
-    bar.shadow.inherit = False
-    bar.text_frame.clear()
 
     pad_x = _px_len(12)
     name_top = top + _px_len(16)
@@ -1066,7 +1058,7 @@ def _add_cmp_stat_card(
     name_p.text = label
     name_p.font.size = Pt(_px_pt(22))
     name_p.font.bold = True
-    name_p.font.color.rgb = _rgb(COLOR_INK)
+    name_p.font.color.rgb = _rgb("#FFFFFF")
 
     amount_box = slide.shapes.add_textbox(left + pad_x, amount_top, w - 2 * pad_x, _px_len(26))
     amount_p = amount_box.text_frame.paragraphs[0]
@@ -1074,7 +1066,7 @@ def _add_cmp_stat_card(
     amount_p.text = f"{_format_amount(amount)} {currency}" if currency else _format_amount(amount)
     amount_p.font.size = Pt(_px_pt(22))
     amount_p.font.bold = True
-    amount_p.font.color.rgb = _rgb(COLOR_ROTARY_BLUE)
+    amount_p.font.color.rgb = _rgb("#FFFFFF")
 
 
 def _draw_cmp_org_grid(slide, rows: list[dict], grid_top: int, currency: str | None, max_orgs: int = _CMP_ORGS_PER_SEC) -> None:
