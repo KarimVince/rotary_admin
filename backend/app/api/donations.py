@@ -615,10 +615,24 @@ def generate_donation_comparison_report(
         )
         .scalar()
     )
+    total_donated_b = sum(r["total"] for r in rows_b)
+
+    # USD equivalent for the Donated card (only meaningful when primary currency is not USD)
+    total_donated_usd = 0.0
+    if selected_currency and selected_currency != "USD":
+        rate_row = (
+            db.query(ExchangeRate)
+            .filter(ExchangeRate.currency_code == selected_currency)
+            .first()
+        )
+        if rate_row and rate_row.rate_to_usd:
+            total_donated_usd = total_donated_b * float(rate_row.rate_to_usd)
+
     stat_b = {
-        "total": sum(r["total"] for r in rows_b),
+        "total": total_donated_b,
         "planned": float(planned_b_scalar or 0),
         "orgs": len(rows_b),
+        "total_usd": total_donated_usd,
     }
 
     content = build_pptx_comparison_report(

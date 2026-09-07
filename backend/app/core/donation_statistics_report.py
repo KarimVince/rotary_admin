@@ -1032,6 +1032,7 @@ def _add_cmp_stat_card(
     top,
     card_w_px: int = _CMP_CARD_W,
     card_h_px: int = _CMP_CARD_H,
+    secondary: str = "",
 ) -> None:
     """Stat summary card (Donated / Planned) styled identically to a compact org card."""
     w, h = _px_len(card_w_px), _px_len(card_h_px)
@@ -1067,7 +1068,9 @@ def _add_cmp_stat_card(
     kp.font.bold = True
     kp.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
 
-    # Amount — large white, vertically centred in the remaining middle zone
+    # Amount — large white, vertically centred in the remaining middle zone.
+    # When `secondary` is set (e.g. "(44,872 USD)"), it appears as a second
+    # smaller paragraph in the same textbox.
     amt_top_offset = 12 + _KICKER_H + 4
     amt_h = card_h_px - amt_top_offset - _DESC_H
     amount_box = slide.shapes.add_textbox(
@@ -1082,6 +1085,14 @@ def _add_cmp_stat_card(
     ap.font.size = Pt(_px_pt(32))
     ap.font.bold = True
     ap.font.color.rgb = _rgb("#FFFFFF")
+    if secondary:
+        sec_para = amt_tf.add_paragraph()
+        sec_para.alignment = PP_ALIGN.CENTER
+        sec_run = sec_para.add_run()
+        sec_run.text = secondary
+        sec_run.font.size = Pt(_px_pt(16))
+        sec_run.font.bold = False
+        sec_run.font.color.rgb = _rgb("#FFFFFF")
 
     # Description — small white label at bottom (wording matches reference)
     desc_map = {
@@ -1096,7 +1107,7 @@ def _add_cmp_stat_card(
         dp = desc_box.text_frame.paragraphs[0]
         dp.alignment = PP_ALIGN.CENTER
         dp.text = desc
-        dp.font.size = Pt(_px_pt(14))
+        dp.font.size = Pt(_px_pt(16))
         dp.font.color.rgb = _rgb("#FFFFFF")
         dp.font.bold = False
 
@@ -1151,16 +1162,20 @@ def _add_single_comparison_slide(
     # ---- Donated / Planned cards inline in year B grid ----
     n_orgs_b = min(len(rows_b), _CMP_ORGS_PER_SEC)
     if stat_b and currency:
-        for i_stat, (lbl, amt) in enumerate([
-            ("Donated", stat_b["total"]),
-            ("Planned", stat_b["planned"]),
+        usd_secondary = (
+            f"({_format_amount(stat_b['total_usd'])} USD)"
+            if stat_b.get("total_usd") else ""
+        )
+        for i_stat, (lbl, amt, sec) in enumerate([
+            ("Donated", stat_b["total"], usd_secondary),
+            ("Planned", stat_b["planned"], ""),
         ]):
             idx = n_orgs_b + i_stat
             col = idx % _CMP_COLS
             grid_row = idx // _CMP_COLS
             left = _px_len(_CMP_SIDE_MARGIN + col * (_CMP_CARD_W + _CMP_COL_GAP))
             top = _px_len(cards_b_top + grid_row * (_CMP_CARD_H + _CMP_ROW_GAP))
-            _add_cmp_stat_card(slide, lbl, amt, currency, left, top)
+            _add_cmp_stat_card(slide, lbl, amt, currency, left, top, secondary=sec)
         n_items_b = n_orgs_b + 2
     else:
         n_items_b = max(n_orgs_b, 1)
@@ -1206,16 +1221,20 @@ def _add_full_year_slide(
 
     # ---- Donated / Planned cards inline in the same grid (year B only) ----
     if stat_figures and currency:
-        for i_stat, (lbl, amt) in enumerate([
-            ("Donated", stat_figures["total"]),
-            ("Planned", stat_figures["planned"]),
+        usd_secondary = (
+            f"({_format_amount(stat_figures['total_usd'])} USD)"
+            if stat_figures.get("total_usd") else ""
+        )
+        for i_stat, (lbl, amt, sec) in enumerate([
+            ("Donated", stat_figures["total"], usd_secondary),
+            ("Planned", stat_figures["planned"], ""),
         ]):
             idx = n_orgs + i_stat
             col = idx % _CMP_COLS
             grid_row = idx // _CMP_COLS
             left = _px_len(_CMP_SIDE_MARGIN + col * (_CMP_CARD_W + _CMP_COL_GAP))
             top = _px_len(grid_top + grid_row * (_FY_CARD_H + _FY_ROW_GAP))
-            _add_cmp_stat_card(slide, lbl, amt, currency, left, top, card_h_px=_FY_CARD_H)
+            _add_cmp_stat_card(slide, lbl, amt, currency, left, top, card_h_px=_FY_CARD_H, secondary=sec)
         n_items = n_orgs + 2
     else:
         n_items = max(n_orgs, 1)
