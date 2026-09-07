@@ -50,13 +50,6 @@ export default function DonationsStatistics() {
   const [classifications, setClassifications] = useState([]);
   const [classificationFilter, setClassificationFilter] = useState("");
 
-  // Year-over-year comparison report state
-  const [cmpYearA, setCmpYearA] = useState(null);
-  const [cmpYearB, setCmpYearB] = useState(null);
-  const [cmpUseTemplate, setCmpUseTemplate] = useState(false);
-  const [isGeneratingComparison, setIsGeneratingComparison] = useState(false);
-  const [comparisonError, setComparisonError] = useState(null);
-
   function handleReportTypeChange(value) {
     setReportType(value);
     sessionStorage.setItem(SESSION_KEY_REPORT_TYPE, value);
@@ -67,17 +60,30 @@ export default function DonationsStatistics() {
     sessionStorage.setItem(SESSION_KEY_USE_TEMPLATE, String(checked));
   }
 
+  // reportType "dg" = year-over-year comparison (year_a = selectedYear-1, year_b = selectedYear)
+  const isComparison = reportType === "dg";
+
   async function handleGenerateReport() {
     setIsGeneratingReport(true);
     setReportError(null);
     try {
-      const { blob, filename } = await generateDonationStatisticsReport(reportFormat, {
-        reportType,
-        useTemplate: useTemplate && reportFormat === "pptx",
-        rotaryYear: selectedYear,
-        classificationId: classificationFilter || undefined,
-        currency: selectedCurrency,
-      });
+      let blob, filename;
+      if (isComparison) {
+        ({ blob, filename } = await generateDonationComparisonReport({
+          yearA: selectedYear - 1,
+          yearB: selectedYear,
+          useTemplate,
+          currency: selectedCurrency,
+        }));
+      } else {
+        ({ blob, filename } = await generateDonationStatisticsReport(reportFormat, {
+          reportType,
+          useTemplate: useTemplate && reportFormat === "pptx",
+          rotaryYear: selectedYear,
+          classificationId: classificationFilter || undefined,
+          currency: selectedCurrency,
+        }));
+      }
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -401,23 +407,6 @@ export default function DonationsStatistics() {
       <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-              Format
-            </span>
-            <SingleSelectDropdown
-              ariaLabel="Format"
-              minWidthClass="min-w-[170px]"
-              disabled={isGeneratingReport}
-              value={reportFormat}
-              options={[
-                { value: "pdf", label: "PDF" },
-                { value: "pptx", label: "PowerPoint (PPTX)" },
-              ]}
-              onSelect={setReportFormat}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Content
             </span>
             <SingleSelectDropdown
@@ -428,12 +417,33 @@ export default function DonationsStatistics() {
               options={[
                 { value: "simplified", label: "Simplified" },
                 { value: "integral", label: "Integral" },
+                { value: "dg", label: "DG comparison" },
               ]}
               onSelect={handleReportTypeChange}
             />
           </div>
 
-          {classifications.length > 0 && (
+          {/* Format hidden for DG comparison (always PPTX) */}
+          {!isComparison && (
+            <div className="flex flex-col gap-1.5">
+              <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+                Format
+              </span>
+              <SingleSelectDropdown
+                ariaLabel="Format"
+                minWidthClass="min-w-[170px]"
+                disabled={isGeneratingReport}
+                value={reportFormat}
+                options={[
+                  { value: "pdf", label: "PDF" },
+                  { value: "pptx", label: "PowerPoint (PPTX)" },
+                ]}
+                onSelect={setReportFormat}
+              />
+            </div>
+          )}
+
+          {!isComparison && classifications.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
                 Classification
@@ -454,16 +464,12 @@ export default function DonationsStatistics() {
             </div>
           )}
 
-          {/* Story 16.35 redesign: this is now a chrome variant (District
-              3450 template band vs. plain green band + club logo), drawn
-              from a shipped design asset — it no longer needs an
-              admin-uploaded PPT Template file (Admin → PPT Template is
-              unrelated to this toggle now). */}
+          {/* District template chrome — applies to PPTX and DG comparison */}
           <label
             htmlFor="report-use-template"
             className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
             title={
-              reportFormat !== "pptx"
+              !isComparison && reportFormat !== "pptx"
                 ? "The district template only applies to PowerPoint (PPTX) reports"
                 : undefined
             }
@@ -473,9 +479,9 @@ export default function DonationsStatistics() {
               type="checkbox"
               checked={useTemplate}
               onChange={(event) => handleUseTemplateChange(event.target.checked)}
-              disabled={isGeneratingReport || reportFormat !== "pptx"}
+              disabled={isGeneratingReport || (!isComparison && reportFormat !== "pptx")}
             />
-            Use district template
+            District template
           </label>
 
           <div className="ml-auto flex flex-col gap-1.5">
@@ -496,109 +502,6 @@ export default function DonationsStatistics() {
             </p>
           )}
         </div>
-
-      {/* Year-over-year comparison report — shown once at least 2 years exist */}
-      {yearOptions.length >= 2 && (() => {
-        // yearOptions is sorted descending (newest first). Default Year A to
-        // the second-newest year, Year B to the newest — so the typical case
-        // is "last year vs this year" without any manual selection.
-        const sortedDesc = [...yearOptions].sort((a, b) => b - a);
-        const defaultA = sortedDesc[1];  // second-newest = older
-        const defaultB = sortedDesc[0];  // newest = current
-        const resolvedA = cmpYearA ?? defaultA;
-        const resolvedB = cmpYearB ?? defaultB;
-        const yearSelectOptions = sortedDesc.map((year) => ({
-          value: String(year),
-          label: `${rotaryYearLabel(year)}${year === currentYear ? " (current)" : ""}`,
-        }));
-        return (
-          <div className="mb-5 rounded-[10px] border border-[var(--border)] bg-[var(--bg-alt)] px-4 py-3">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-              Year comparison — PowerPoint
-            </p>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                  Year A (top)
-                </span>
-                <SingleSelectDropdown
-                  ariaLabel="Year A"
-                  minWidthClass="min-w-[160px]"
-                  value={String(resolvedA)}
-                  options={yearSelectOptions}
-                  onSelect={(v) => setCmpYearA(Number(v))}
-                  disabled={isGeneratingComparison}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                  Year B (bottom)
-                </span>
-                <SingleSelectDropdown
-                  ariaLabel="Year B"
-                  minWidthClass="min-w-[160px]"
-                  value={String(resolvedB)}
-                  options={yearSelectOptions}
-                  onSelect={(v) => setCmpYearB(Number(v))}
-                  disabled={isGeneratingComparison}
-                />
-              </div>
-              <label
-                htmlFor="cmp-use-template"
-                className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
-              >
-                <input
-                  id="cmp-use-template"
-                  type="checkbox"
-                  checked={cmpUseTemplate}
-                  onChange={(e) => setCmpUseTemplate(e.target.checked)}
-                  disabled={isGeneratingComparison}
-                />
-                Use district template
-              </label>
-              <div className="ml-auto flex flex-col gap-1.5">
-                <span className="pl-0.5 text-[11px]">&nbsp;</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    // pass resolved values so the handler always has them
-                    setIsGeneratingComparison(true);
-                    setComparisonError(null);
-                    generateDonationComparisonReport({
-                      yearA: resolvedA,
-                      yearB: resolvedB,
-                      useTemplate: cmpUseTemplate,
-                      currency: selectedCurrency,
-                    })
-                      .then(({ blob, filename }) => {
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement("a");
-                        link.href = url;
-                        link.download = filename;
-                        document.body.appendChild(link);
-                        link.click();
-                        link.remove();
-                        URL.revokeObjectURL(url);
-                      })
-                      .catch((err) => setComparisonError(err.detail || "Failed to generate comparison report"))
-                      .finally(() => setIsGeneratingComparison(false));
-                  }}
-                  disabled={isGeneratingComparison || resolvedA === resolvedB}
-                  className="inline-flex h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50"
-                >
-                  <Download className="w-4 h-4" aria-hidden="true" />
-                  {isGeneratingComparison ? "Generating…" : "Generate Comparison"}
-                </button>
-              </div>
-              {comparisonError && (
-                <p role="alert" className="w-full text-[13px] text-[var(--low)]">
-                  {comparisonError}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       {stats.by_currency.length > 1 && (
         <div className="mb-5 flex flex-wrap items-end gap-3">

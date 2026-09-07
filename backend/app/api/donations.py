@@ -574,37 +574,57 @@ def generate_donation_statistics_report(
 
 @router.post("/donations/statistics/comparison-report")
 def generate_donation_comparison_report(
-    year_a: int = Query(..., description="First (older) rotary year to compare"),
-    year_b: int = Query(..., description="Second (newer) rotary year to compare"),
-    use_template: bool = Query(False, description="Use District 3450 template chrome"),
+    year_a: int = Query(..., description="Older rotary year (shown top / slide 1)"),
+    year_b: int = Query(..., description="Newer rotary year (shown bottom / slide 2)"),
+    use_template: bool = Query(False, description="District 3450 template chrome"),
     currency: str | None = Query(None, description="Defaults to the first currency with any donations"),
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
 ):
-    """Year-over-year comparison PPTX: one slide with two year sections side by side.
-    year_a is shown on top (typically the older year), year_b on the bottom."""
+    """Year-over-year comparison PPTX.
+
+    One slide when each year has ≤10 organisations, two slides (one per year)
+    otherwise. Stat strip (Donated / Planned / Reach) always shown for year B.
+    """
     if year_a == year_b:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="year_a and year_b must be different rotary years",
         )
 
-    # Resolve currency from whichever year has data
+    # Resolve currency — prefer year_b (the "current" year)
     if currency is None:
-        stats_a = _compute_donation_statistics(db, year_a, None)
-        selected_currency = stats_a.by_currency[0].currency if stats_a.by_currency else None
+        stats_b_tmp = _compute_donation_statistics(db, year_b, None)
+        selected_currency = stats_b_tmp.by_currency[0].currency if stats_b_tmp.by_currency else None
         if selected_currency is None:
-            stats_b = _compute_donation_statistics(db, year_b, None)
-            selected_currency = stats_b.by_currency[0].currency if stats_b.by_currency else None
+            stats_a_tmp = _compute_donation_statistics(db, year_a, None)
+            selected_currency = stats_a_tmp.by_currency[0].currency if stats_a_tmp.by_currency else None
     else:
         selected_currency = currency
 
     rows_a = _ngo_report_rows_for_selected_year(db, year_a, selected_currency, None)
     rows_b = _ngo_report_rows_for_selected_year(db, year_b, selected_currency, None)
 
+    # Planned-donation total for year B (for the stat strip)
+    planned_b_scalar = (
+        db.query(func.sum(Donation.amount))
+        .filter(
+            Donation.rotary_year == year_b,
+            Donation.planned.is_(True),
+            Donation.currency == selected_currency,
+        )
+        .scalar()
+    )
+    stat_b = {
+        "total": sum(r["total"] for r in rows_b),
+        "planned": float(planned_b_scalar or 0),
+        "orgs": len(rows_b),
+    }
+
     content = build_pptx_comparison_report(
         year_a, rows_a, year_b, rows_b,
         selected_currency,
+        stat_b=stat_b,
         chrome="template" if use_template else "plain",
     )
     media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
