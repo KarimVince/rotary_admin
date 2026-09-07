@@ -10,6 +10,7 @@ from app.api.deps import require_access
 from app.core.currency_conversion import convert_totals
 from app.core.donation_statistics_report import (
     build_pdf_report,
+    build_pptx_comparison_report,
     build_pptx_report,
     resolve_logo_bytes,
 )
@@ -564,6 +565,53 @@ def generate_donation_statistics_report(
             "ngo-statistics", "pptx", rotary_year=stats.selected_rotary_year
         )
 
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/donations/statistics/comparison-report")
+def generate_donation_comparison_report(
+    year_a: int = Query(..., description="First (older) rotary year to compare"),
+    year_b: int = Query(..., description="Second (newer) rotary year to compare"),
+    use_template: bool = Query(False, description="Use District 3450 template chrome"),
+    currency: str | None = Query(None, description="Defaults to the first currency with any donations"),
+    db: Session = Depends(get_db),
+    _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
+):
+    """Year-over-year comparison PPTX: one slide with two year sections side by side.
+    year_a is shown on top (typically the older year), year_b on the bottom."""
+    if year_a == year_b:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="year_a and year_b must be different rotary years",
+        )
+
+    # Resolve currency from whichever year has data
+    if currency is None:
+        stats_a = _compute_donation_statistics(db, year_a, None)
+        selected_currency = stats_a.by_currency[0].currency if stats_a.by_currency else None
+        if selected_currency is None:
+            stats_b = _compute_donation_statistics(db, year_b, None)
+            selected_currency = stats_b.by_currency[0].currency if stats_b.by_currency else None
+    else:
+        selected_currency = currency
+
+    rows_a = _ngo_report_rows_for_selected_year(db, year_a, selected_currency, None)
+    rows_b = _ngo_report_rows_for_selected_year(db, year_b, selected_currency, None)
+
+    content = build_pptx_comparison_report(
+        year_a, rows_a, year_b, rows_b,
+        selected_currency,
+        chrome="template" if use_template else "plain",
+    )
+    media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    filename = generate_report_filename(
+        "ngo-comparison", "pptx",
+        rotary_year=max(year_a, year_b),
+    )
     return Response(
         content=content,
         media_type=media_type,

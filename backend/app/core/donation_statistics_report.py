@@ -721,6 +721,287 @@ def _add_org_card(slide, row: dict, left, top, width, height, currency: str | No
     meta_p.font.color.rgb = _rgb(COLOR_META_GREY)
 
 
+# ---------------------------------------------------------------------------
+# Year-over-year comparison PPTX — single slide, two stacked sections.
+#
+# Layout (1920×1080px, band=192px, available body=888px):
+#   [top pad 16] [section-A label 40] [inner-gap 8] [2 card rows 330]
+#   [between 20] [section-B label 40] [inner-gap 8] [2 card rows 330]
+#   [legend gap 6] [legend 36]
+# Total body used: 16+40+8+330+20+40+8+330+6+36 = 834px  (54px slack → even)
+# ---------------------------------------------------------------------------
+
+_CMP_SIDE_MARGIN  = 96    # same as regular slides (px)
+_CMP_GRID_W       = 1728  # same as regular slides (px)
+_CMP_COLS         = 4     # columns per row (same as regular)
+_CMP_COL_GAP      = 20    # gap between columns (px)
+_CMP_CARD_W       = (_CMP_GRID_W - (_CMP_COLS - 1) * _CMP_COL_GAP) // _CMP_COLS  # 417px
+_CMP_CARD_H       = 158   # compact card height (px)
+_CMP_ROW_GAP      = 14    # gap between card rows within a section (px)
+_CMP_ROWS_PER_SEC = 2     # max card rows shown per year section
+_CMP_ORGS_PER_SEC = _CMP_COLS * _CMP_ROWS_PER_SEC  # 8 orgs max shown per year
+
+_CMP_TOP_PAD      = 27    # below band, above year-A section label (px)
+_CMP_SEC_LABEL_H  = 40    # section label strip height (px)
+_CMP_INNER_GAP    = 8     # between section label and first card row (px)
+_CMP_BETWEEN      = 20    # between last year-A card and year-B section label (px)
+_CMP_LEGEND_GAP   = 8     # between last year-B card and legend rule (px)
+_CMP_LEGEND_H     = 36    # legend strip height (px)
+
+
+def _total_from_rows(rows: list[dict]) -> float:
+    return sum(row["total"] for row in rows)
+
+
+def _draw_cmp_section_label(
+    slide, y: int, year: int, rows: list[dict], total: float, currency: str | None,
+) -> None:
+    """Section header for one year: accent bar + label text + rule + total chip."""
+    year_label = _rotary_year_label(year)
+    org_count = len(rows)
+    label_text = f"Rotary year {year_label}   ·   {org_count} organisation{'s' if org_count != 1 else ''}"
+
+    # Vertical accent bar (left edge)
+    accent = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        _px_len(_CMP_SIDE_MARGIN), _px_len(y),
+        _px_len(6), _px_len(_CMP_SEC_LABEL_H),
+    )
+    accent.fill.solid()
+    accent.fill.fore_color.rgb = _rgb(COLOR_DISTRICT_GREEN)
+    accent.line.fill.background()
+    accent.shadow.inherit = False
+    accent.text_frame.clear()
+
+    # Label text
+    lbl = slide.shapes.add_textbox(
+        _px_len(_CMP_SIDE_MARGIN + 16), _px_len(y),
+        _px_len(900), _px_len(_CMP_SEC_LABEL_H),
+    )
+    lbl_tf = lbl.text_frame
+    lbl_tf.word_wrap = False
+    lbl_p = lbl_tf.paragraphs[0]
+    lbl_p.font.size = Pt(_px_pt(26))
+    lbl_p.font.color.rgb = _rgb(COLOR_BODY_GREY)
+    lbl_p.text = label_text
+
+    # Horizontal rule (spans from label end to just before chip)
+    rule_x = _CMP_SIDE_MARGIN + 16 + 860
+    chip_w = 220
+    rule_w = _CMP_GRID_W - 16 - 860 - chip_w - 20
+    rule = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        _px_len(rule_x), _px_len(y + _CMP_SEC_LABEL_H // 2),
+        _px_len(rule_w), _px_len(2),
+    )
+    rule.fill.solid()
+    rule.fill.fore_color.rgb = _rgb("#D4D3D0")
+    rule.line.fill.background()
+    rule.shadow.inherit = False
+    rule.text_frame.clear()
+
+    # Total chip (pill-shaped rounded rect at right)
+    if total > 0 and currency:
+        chip_x = _CMP_SIDE_MARGIN + _CMP_GRID_W - chip_w
+        chip_y = y + (_CMP_SEC_LABEL_H - 28) // 2
+        chip = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            _px_len(chip_x), _px_len(chip_y),
+            _px_len(chip_w), _px_len(28),
+        )
+        chip.fill.solid()
+        chip.fill.fore_color.rgb = _rgb(COLOR_DISTRICT_GREEN)
+        chip.line.fill.background()
+        chip.shadow.inherit = False
+        chip.adjustments[0] = 0.5
+        chip_tf = chip.text_frame
+        chip_p = chip_tf.paragraphs[0]
+        chip_p.alignment = PP_ALIGN.CENTER
+        chip_r = chip_p.add_run()
+        chip_r.text = f"{_format_amount(total)} {currency}"
+        chip_r.font.size = Pt(_px_pt(22))
+        chip_r.font.bold = True
+        chip_r.font.color.rgb = _rgb("#FFFFFF")
+
+
+def _add_cmp_org_card(
+    slide, row: dict, left, top, currency: str | None,
+) -> None:
+    """Compact org card for the comparison slide (158px tall, 417px wide)."""
+    w, h = _px_len(_CMP_CARD_W), _px_len(_CMP_CARD_H)
+
+    card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
+    card.fill.solid()
+    card.fill.fore_color.rgb = _rgb(COLOR_ORG_CARD_FILL)
+    card.line.color.rgb = _rgb(COLOR_CARD_BORDER)
+    card.line.width = Pt(1.5)
+    card.shadow.inherit = False
+    card.text_frame.clear()
+
+    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, w, _px_len(6))
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = _rgb(_area_color(row["area"]))
+    bar.line.fill.background()
+    bar.shadow.inherit = False
+    bar.text_frame.clear()
+
+    pad_x = _px_len(12)
+
+    # Logo — 36px, centered, optional
+    logo_h_px = 36
+    logo_png = _pptx_safe_image(row["logo_bytes"]) if row.get("logo_bytes") else None
+    if logo_png:
+        logo_top = top + _px_len(10)
+        slide.shapes.add_picture(
+            logo_png,
+            left + (w - _px_len(logo_h_px)) // 2, logo_top,
+            width=_px_len(logo_h_px), height=_px_len(logo_h_px),
+        )
+        name_top = logo_top + _px_len(logo_h_px + 4)
+    else:
+        name_top = top + _px_len(18)
+
+    amount_top = top + _px_len(_CMP_CARD_H - 56)
+
+    # Name
+    name_box = slide.shapes.add_textbox(left + pad_x, name_top, w - 2 * pad_x, amount_top - name_top - _px_len(2))
+    name_tf = name_box.text_frame
+    name_tf.word_wrap = True
+    name_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    name_p = name_tf.paragraphs[0]
+    name_p.alignment = PP_ALIGN.CENTER
+    name_p.text = row["name"]
+    name_p.font.size = Pt(_px_pt(22))
+    name_p.font.bold = True
+    name_p.font.color.rgb = _rgb(COLOR_INK)
+
+    # Amount
+    amount_box = slide.shapes.add_textbox(left + pad_x, amount_top, w - 2 * pad_x, _px_len(28))
+    amount_tf = amount_box.text_frame
+    amount_p = amount_tf.paragraphs[0]
+    amount_p.alignment = PP_ALIGN.CENTER
+    amount_text = f"{_format_amount(row['total'])} {currency}" if currency else _format_amount(row["total"])
+    amount_p.text = amount_text
+    amount_p.font.size = Pt(_px_pt(22))
+    amount_p.font.bold = True
+    amount_p.font.color.rgb = _rgb(COLOR_ROTARY_BLUE)
+
+    # Meta (country · contact)
+    meta_parts = [p for p in (row.get("country"), row.get("contact_name")) if p]
+    meta_box = slide.shapes.add_textbox(left + pad_x, amount_top + _px_len(26), w - 2 * pad_x, _px_len(22))
+    meta_tf = meta_box.text_frame
+    meta_p = meta_tf.paragraphs[0]
+    meta_p.alignment = PP_ALIGN.CENTER
+    meta_p.text = " · ".join(meta_parts)
+    meta_p.font.size = Pt(_px_pt(20))
+    meta_p.font.color.rgb = _rgb(COLOR_META_GREY)
+
+
+def _draw_cmp_org_grid(
+    slide, rows: list[dict], grid_top: int, currency: str | None,
+) -> None:
+    """Draw up to _CMP_ORGS_PER_SEC org cards in a 4-column grid."""
+    page_rows = rows[:_CMP_ORGS_PER_SEC]
+    for index, row in enumerate(page_rows):
+        col = index % _CMP_COLS
+        grid_row = index // _CMP_COLS
+        left = _px_len(_CMP_SIDE_MARGIN + col * (_CMP_CARD_W + _CMP_COL_GAP))
+        top = _px_len(grid_top + grid_row * (_CMP_CARD_H + _CMP_ROW_GAP))
+        _add_cmp_org_card(slide, row, left, top, currency)
+
+
+def _add_comparison_slide(
+    prs: "Presentation",
+    blank_layout,
+    year_a: int,
+    rows_a: list[dict],
+    year_b: int,
+    rows_b: list[dict],
+    chrome: str,
+    currency: str | None,
+) -> None:
+    """Single slide merging two year sections for a year-over-year view."""
+    slide = prs.slides.add_slide(blank_layout)
+    label_a, label_b = _rotary_year_label(year_a), _rotary_year_label(year_b)
+    _draw_chrome(
+        slide, chrome, "",
+        REPORT_TITLE,
+        f"{label_a}  vs  {label_b}",
+    )
+
+    total_a = _total_from_rows(rows_a)
+    total_b = _total_from_rows(rows_b)
+
+    # ---- Year A section ----
+    sec_a_y = 192 + _CMP_TOP_PAD
+    _draw_cmp_section_label(slide, sec_a_y, year_a, rows_a, total_a, currency)
+    cards_a_top = sec_a_y + _CMP_SEC_LABEL_H + _CMP_INNER_GAP
+    _draw_cmp_org_grid(slide, rows_a, cards_a_top, currency)
+    rows_shown_a = min(len(rows_a), _CMP_ORGS_PER_SEC)
+    num_rows_a = max((rows_shown_a + _CMP_COLS - 1) // _CMP_COLS, 1)
+    cards_a_bottom = cards_a_top + num_rows_a * _CMP_CARD_H + (num_rows_a - 1) * _CMP_ROW_GAP
+
+    # ---- Year B section ----
+    sec_b_y = cards_a_bottom + _CMP_BETWEEN
+    _draw_cmp_section_label(slide, sec_b_y, year_b, rows_b, total_b, currency)
+    cards_b_top = sec_b_y + _CMP_SEC_LABEL_H + _CMP_INNER_GAP
+    _draw_cmp_org_grid(slide, rows_b, cards_b_top, currency)
+    rows_shown_b = min(len(rows_b), _CMP_ORGS_PER_SEC)
+    num_rows_b = max((rows_shown_b + _CMP_COLS - 1) // _CMP_COLS, 1)
+    cards_b_bottom = cards_b_top + num_rows_b * _CMP_CARD_H + (num_rows_b - 1) * _CMP_ROW_GAP
+
+    # ---- Combined legend (areas from both years) ----
+    legend_rule_y = cards_b_bottom + _CMP_LEGEND_GAP
+    rule = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        _px_len(_CMP_SIDE_MARGIN), _px_len(legend_rule_y),
+        _px_len(_CMP_GRID_W), _px_len(2),
+    )
+    rule.fill.solid()
+    rule.fill.fore_color.rgb = _rgb(COLOR_INK)
+    rule.line.fill.background()
+    rule.shadow.inherit = False
+    rule.text_frame.clear()
+
+    all_rows = rows_a + rows_b
+    all_area_counts = _page_area_counts(all_rows)
+    key_box = slide.shapes.add_textbox(
+        _px_len(_CMP_SIDE_MARGIN), _px_len(legend_rule_y + 6),
+        _px_len(_CMP_GRID_W), _px_len(_CMP_LEGEND_H),
+    )
+    key_tf = key_box.text_frame
+    key_tf.word_wrap = True
+    key_p = key_tf.paragraphs[0]
+    lead_run = key_p.add_run()
+    lead_run.text = "Country · Contact    "
+    lead_run.font.size = Pt(_px_pt(22))
+    lead_run.font.color.rgb = _rgb(COLOR_INK)
+    for area, _ in all_area_counts:
+        area_run = key_p.add_run()
+        area_run.text = f"■ {area}    "
+        area_run.font.size = Pt(_px_pt(22))
+        area_run.font.color.rgb = _rgb(_area_color(area))
+
+
+def build_pptx_comparison_report(
+    year_a: int,
+    rows_a: list[dict],
+    year_b: int,
+    rows_b: list[dict],
+    currency: str | None,
+    chrome: str = "plain",
+) -> bytes:
+    """PPTX with a single year-over-year comparison slide."""
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    blank_layout = prs.slide_layouts[6]
+    _add_comparison_slide(prs, blank_layout, year_a, rows_a, year_b, rows_b, chrome, currency)
+    buf = BytesIO()
+    prs.save(buf)
+    return buf.getvalue()
+
+
 def build_pptx_report(
     stats: DonationStatistics,
     currency: str | None,

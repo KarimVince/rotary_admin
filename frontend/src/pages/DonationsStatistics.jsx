@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchDonationStatistics, generateDonationStatisticsReport } from "../api/donations";
+import { fetchDonationStatistics, generateDonationComparisonReport, generateDonationStatisticsReport } from "../api/donations";
 import { listNgoClassifications } from "../api/ngoClassifications";
 import Card from "../components/Card";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
@@ -49,6 +49,13 @@ export default function DonationsStatistics() {
   const [reportError, setReportError] = useState(null);
   const [classifications, setClassifications] = useState([]);
   const [classificationFilter, setClassificationFilter] = useState("");
+
+  // Year-over-year comparison report state
+  const [cmpYearA, setCmpYearA] = useState(null);
+  const [cmpYearB, setCmpYearB] = useState(null);
+  const [cmpUseTemplate, setCmpUseTemplate] = useState(false);
+  const [isGeneratingComparison, setIsGeneratingComparison] = useState(false);
+  const [comparisonError, setComparisonError] = useState(null);
 
   function handleReportTypeChange(value) {
     setReportType(value);
@@ -489,6 +496,109 @@ export default function DonationsStatistics() {
             </p>
           )}
         </div>
+
+      {/* Year-over-year comparison report — shown once at least 2 years exist */}
+      {yearOptions.length >= 2 && (() => {
+        // yearOptions is sorted descending (newest first). Default Year A to
+        // the second-newest year, Year B to the newest — so the typical case
+        // is "last year vs this year" without any manual selection.
+        const sortedDesc = [...yearOptions].sort((a, b) => b - a);
+        const defaultA = sortedDesc[1];  // second-newest = older
+        const defaultB = sortedDesc[0];  // newest = current
+        const resolvedA = cmpYearA ?? defaultA;
+        const resolvedB = cmpYearB ?? defaultB;
+        const yearSelectOptions = sortedDesc.map((year) => ({
+          value: String(year),
+          label: `${rotaryYearLabel(year)}${year === currentYear ? " (current)" : ""}`,
+        }));
+        return (
+          <div className="mb-5 rounded-[10px] border border-[var(--border)] bg-[var(--bg-alt)] px-4 py-3">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Year comparison — PowerPoint
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1.5">
+                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+                  Year A (top)
+                </span>
+                <SingleSelectDropdown
+                  ariaLabel="Year A"
+                  minWidthClass="min-w-[160px]"
+                  value={String(resolvedA)}
+                  options={yearSelectOptions}
+                  onSelect={(v) => setCmpYearA(Number(v))}
+                  disabled={isGeneratingComparison}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+                  Year B (bottom)
+                </span>
+                <SingleSelectDropdown
+                  ariaLabel="Year B"
+                  minWidthClass="min-w-[160px]"
+                  value={String(resolvedB)}
+                  options={yearSelectOptions}
+                  onSelect={(v) => setCmpYearB(Number(v))}
+                  disabled={isGeneratingComparison}
+                />
+              </div>
+              <label
+                htmlFor="cmp-use-template"
+                className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+              >
+                <input
+                  id="cmp-use-template"
+                  type="checkbox"
+                  checked={cmpUseTemplate}
+                  onChange={(e) => setCmpUseTemplate(e.target.checked)}
+                  disabled={isGeneratingComparison}
+                />
+                Use district template
+              </label>
+              <div className="ml-auto flex flex-col gap-1.5">
+                <span className="pl-0.5 text-[11px]">&nbsp;</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // pass resolved values so the handler always has them
+                    setIsGeneratingComparison(true);
+                    setComparisonError(null);
+                    generateDonationComparisonReport({
+                      yearA: resolvedA,
+                      yearB: resolvedB,
+                      useTemplate: cmpUseTemplate,
+                      currency: selectedCurrency,
+                    })
+                      .then(({ blob, filename }) => {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        URL.revokeObjectURL(url);
+                      })
+                      .catch((err) => setComparisonError(err.detail || "Failed to generate comparison report"))
+                      .finally(() => setIsGeneratingComparison(false));
+                  }}
+                  disabled={isGeneratingComparison || resolvedA === resolvedB}
+                  className="inline-flex h-[38px] items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-4 text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg-alt)] disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" aria-hidden="true" />
+                  {isGeneratingComparison ? "Generating…" : "Generate Comparison"}
+                </button>
+              </div>
+              {comparisonError && (
+                <p role="alert" className="w-full text-[13px] text-[var(--low)]">
+                  {comparisonError}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {stats.by_currency.length > 1 && (
         <div className="mb-5 flex flex-wrap items-end gap-3">

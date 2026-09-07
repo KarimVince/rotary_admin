@@ -54,3 +54,10 @@ export function generateDonationStatisticsReport(
   if (currency) params.set("currency", currency);
   return apiDownload(`/donations/statistics/report?${params.toString()}`, { method: "POST" });
 }
+
+export function generateDonationComparisonReport({ yearA, yearB, useTemplate = false, currency } = {}) {
+  const params = new URLSearchParams({ year_a: yearA, year_b: yearB });
+  if (useTemplate) params.set("use_template", "true");
+  if (currency) params.set("currency", currency);
+  return apiDownload(`/donations/statistics/comparison-report?${params.toString()}`, { method: "POST" });
+}

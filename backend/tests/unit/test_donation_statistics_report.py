@@ -6,12 +6,14 @@ from PIL import Image
 from pptx import Presentation
 
 from app.core.donation_statistics_report import (
+    _CMP_ORGS_PER_SEC,
     _footnote_text,
     _page_area_counts,
     _paginate,
     _pptx_safe_image,
     _sorted_ngo_rows,
     _summary_cards,
+    build_pptx_comparison_report,
     build_pptx_report,
     resolve_logo_bytes,
 )
@@ -214,3 +216,60 @@ def test_resolve_logo_bytes_returns_none_on_request_error(monkeypatch):
     monkeypatch.setattr(httpx, "get", fake_get)
 
     assert resolve_logo_bytes("https://proj.supabase.co/storage/v1/object/public/x/y.png") is None
+
+
+# Year-over-year comparison PPTX (build_pptx_comparison_report)
+
+
+def _cmp_row(name, area="Education & Literacy", total=10000.0):
+    return {"name": name, "country": "HK", "area": area, "contact_name": "Test", "total": total, "logo_bytes": None}
+
+
+def test_build_pptx_comparison_report_produces_valid_pptx():
+    rows_a = [_cmp_row("Org A1"), _cmp_row("Org A2", area="Health & Medical")]
+    rows_b = [_cmp_row("Org B1"), _cmp_row("Org B2", area="Youth Development")]
+    data = build_pptx_comparison_report(2024, rows_a, 2025, rows_b, "HKD", chrome="plain")
+    prs = Presentation(BytesIO(data))
+    assert len(prs.slides) == 1
+
+
+def test_build_pptx_comparison_report_contains_both_year_labels():
+    rows_a = [_cmp_row("Alpha")]
+    rows_b = [_cmp_row("Beta")]
+    data = build_pptx_comparison_report(2024, rows_a, 2025, rows_b, "HKD")
+    prs = Presentation(BytesIO(data))
+    all_text = " ".join(
+        shape.text_frame.text
+        for shape in prs.slides[0].shapes
+        if shape.has_text_frame
+    )
+    assert "2024–2025" in all_text
+    assert "2025–2026" in all_text
+
+
+def test_build_pptx_comparison_report_shows_org_totals():
+    rows_a = [_cmp_row("Org A", total=50000.0)]
+    rows_b = [_cmp_row("Org B", total=75000.0)]
+    data = build_pptx_comparison_report(2023, rows_a, 2024, rows_b, "HKD")
+    prs = Presentation(BytesIO(data))
+    all_text = " ".join(
+        shape.text_frame.text
+        for shape in prs.slides[0].shapes
+        if shape.has_text_frame
+    )
+    assert "50,000 HKD" in all_text   # section-A total chip
+    assert "75,000 HKD" in all_text   # section-B total chip
+
+
+def test_build_pptx_comparison_report_caps_per_section_at_max():
+    # _CMP_ORGS_PER_SEC orgs fit; the rest are silently dropped (no crash).
+    many = [_cmp_row(f"Org {i}") for i in range(_CMP_ORGS_PER_SEC + 3)]
+    data = build_pptx_comparison_report(2024, many, 2025, many[:2], "HKD")
+    prs = Presentation(BytesIO(data))
+    assert len(prs.slides) == 1
+
+
+def test_build_pptx_comparison_report_empty_year_does_not_crash():
+    data = build_pptx_comparison_report(2024, [], 2025, [_cmp_row("Only B")], "HKD")
+    prs = Presentation(BytesIO(data))
+    assert prs.slides[0].shapes  # slide has shapes
