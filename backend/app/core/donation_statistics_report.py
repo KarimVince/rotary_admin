@@ -834,7 +834,7 @@ def _draw_cmp_section_label(
             _px_len(chip_w), _px_len(28),
         )
         chip.fill.solid()
-        chip.fill.fore_color.rgb = _rgb("#FFD600")
+        chip.fill.fore_color.rgb = _rgb("#FDF3E0")
         chip.line.fill.background()
         chip.shadow.inherit = False
         chip.adjustments[0] = 0.5
@@ -1036,6 +1036,7 @@ def _add_cmp_stat_card(
     """Stat summary card (Donated / Planned) styled identically to a compact org card."""
     w, h = _px_len(card_w_px), _px_len(card_h_px)
 
+    # Blue card body
     card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
     card.fill.solid()
     card.fill.fore_color.rgb = _rgb(COLOR_ROTARY_BLUE)
@@ -1043,30 +1044,61 @@ def _add_cmp_stat_card(
     card.shadow.inherit = False
     card.text_frame.clear()
 
+    # Champagne gold accent bar (matches reference stat card style)
+    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, w, _px_len(6))
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
+    bar.line.fill.background()
+    bar.shadow.inherit = False
+    bar.text_frame.clear()
+
     pad_x = _px_len(12)
-    name_top = top + _px_len(16)
-    amount_top = top + _px_len(card_h_px - 52)
+    _KICKER_H = 22   # px
+    _DESC_H   = 26   # px
 
-    name_box = slide.shapes.add_textbox(
-        left + pad_x, name_top, w - 2 * pad_x, amount_top - name_top - _px_len(2)
+    # Kicker ("DONATED" / "PLANNED") — champagne gold, small, uppercase
+    kicker_box = slide.shapes.add_textbox(
+        left + pad_x, top + _px_len(12), w - 2 * pad_x, _px_len(_KICKER_H)
     )
-    name_tf = name_box.text_frame
-    name_tf.word_wrap = True
-    name_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    name_p = name_tf.paragraphs[0]
-    name_p.alignment = PP_ALIGN.CENTER
-    name_p.text = label
-    name_p.font.size = Pt(_px_pt(22))
-    name_p.font.bold = True
-    name_p.font.color.rgb = _rgb("#FFFFFF")
+    kp = kicker_box.text_frame.paragraphs[0]
+    kp.alignment = PP_ALIGN.CENTER
+    kp.text = label.upper()
+    kp.font.size = Pt(_px_pt(17))
+    kp.font.bold = True
+    kp.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
 
-    amount_box = slide.shapes.add_textbox(left + pad_x, amount_top, w - 2 * pad_x, _px_len(26))
-    amount_p = amount_box.text_frame.paragraphs[0]
-    amount_p.alignment = PP_ALIGN.CENTER
-    amount_p.text = f"{_format_amount(amount)} {currency}" if currency else _format_amount(amount)
-    amount_p.font.size = Pt(_px_pt(22))
-    amount_p.font.bold = True
-    amount_p.font.color.rgb = _rgb("#FFFFFF")
+    # Amount — large white, vertically centred in the remaining middle zone
+    amt_top_offset = 12 + _KICKER_H + 4
+    amt_h = card_h_px - amt_top_offset - _DESC_H
+    amount_box = slide.shapes.add_textbox(
+        left + pad_x, top + _px_len(amt_top_offset), w - 2 * pad_x, _px_len(amt_h)
+    )
+    amt_tf = amount_box.text_frame
+    amt_tf.word_wrap = True
+    amt_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    ap = amt_tf.paragraphs[0]
+    ap.alignment = PP_ALIGN.CENTER
+    ap.text = f"{_format_amount(amount)} {currency}" if currency else _format_amount(amount)
+    ap.font.size = Pt(_px_pt(24))
+    ap.font.bold = True
+    ap.font.color.rgb = _rgb("#FFFFFF")
+
+    # Description — small white label at bottom
+    desc_map = {
+        "DONATED": "Total donated · to date",
+        "PLANNED": "Planned donations · to date",
+    }
+    desc = desc_map.get(label.upper(), "")
+    if desc:
+        desc_box = slide.shapes.add_textbox(
+            left + pad_x, top + _px_len(card_h_px - _DESC_H), w - 2 * pad_x, _px_len(_DESC_H)
+        )
+        dp = desc_box.text_frame.paragraphs[0]
+        dp.alignment = PP_ALIGN.CENTER
+        dp.text = desc
+        dp.font.size = Pt(_px_pt(14))
+        dp.font.color.rgb = _rgb("#FFFFFF")
+        dp.font.bold = False
 
 
 def _draw_cmp_org_grid(slide, rows: list[dict], grid_top: int, currency: str | None, max_orgs: int = _CMP_ORGS_PER_SEC) -> None:
