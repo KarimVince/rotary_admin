@@ -1079,14 +1079,14 @@ def _add_cmp_stat_card(
     ap = amt_tf.paragraphs[0]
     ap.alignment = PP_ALIGN.CENTER
     ap.text = f"{_format_amount(amount)} {currency}" if currency else _format_amount(amount)
-    ap.font.size = Pt(_px_pt(24))
+    ap.font.size = Pt(_px_pt(32))
     ap.font.bold = True
     ap.font.color.rgb = _rgb("#FFFFFF")
 
-    # Description — small white label at bottom
+    # Description — small white label at bottom (wording matches reference)
     desc_map = {
-        "DONATED": "Total donated · to date",
-        "PLANNED": "Planned donations · to date",
+        "DONATED": "Total donated - to date.",
+        "PLANNED": "Planned donations - to date.",
     }
     desc = desc_map.get(label.upper(), "")
     if desc:
