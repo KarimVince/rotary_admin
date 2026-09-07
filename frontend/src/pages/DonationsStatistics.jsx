@@ -29,6 +29,7 @@ function formatCurrency(value, currency) {
 
 const SESSION_KEY_REPORT_TYPE = "ngoStats.reportType";
 const SESSION_KEY_USE_TEMPLATE = "ngoStats.useTemplate";
+const SESSION_KEY_SHOW_HOURS = "ngoStats.showHours";
 
 const STAT_VARIANTS = ["stat-blue", "stat-lavender", "stat-teal", "stat-amber"];
 
@@ -45,6 +46,9 @@ export default function DonationsStatistics() {
   const [useTemplate, setUseTemplate] = useState(
     () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
   );
+  const [showHours, setShowHours] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_SHOW_HOURS) === "true",
+  );
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
   const [classifications, setClassifications] = useState([]);
@@ -58,6 +62,11 @@ export default function DonationsStatistics() {
   function handleUseTemplateChange(checked) {
     setUseTemplate(checked);
     sessionStorage.setItem(SESSION_KEY_USE_TEMPLATE, String(checked));
+  }
+
+  function handleShowHoursChange(checked) {
+    setShowHours(checked);
+    sessionStorage.setItem(SESSION_KEY_SHOW_HOURS, String(checked));
   }
 
   // reportType "dg" = year-over-year comparison (year_a = selectedYear-1, year_b = selectedYear)
@@ -82,6 +91,7 @@ export default function DonationsStatistics() {
           rotaryYear: selectedYear,
           classificationId: classificationFilter || undefined,
           currency: selectedCurrency,
+          showHours,
         }));
       }
       const url = URL.createObjectURL(blob);
@@ -483,6 +493,23 @@ export default function DonationsStatistics() {
             />
             District template
           </label>
+
+          {/* Volunteer hours — only meaningful for the regular (non-comparison) report */}
+          {!isComparison && (
+            <label
+              htmlFor="report-show-hours"
+              className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
+            >
+              <input
+                id="report-show-hours"
+                type="checkbox"
+                checked={showHours}
+                onChange={(event) => handleShowHoursChange(event.target.checked)}
+                disabled={isGeneratingReport}
+              />
+              Volunteer hours
+            </label>
+          )}
 
           <div className="ml-auto flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px]">&nbsp;</span>

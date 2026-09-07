@@ -451,6 +451,16 @@ def _ngo_report_rows_for_selected_year(
     has a single Organisations view regardless of report_type."""
     if currency is None:
         return []
+    # Correlated subquery: total volunteer hours for this org in the selected year.
+    hours_sq = (
+        db.query(func.coalesce(func.sum(ServiceHour.hours), 0))
+        .filter(
+            ServiceHour.organisation_id == Organisation.id,
+            ServiceHour.rotary_year == selected_year,
+        )
+        .correlate(Organisation)
+        .scalar_subquery()
+    )
     query = (
         db.query(
             Organisation.name,
@@ -459,6 +469,7 @@ def _ngo_report_rows_for_selected_year(
             Organisation.contact_name,
             NgoClassification.name,
             func.sum(Donation.amount),
+            hours_sq.label("volunteer_hours"),
         )
         .join(Donation, Donation.organisation_id == Organisation.id)
         .outerjoin(NgoClassification, Organisation.classification_id == NgoClassification.id)
@@ -485,9 +496,10 @@ def _ngo_report_rows_for_selected_year(
             "area": area_name or "Unclassified",
             "contact_name": contact_name,
             "total": float(total),
+            "volunteer_hours": float(volunteer_hours),
             "logo_bytes": resolve_logo_bytes(logo_url),
         }
-        for name, country, logo_url, contact_name, area_name, total in rows
+        for name, country, logo_url, contact_name, area_name, total, volunteer_hours in rows
     ]
 
 
@@ -529,6 +541,7 @@ def generate_donation_statistics_report(
     currency: str | None = Query(
         None, description="Defaults to the first currency with any donations, same as the page"
     ),
+    show_hours: bool = Query(False, description="Include volunteer hours per NGO in the report"),
     db: Session = Depends(get_db),
     _current_user=Depends(require_access(NGOS_STATISTICS, "read")),
 ):
@@ -551,14 +564,15 @@ def generate_donation_statistics_report(
         )
 
     if report_format == "pdf":
-        content = build_pdf_report(stats, selected_currency, ngo_rows)
+        content = build_pdf_report(stats, selected_currency, ngo_rows, show_hours=show_hours)
         media_type = "application/pdf"
         filename = generate_report_filename(
             "ngo-statistics", "pdf", rotary_year=stats.selected_rotary_year
         )
     else:
         content = build_pptx_report(
-            stats, selected_currency, ngo_rows, chrome="template" if use_template else "plain"
+            stats, selected_currency, ngo_rows, chrome="template" if use_template else "plain",
+            show_hours=show_hours,
         )
         media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         filename = generate_report_filename(

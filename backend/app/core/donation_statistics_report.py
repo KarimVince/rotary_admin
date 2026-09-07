@@ -302,6 +302,7 @@ def build_pdf_report(
     stats: DonationStatistics,
     currency: str | None,
     ngo_rows: list[dict],
+    show_hours: bool = False,
 ) -> bytes:
     year_label = _rotary_year_label(stats.selected_rotary_year)
     sorted_rows = _sorted_ngo_rows(ngo_rows)
@@ -417,34 +418,58 @@ def build_pdf_report(
             Paragraph("Contact", _pdf_table_header_style),
             Paragraph("Amount", _pdf_table_header_style),
         ]
+        if show_hours:
+            header_row.append(Paragraph("Hours", _pdf_table_header_style))
         data_rows = [header_row]
         for row in sorted_rows:
             amount_text = f"{_format_amount(row['total'])} {currency}" if currency else _format_amount(row["total"])
-            data_rows.append(
-                [
-                    Paragraph(row["name"], _pdf_table_name_style),
-                    Paragraph(row["country"] or "—", _pdf_table_cell_style),
-                    Paragraph(row["area"], _pdf_table_cell_style),
-                    Paragraph(row["contact_name"] or "—", _pdf_table_cell_style),
-                    Paragraph(amount_text, _pdf_table_amount_style),
-                ]
-            )
+            data_row = [
+                Paragraph(row["name"], _pdf_table_name_style),
+                Paragraph(row["country"] or "—", _pdf_table_cell_style),
+                Paragraph(row["area"], _pdf_table_cell_style),
+                Paragraph(row["contact_name"] or "—", _pdf_table_cell_style),
+                Paragraph(amount_text, _pdf_table_amount_style),
+            ]
+            if show_hours:
+                volunteer_hours = row.get("volunteer_hours", 0) or 0
+                if volunteer_hours > 0:
+                    hours_int = int(volunteer_hours)
+                    hours_str = f"{hours_int:,}" if hours_int == volunteer_hours else f"{volunteer_hours:,.1f}"
+                else:
+                    hours_str = "—"
+                data_row.append(Paragraph(hours_str, _pdf_table_amount_style))
+            data_rows.append(data_row)
         org_count = len(sorted_rows)
         area_count = len({row["area"] for row in sorted_rows})
         total_actual = sum(row["total"] for row in sorted_rows)
         footer_summary = f"{org_count} organisation{'s' if org_count != 1 else ''} listed · " \
             f"{area_count} area{'s' if area_count != 1 else ''} of focus"
         footer_amount = f"{_format_amount(total_actual)} {currency}" if currency else _format_amount(total_actual)
-        data_rows.append(
-            [
-                Paragraph(footer_summary, _pdf_table_footer_style),
-                "", "", "",
-                Paragraph(footer_amount, _pdf_table_footer_amount_style),
-            ]
-        )
+        if show_hours:
+            total_hours = sum(row.get("volunteer_hours", 0) or 0 for row in sorted_rows)
+            total_hours_int = int(total_hours)
+            footer_hours = f"{total_hours_int:,}" if total_hours_int == total_hours else f"{total_hours:,.1f}"
+            data_rows.append(
+                [
+                    Paragraph(footer_summary, _pdf_table_footer_style),
+                    "", "", "",
+                    Paragraph(footer_amount, _pdf_table_footer_amount_style),
+                    Paragraph(footer_hours, _pdf_table_footer_amount_style),
+                ]
+            )
+            col_widths = [1.9 * inch, 0.9 * inch, 1.55 * inch, 1.15 * inch, 0.85 * inch, 0.75 * inch]
+        else:
+            data_rows.append(
+                [
+                    Paragraph(footer_summary, _pdf_table_footer_style),
+                    "", "", "",
+                    Paragraph(footer_amount, _pdf_table_footer_amount_style),
+                ]
+            )
+            col_widths = [2.1 * inch, 1.0 * inch, 1.7 * inch, 1.3 * inch, 1.0 * inch]
         org_table = Table(
             data_rows,
-            colWidths=[2.1 * inch, 1.0 * inch, 1.7 * inch, 1.3 * inch, 1.0 * inch],
+            colWidths=col_widths,
             repeatRows=1,
         )
         org_table.setStyle(
@@ -612,6 +637,7 @@ def _add_summary_slide(prs: Presentation, blank_layout, stats: DonationStatistic
 def _add_organisations_slide(
     prs: Presentation, blank_layout, stats: DonationStatistics, page_rows: list[dict],
     page_number: int, total_pages: int, chrome: str, currency: str | None,
+    show_hours: bool = False,
 ) -> None:
     slide = prs.slides.add_slide(blank_layout)
     year_label = _rotary_year_label(stats.selected_rotary_year)
@@ -631,7 +657,7 @@ def _add_organisations_slide(
         col, grid_row = index % columns, index // columns
         left = grid_left + col * (card_width + gap)
         top = grid_top + grid_row * (card_height + gap)
-        _add_org_card(slide, row, left, top, card_width, card_height, currency)
+        _add_org_card(slide, row, left, top, card_width, card_height, currency, show_hours=show_hours)
 
     key_top = _px_len(1080) - _px_len(38) - _px_len(30)
     rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, _px_len(96), key_top, _px_len(1728), _px_len(2))
@@ -657,7 +683,7 @@ def _add_organisations_slide(
         area_run.font.color.rgb = _rgb(_area_color(area))
 
 
-def _add_org_card(slide, row: dict, left, top, width, height, currency: str | None) -> None:
+def _add_org_card(slide, row: dict, left, top, width, height, currency: str | None, show_hours: bool = False) -> None:
     card_shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
     card_shape.fill.solid()
     card_shape.fill.fore_color.rgb = _rgb(COLOR_ORG_CARD_FILL)
@@ -713,6 +739,11 @@ def _add_org_card(slide, row: dict, left, top, width, height, currency: str | No
     amount_p.font.color.rgb = _rgb(COLOR_ROTARY_BLUE)
 
     meta_parts = [part for part in (row.get("country"), row.get("contact_name")) if part]
+    volunteer_hours = row.get("volunteer_hours", 0) or 0
+    if show_hours and volunteer_hours > 0:
+        hours_int = int(volunteer_hours)
+        hours_display = f"{hours_int:,}" if hours_int == volunteer_hours else f"{volunteer_hours:,.1f}"
+        meta_parts.append(f"{hours_display} hrs")
     meta_box = slide.shapes.add_textbox(left + pad_x, amount_top + _px_len(30), width - 2 * pad_x, _px_len(30))
     meta_tf = meta_box.text_frame
     meta_p = meta_tf.paragraphs[0]
@@ -1290,6 +1321,7 @@ def build_pptx_report(
     currency: str | None,
     ngo_rows: list[dict],
     chrome: str = "plain",
+    show_hours: bool = False,
 ) -> bytes:
     prs = Presentation()
     prs.slide_width = Inches(13.333)
@@ -1302,7 +1334,8 @@ def build_pptx_report(
     _add_summary_slide(prs, blank_layout, stats, sorted_rows, org_pages, chrome)
     for page_number, page_rows in enumerate(org_pages, start=1):
         _add_organisations_slide(
-            prs, blank_layout, stats, page_rows, page_number, len(org_pages), chrome, currency
+            prs, blank_layout, stats, page_rows, page_number, len(org_pages), chrome, currency,
+            show_hours=show_hours,
         )
 
     buf = BytesIO()

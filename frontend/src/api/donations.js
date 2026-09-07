@@ -45,13 +45,14 @@ export function fetchDonationStatistics(filters = {}) {
 
 export function generateDonationStatisticsReport(
   format,
-  { reportType = "simplified", useTemplate = false, rotaryYear, classificationId, currency } = {},
+  { reportType = "simplified", useTemplate = false, rotaryYear, classificationId, currency, showHours = false } = {},
 ) {
   const params = new URLSearchParams({ format, type: reportType });
   if (useTemplate) params.set("use_template", "true");
   if (rotaryYear !== undefined && rotaryYear !== null) params.set("rotary_year", rotaryYear);
   if (classificationId) params.set("classification_id", classificationId);
   if (currency) params.set("currency", currency);
+  if (showHours) params.set("show_hours", "true");
   return apiDownload(`/donations/statistics/report?${params.toString()}`, { method: "POST" });
 }
 
