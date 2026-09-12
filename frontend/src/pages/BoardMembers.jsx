@@ -304,7 +304,20 @@ export default function BoardMembers() {
 
       {!isLoading && !loadError && (
         <>
-          <h2 className="text-[15px] font-bold text-[var(--color-brand-blue-dark)] mb-2">Board Members</h2>
+          <h2 className="text-[15px] font-bold text-[var(--color-brand-blue-dark)] mb-3">Board Members</h2>
+          {/* Card grid — highlights President & President Elect */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+            {boardPositions.map((position) => (
+              <BoardPositionCard
+                key={position.id}
+                position={position}
+                assignment={latestAssignmentFor(assignments, position.id)}
+                canAssign={canAssign}
+                onAssign={openAssignForm}
+              />
+            ))}
+          </div>
+          {/* Table — for assigning / historical detail */}
           <Card variant="default" className="!p-0 !rounded-2xl overflow-hidden mb-6">
             <BoardPositionTable
               positions={boardPositions}
@@ -387,6 +400,69 @@ export default function BoardMembers() {
         </form>
       )}
     </div>
+  );
+}
+
+/** Derive the top-band style for a board position.
+ *  - "President" (exact) → gold
+ *  - "President Elect" / "President-Elect" → rotary blue
+ *  - anything else → light-blue empty bar
+ */
+function _positionBand(name) {
+  const n = name.trim().toLowerCase();
+  if (n === "president elect" || n === "president-elect") {
+    return { label: "President Elect", className: "bg-[var(--rotary-blue)] text-white" };
+  }
+  if (n === "president") {
+    return { label: "★ President", className: "bg-[var(--rotary-gold)] text-white" };
+  }
+  return null; // light-blue placeholder
+}
+
+function BoardPositionCard({ position, assignment, canAssign, onAssign }) {
+  const isVacant = !assignment || assignment.end_date !== null;
+  const band = _positionBand(position.name);
+  const BAND_BASE = "w-full py-[5px] px-2 text-[10.5px] font-bold uppercase tracking-widest text-center";
+
+  return (
+    <Card
+      variant="default"
+      className="flex flex-col !p-0 overflow-hidden"
+    >
+      {/* Top band */}
+      {band ? (
+        <div className={`${BAND_BASE} ${band.className}`}>{band.label}</div>
+      ) : (
+        <div className={`${BAND_BASE} bg-[#dbeafe] text-[#1e40af]`} aria-hidden="true">&nbsp;</div>
+      )}
+
+      {/* Card body */}
+      <div className="flex flex-col gap-1 p-3 flex-1">
+        <span className="text-[12px] font-bold text-[var(--ink)] leading-snug">
+          {position.name}
+        </span>
+        {isVacant ? (
+          <span className="text-[11.5px] text-[var(--faint)] italic">Vacant</span>
+        ) : (
+          <span className="text-[12px] text-[var(--ink-2)]">
+            {assignment.member.first_name} {assignment.member.last_name}
+          </span>
+        )}
+        {canAssign && (
+          <button
+            type="button"
+            onClick={() => onAssign(position.id)}
+            className="mt-1 self-start rounded-md px-2 py-1 text-[10.5px] font-semibold border cursor-pointer"
+            style={isVacant
+              ? { background: "var(--rotary-blue)", color: "#fff", borderColor: "var(--rotary-blue)" }
+              : { background: "transparent", color: "var(--rotary-blue)", borderColor: "var(--rotary-blue)" }
+            }
+          >
+            {isVacant ? "Assign" : "Change"}
+          </button>
+        )}
+      </div>
+    </Card>
   );
 }
 
