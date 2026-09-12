@@ -140,9 +140,11 @@ export default function MembersStatistics() {
     { key: "members_under_35_count", value: stats.members_under_35_count, label: "Members Under 35", tone: "stat-green" },
     { key: "countries_represented", value: stats.countries_represented, label: "Countries Represented", tone: "stat-lavender" },
   ];
+  const _pct = (count) =>
+    stats.total_members > 0 ? `${Math.round((count / stats.total_members) * 100)}%` : "—";
   const STAT_ROW_3 = [
-    { key: "women_count", value: stats.women_count, label: "Number of Women", tone: "stat-teal" },
-    { key: "men_count", value: stats.men_count, label: "Number of Men", tone: "stat-teal" },
+    { key: "women_count", value: stats.women_count, subtitle: _pct(stats.women_count), label: "Number of Women", tone: "stat-teal" },
+    { key: "men_count", value: stats.men_count, subtitle: _pct(stats.men_count), label: "Number of Men", tone: "stat-teal" },
     { key: "average_age", value: stats.average_age ?? "–", label: "Average Age", tone: "stat-amber" },
     { key: "average_tenure_as_rotarian", value: stats.average_tenure_as_rotarian ?? "–", label: "Avg Tenure as Rotarian", tone: "stat-amber" },
   ];
@@ -262,6 +264,9 @@ export default function MembersStatistics() {
         {STAT_ROW_3.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
             <span className="text-3xl font-bold">{card.value}</span>
+            {card.subtitle && (
+              <span className="text-base font-semibold text-[var(--faint)]">{card.subtitle}</span>
+            )}
             <span className="mt-2 text-sm">{card.label}</span>
           </Card>
         ))}
