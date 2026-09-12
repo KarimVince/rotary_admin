@@ -1110,9 +1110,9 @@ export default function MembersList() {
                       </div>
                     );
                   }
-                  // Regular member — neutral bar keeps card height uniform
+                  // Regular member — same height as labelled banners, no text
                   return (
-                    <div className="w-full py-[5px] bg-[var(--bg-alt)]" aria-hidden="true" />
+                    <div className={`${BANNER} bg-[var(--bg-alt)]`} aria-hidden="true">&nbsp;</div>
                   );
                 })()}
                 <div className="flex flex-col items-center gap-[7px] p-[20px_16px] w-full">
