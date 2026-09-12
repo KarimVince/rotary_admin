@@ -35,6 +35,7 @@ class MemberBase(BaseModel):
     is_honorary: bool = False
     is_charter_member: bool = False
     is_charter_president: bool = False
+    is_past_president: bool = False
     notes: str | None = None
 
     @field_validator("status")
@@ -102,6 +103,7 @@ class MemberUpdate(BaseModel):
     is_honorary: bool | None = None
     is_charter_member: bool | None = None
     is_charter_president: bool | None = None
+    is_past_president: bool | None = None
     notes: str | None = None
 
     @field_validator("status")
@@ -161,6 +163,7 @@ class MemberReadLimited(BaseModel):
     is_honorary: bool
     is_charter_member: bool
     is_charter_president: bool
+    is_past_president: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime

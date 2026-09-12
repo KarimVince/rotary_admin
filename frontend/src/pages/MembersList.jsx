@@ -49,6 +49,7 @@ const EMPTY_FORM = {
   is_honorary: false,
   is_charter_member: false,
   is_charter_president: false,
+  is_past_president: false,
   notes: "",
 };
 
@@ -278,6 +279,7 @@ export default function MembersList() {
       is_honorary: Boolean(member.is_honorary),
       is_charter_member: Boolean(member.is_charter_member),
       is_charter_president: Boolean(member.is_charter_president),
+      is_past_president: Boolean(member.is_past_president),
       notes: member.notes ?? "",
     });
     setSaveError(null);
@@ -678,6 +680,15 @@ export default function MembersList() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="member-is-past-president">Past president</label>
+                  <input
+                    id="member-is-past-president"
+                    type="checkbox"
+                    checked={form.is_past_president}
+                    onChange={(event) => setForm({ ...form, is_past_president: event.target.checked })}
+                  />
+                </div>
+                <div>
                   <label htmlFor="member-date-of-birth">Date of birth</label>
                   <input
                     id="member-date-of-birth"
@@ -1053,16 +1064,57 @@ export default function MembersList() {
                 className="flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow !gap-[7px] !p-0 overflow-hidden"
                 onClick={() => openDetail(member)}
               >
-                {/* Charter banner — president takes priority, never shown with charter member */}
-                {member.is_charter_president ? (
-                  <div className="w-full py-[5px] px-2 text-[10.5px] font-bold uppercase tracking-widest text-center text-white bg-[var(--rotary-gold)]">
-                    ★ Charter President
-                  </div>
-                ) : member.is_charter_member ? (
-                  <div className="w-full py-[5px] px-2 text-[10.5px] font-bold uppercase tracking-widest text-center text-white bg-[var(--rotary-blue)]">
-                    ✦ Charter Member
-                  </div>
-                ) : null}
+                {/* Role banner — every card has one; split for charter+PP combo */}
+                {(() => {
+                  const isCP = member.is_charter_president;
+                  const isCM = member.is_charter_member && !isCP; // CP supersedes CM
+                  const isPP = member.is_past_president && !isCP; // CP supersedes PP
+                  const isHon = member.is_honorary;
+
+                  const BANNER = "w-full py-[5px] px-2 text-[10.5px] font-bold uppercase tracking-widest text-center";
+
+                  if (isCP) {
+                    return (
+                      <div className={`${BANNER} text-white bg-[var(--rotary-gold)]`}>
+                        ★ Charter President
+                      </div>
+                    );
+                  }
+                  if (isCM && isPP) {
+                    // Split: left = charter member (blue), right = past president (navy)
+                    return (
+                      <div className="w-full flex text-[10.5px] font-bold uppercase tracking-widest">
+                        <div className="flex-1 py-[5px] text-center text-white bg-[var(--rotary-blue)]">✦ Charter</div>
+                        <div className="flex-1 py-[5px] text-center text-white bg-[#0a2f6b]">Past Pres.</div>
+                      </div>
+                    );
+                  }
+                  if (isPP) {
+                    return (
+                      <div className={`${BANNER} text-white bg-[#0a2f6b]`}>
+                        Past President
+                      </div>
+                    );
+                  }
+                  if (isCM) {
+                    return (
+                      <div className={`${BANNER} text-white bg-[var(--rotary-blue)]`}>
+                        ✦ Charter Member
+                      </div>
+                    );
+                  }
+                  if (isHon) {
+                    return (
+                      <div className={`${BANNER} text-[#5b2d82] bg-[#ede7f6]`}>
+                        Honorary Member
+                      </div>
+                    );
+                  }
+                  // Regular member — neutral bar keeps card height uniform
+                  return (
+                    <div className="w-full py-[5px] bg-[var(--bg-alt)]" aria-hidden="true" />
+                  );
+                })()}
                 <div className="flex flex-col items-center gap-[7px] p-[20px_16px] w-full">
                 {member.photo_url ? (
                   <img

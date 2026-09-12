@@ -84,6 +84,10 @@ class Member(Base):
     is_charter_president: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
     )
+    # Past president of this club (distinct from charter president).
+    is_past_president: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
