@@ -55,7 +55,7 @@ const NAV_ITEMS = [
       { to: "/members", label: "Directory", end: true, requiredPermission: "members.directory" },
       {
         to: "/members/statistics",
-        label: "Statistics",
+        label: "Membership",
         requiredPermission: "members.statistics",
       },
       { to: "/members/email", label: "Email Members", requiredPermission: "members.email" },

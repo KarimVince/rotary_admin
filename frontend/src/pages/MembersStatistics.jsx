@@ -71,7 +71,7 @@ export default function MembersStatistics() {
   if (!canRead) {
     return (
       <div className="admin-page">
-        <h1>Member statistics</h1>
+        <h1>Membership</h1>
         <p role="alert">You do not have permission to view Member statistics.</p>
       </div>
     );
@@ -104,7 +104,7 @@ export default function MembersStatistics() {
   if (error) {
     return (
       <div className="admin-page">
-        <h1>Member statistics</h1>
+        <h1>Membership</h1>
         <p role="alert">{error}</p>
       </div>
     );
@@ -113,7 +113,7 @@ export default function MembersStatistics() {
   if (!stats && !error) {
     return (
       <div className="admin-page">
-        <h1>Member statistics</h1>
+        <h1>Membership</h1>
         <p>Loading…</p>
       </div>
     );
@@ -154,7 +154,7 @@ export default function MembersStatistics() {
 
   return (
     <div className="admin-page admin-page-wide">
-      <h1>Member statistics</h1>
+      <h1>Membership</h1>
       <p className="mt-1 mb-5 text-sm text-[var(--color-muted-text)]">
         Composition of the club membership.
       </p>
