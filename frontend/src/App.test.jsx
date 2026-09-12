@@ -219,7 +219,8 @@ describe("App auth flow", () => {
     // asserting synchronously right after the "welcome" text appears.
     expect(await nav.findByText("Members")).toBeInTheDocument();
     expect(nav.getAllByRole("link", { name: "Directory" })).toHaveLength(2);
-    expect(nav.getAllByRole("link", { name: "Statistics" })).toHaveLength(3);
+    expect(nav.getAllByRole("link", { name: "Statistics" })).toHaveLength(2);
+    expect(nav.getByRole("link", { name: "Membership" })).toBeInTheDocument();
     expect(nav.getByRole("link", { name: "Email Members" })).toBeInTheDocument();
     expect(nav.getByRole("link", { name: "Send Message" })).toBeInTheDocument();
     expect(nav.getByText("NGO & Services Project").closest("a")).toBeNull();

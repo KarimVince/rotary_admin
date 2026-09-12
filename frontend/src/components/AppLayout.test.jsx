@@ -105,7 +105,7 @@ describe("AppLayout — accordion nav (Story 8.7)", () => {
     // Scoped by data-nav-section since "Statistics" also exists under NGOs
     // & Donations and Friends of Rotary.
     const membersSection = document.querySelector('[data-nav-section="Members"]');
-    await userEvent.click(within(membersSection).getByRole("link", { name: "Statistics" }));
+    await userEvent.click(within(membersSection).getByRole("link", { name: "Membership" }));
 
     await waitFor(() => expect(screen.getByText("Members statistics")).toBeInTheDocument());
     expect(membersToggle).toHaveAttribute("aria-expanded", "true");

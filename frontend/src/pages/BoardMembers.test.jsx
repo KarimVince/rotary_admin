@@ -111,9 +111,12 @@ describe("BoardMembers", () => {
     render(<BoardMembers />);
     await waitForLoaded();
 
-    expect(screen.getByText("President")).toBeInTheDocument();
-    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
-    expect(screen.getByText("Secretary")).toBeInTheDocument();
+    // Position names appear in both the card grid and the table — use the
+    // table cell role to disambiguate.
+    expect(screen.getAllByRole("cell", { name: "President" })[0]).toBeInTheDocument();
+    // Jane Doe appears in both the card grid and table — verify at least one.
+    expect(screen.getAllByText("Jane Doe").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("cell", { name: "Secretary" })[0]).toBeInTheDocument();
     expect(screen.getByText("— Vacant —")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /assign/i })).not.toBeInTheDocument();
   });
@@ -125,8 +128,9 @@ describe("BoardMembers", () => {
     render(<BoardMembers />);
     await waitForLoaded();
 
-    expect(screen.getByRole("button", { name: /^change$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^assign$/i })).toBeInTheDocument();
+    // Buttons appear in both card grid and table — verify at least one of each.
+    expect(screen.getAllByRole("button", { name: /^change$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^assign$/i }).length).toBeGreaterThan(0);
   });
 
   it("assigns a member to a vacant position", async () => {
@@ -147,12 +151,14 @@ describe("BoardMembers", () => {
     render(<BoardMembers />);
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: /^assign$/i }));
+    // Assign button exists in both card and table — click the first one.
+    await userEvent.click(screen.getAllByRole("button", { name: /^assign$/i })[0]);
     await userEvent.type(screen.getByLabelText("Member"), "Jane");
     await userEvent.click(await screen.findByRole("button", { name: /jane doe/i }));
     await userEvent.click(screen.getByRole("button", { name: /confirm assignment/i }));
 
-    expect(await screen.findByText("Jane Doe")).toBeInTheDocument();
+    // Jane Doe appears in both card grid and table after assignment.
+    expect((await screen.findAllByText("Jane Doe")).length).toBeGreaterThan(0);
   });
 
   it("shows a non-blocking warning when the member already holds another position", async () => {
@@ -165,7 +171,8 @@ describe("BoardMembers", () => {
     render(<BoardMembers />);
     await waitForLoaded();
 
-    await userEvent.click(screen.getByRole("button", { name: /^assign$/i }));
+    // Assign button exists in both card and table — click the first one.
+    await userEvent.click(screen.getAllByRole("button", { name: /^assign$/i })[0]);
     await userEvent.type(screen.getByLabelText("Member"), "Jane");
     await userEvent.click(await screen.findByRole("button", { name: /jane doe/i }));
 

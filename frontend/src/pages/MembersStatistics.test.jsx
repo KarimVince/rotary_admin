@@ -73,6 +73,10 @@ const STATS = {
   men_count: 8,
   average_age: 47.3,
   average_tenure_as_rotarian: 9.8,
+  charter_members_count: 5,
+  past_presidents_in_club_count: 3,
+  members_under_35_count: 4,
+  charter_president_name: null,
 };
 
 // recharts' ResponsiveContainer needs real layout dimensions to render its
@@ -92,7 +96,10 @@ describe("MembersStatistics", () => {
     const values = Array.from(container.querySelectorAll(".text-3xl.font-bold")).map(
       (node) => node.textContent,
     );
-    expect(values).toEqual(["14", "2", "3", "5", "6", "8", "47.3", "9.8"]);
+    // Row 1 (3 cards): total, honorary, new
+    // Row 2 (4 cards): charter members, past presidents, under-35, countries
+    // Row 3 (4 cards): women, men, age, tenure
+    expect(values).toEqual(["14", "2", "3", "5", "3", "4", "5", "6", "8", "47.3", "9.8"]);
 
     expect(screen.getByText("Honorary Members")).toBeInTheDocument();
     expect(screen.getByText(/new members/i)).toBeInTheDocument();
@@ -100,7 +107,7 @@ describe("MembersStatistics", () => {
     expect(screen.getByText("Number of Women")).toBeInTheDocument();
     expect(screen.getByText("Number of Men")).toBeInTheDocument();
     expect(screen.getByText("Average Age")).toBeInTheDocument();
-    expect(screen.getByText(/average tenure/i)).toBeInTheDocument();
+    expect(screen.getByText(/avg tenure/i)).toBeInTheDocument();
   });
 
   it("never shows a Past Members count card", async () => {
@@ -126,7 +133,7 @@ describe("MembersStatistics", () => {
     const womenCard = screen.getByText("Number of Women").closest("[data-variant]");
     const menCard = screen.getByText("Number of Men").closest("[data-variant]");
     const ageCard = screen.getByText("Average Age").closest("[data-variant]");
-    const tenureCard = screen.getByText(/average tenure/i).closest("[data-variant]");
+    const tenureCard = screen.getByText(/avg tenure/i).closest("[data-variant]");
 
     expect(totalCard.className).toBe(honoraryCard.className);
     expect(womenCard.className).toBe(menCard.className);
