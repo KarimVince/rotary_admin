@@ -233,17 +233,19 @@ export default function MembersStatistics() {
 
       {/* Row 1: CP name card + 3 headline stats */}
       <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card variant="stat-amber" className="flex flex-col justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--faint)] mb-1">
-            Charter President
-          </span>
-          <span className="text-[22px] font-bold leading-tight break-words">
-            {stats.charter_president_name ?? "—"}
-          </span>
+        <Card variant="stat-amber" className="flex flex-col">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-3xl font-bold leading-tight break-words">
+              {stats.charter_president_name ?? "—"}
+            </span>
+          </div>
+          <span className="mt-2 text-sm">Charter President</span>
         </Card>
         {STAT_ROW_1.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
-            <span className="text-3xl font-bold">{card.value}</span>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-3xl font-bold">{card.value}</span>
+            </div>
             <span className="mt-2 text-sm">{card.label}</span>
           </Card>
         ))}
@@ -253,7 +255,9 @@ export default function MembersStatistics() {
       <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
         {STAT_ROW_2.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
-            <span className="text-3xl font-bold">{card.value}</span>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-3xl font-bold">{card.value}</span>
+            </div>
             <span className="mt-2 text-sm">{card.label}</span>
           </Card>
         ))}
