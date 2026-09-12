@@ -116,48 +116,35 @@ export default function MembersStatistics() {
     );
   }
 
-  const STAT_ROWS = [
-    [
-      { key: "total_members", value: stats.total_members, label: "Total Members", tone: "stat-blue" },
-      { key: "honorary_members", value: stats.honorary_members, label: "Honorary Members", tone: "stat-blue" },
-      {
-        key: "new_members_this_rotary_year",
-        value: stats.new_members_this_rotary_year,
-        label: "New Members (this Rotary year)",
-        tone: "stat-lavender",
-      },
-      {
-        key: "countries_represented",
-        value: stats.countries_represented,
-        label: "Countries Represented",
-        tone: "stat-lavender",
-      },
-    ],
-    [
-      { key: "women_count", value: stats.women_count, label: "Number of Women", tone: "stat-teal" },
-      { key: "men_count", value: stats.men_count, label: "Number of Men", tone: "stat-teal" },
-      { key: "average_age", value: stats.average_age ?? "–", label: "Average Age", tone: "stat-amber" },
-      {
-        key: "average_tenure_as_rotarian",
-        value: stats.average_tenure_as_rotarian ?? "–",
-        label: "Average Tenure (as Rotarian)",
-        tone: "stat-amber",
-      },
-    ],
-    [
-      {
-        key: "charter_members_count",
-        value: stats.charter_members_count,
-        label: "Charter Members",
-        tone: "stat-amber",
-      },
-      {
-        key: "members_under_35_count",
-        value: stats.members_under_35_count,
-        label: "Members Under 35",
-        tone: "stat-green",
-      },
-    ],
+  // Row 1: CP name | Total Members | Honorary Members | New Members This Year
+  // Row 2: Charter Members | Past Presidents in club | Members <35 | Countries
+  // Row 3: Women | Men | Avg Age | Avg Tenure
+  const STAT_ROW_1 = [
+    { key: "total_members", value: stats.total_members, label: "Total Members", tone: "stat-blue" },
+    { key: "honorary_members", value: stats.honorary_members, label: "Honorary Members", tone: "stat-blue" },
+    {
+      key: "new_members_this_rotary_year",
+      value: stats.new_members_this_rotary_year,
+      label: "New Members (this Rotary year)",
+      tone: "stat-lavender",
+    },
+  ];
+  const STAT_ROW_2 = [
+    { key: "charter_members_count", value: stats.charter_members_count, label: "Charter Members", tone: "stat-amber" },
+    {
+      key: "past_presidents_in_club_count",
+      value: stats.past_presidents_in_club_count,
+      label: "Past Presidents in Club",
+      tone: "stat-amber",
+    },
+    { key: "members_under_35_count", value: stats.members_under_35_count, label: "Members Under 35", tone: "stat-green" },
+    { key: "countries_represented", value: stats.countries_represented, label: "Countries Represented", tone: "stat-lavender" },
+  ];
+  const STAT_ROW_3 = [
+    { key: "women_count", value: stats.women_count, label: "Number of Women", tone: "stat-teal" },
+    { key: "men_count", value: stats.men_count, label: "Number of Men", tone: "stat-teal" },
+    { key: "average_age", value: stats.average_age ?? "–", label: "Average Age", tone: "stat-amber" },
+    { key: "average_tenure_as_rotarian", value: stats.average_tenure_as_rotarian ?? "–", label: "Avg Tenure as Rotarian", tone: "stat-amber" },
   ];
 
   return (
@@ -242,16 +229,43 @@ export default function MembersStatistics() {
           )}
         </div>
 
-      {STAT_ROWS.map((row, rowIndex) => (
-        <div key={rowIndex} className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {row.map((card) => (
-            <Card key={card.key} variant={card.tone} className="flex flex-col">
-              <span className="text-3xl font-bold">{card.value}</span>
-              <span className="mt-2 text-sm">{card.label}</span>
-            </Card>
-          ))}
-        </div>
-      ))}
+      {/* Row 1: CP name card + 3 headline stats */}
+      <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card variant="stat-amber" className="flex flex-col justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--faint)] mb-1">
+            Charter President
+          </span>
+          <span className="text-[22px] font-bold leading-tight break-words">
+            {stats.charter_president_name ?? "—"}
+          </span>
+        </Card>
+        {STAT_ROW_1.map((card) => (
+          <Card key={card.key} variant={card.tone} className="flex flex-col">
+            <span className="text-3xl font-bold">{card.value}</span>
+            <span className="mt-2 text-sm">{card.label}</span>
+          </Card>
+        ))}
+      </div>
+
+      {/* Row 2: Charter / Past Presidents / Under-35 / Countries */}
+      <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {STAT_ROW_2.map((card) => (
+          <Card key={card.key} variant={card.tone} className="flex flex-col">
+            <span className="text-3xl font-bold">{card.value}</span>
+            <span className="mt-2 text-sm">{card.label}</span>
+          </Card>
+        ))}
+      </div>
+
+      {/* Row 3: Gender / Age / Tenure */}
+      <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {STAT_ROW_3.map((card) => (
+          <Card key={card.key} variant={card.tone} className="flex flex-col">
+            <span className="text-3xl font-bold">{card.value}</span>
+            <span className="mt-2 text-sm">{card.label}</span>
+          </Card>
+        ))}
+      </div>
 
       <SectionLabel className="mt-2">Breakdowns</SectionLabel>
 

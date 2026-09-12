@@ -34,3 +34,5 @@ class MembersStatistics(BaseModel):
     average_tenure_as_rotarian: float | None
     charter_members_count: int
     members_under_35_count: int
+    past_presidents_in_club_count: int
+    charter_president_name: str | None

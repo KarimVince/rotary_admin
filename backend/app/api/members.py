@@ -23,7 +23,7 @@ router = APIRouter()
 MEMBERS_DIRECTORY = "members.directory"
 MEMBERS_STATISTICS = "members.statistics"
 
-AGE_BUCKETS = ["<25", "25-34", "35-44", "45-54", "55-64", "65+"]
+AGE_BUCKETS = ["<35", "35-44", "45-54", "55-64", "65+"]
 TENURE_BUCKETS = ["0-5", "5-10", "10-20", "20+"]
 
 PHOTO_CONTENT_TYPE_EXTENSIONS = {
@@ -36,10 +36,8 @@ MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 
 def _age_bucket(age: int) -> str:
-    if age < 25:
-        return "<25"
     if age < 35:
-        return "25-34"
+        return "<35"
     if age < 45:
         return "35-44"
     if age < 55:
@@ -157,9 +155,12 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
     charter_members_count = sum(
         1 for m in active_members if m.is_charter_member or m.is_charter_president
     )
-    members_under_35_count = sum(
-        1 for age in ah_ages if age < 35
+    members_under_35_count = sum(1 for age in ah_ages if age < 35)
+    past_presidents_in_club_count = sum(
+        1 for m in active_members if m.is_past_president or m.is_charter_president
     )
+    cp = next((m for m in active_members if m.is_charter_president), None)
+    charter_president_name = f"{cp.first_name} {cp.last_name}" if cp else None
 
     ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_members]
     average_tenure_as_rotarian = (
@@ -241,6 +242,8 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
         average_tenure_as_rotarian=average_tenure_as_rotarian,
         charter_members_count=charter_members_count,
         members_under_35_count=members_under_35_count,
+        past_presidents_in_club_count=past_presidents_in_club_count,
+        charter_president_name=charter_president_name,
     )
 
 
