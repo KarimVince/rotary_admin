@@ -234,8 +234,8 @@ export default function MembersStatistics() {
       {/* Row 1: CP name card + 3 headline stats */}
       <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card variant="stat-amber" className="flex flex-col">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-3xl font-bold leading-tight break-words">
+          <div className="flex items-baseline justify-between gap-2 min-w-0 overflow-hidden">
+            <span className="text-xl font-bold leading-tight truncate" title={stats.charter_president_name ?? undefined}>
               {stats.charter_president_name ?? "—"}
             </span>
           </div>

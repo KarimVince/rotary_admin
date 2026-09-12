@@ -547,12 +547,10 @@ def build_pptx_report(
     using_template = template_path is not None
     if using_template:
         prs = Presentation(template_path)
-        blank_layout = _pick_blank_layout(prs)
     else:
         prs = Presentation()
         prs.slide_width = Inches(13.333)
         prs.slide_height = Inches(7.5)
-        blank_layout = prs.slide_layouts[6]
 
     # Scale every EMU so the layout fits regardless of the template's slide
     # dimensions (4:3, 10 in wide, etc.).  Exactly 1.0 for the default deck.
@@ -561,7 +559,20 @@ def build_pptx_report(
     def sc(emu):
         return int(emu * scale)
 
-    slide = prs.slides.add_slide(blank_layout)
+    if using_template and len(prs.slides) > 0:
+        # Write directly onto the template's first slide so its background,
+        # banner, and master-level design are preserved exactly as designed.
+        # Remove any content placeholders (title, body, subtitle) so they
+        # don't clash with our statistics shapes, but keep all decorative
+        # shapes (logos, colour bands, images) that live as regular shapes.
+        slide = prs.slides[0]
+        for ph in list(slide.placeholders):
+            ph._element.getparent().remove(ph._element)
+    else:
+        blank_layout = (
+            _pick_blank_layout(prs) if using_template else prs.slide_layouts[6]
+        )
+        slide = prs.slides.add_slide(blank_layout)
 
     # ── Content area ──────────────────────────────────────────────────────────
     if using_template:
