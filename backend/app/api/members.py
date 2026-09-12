@@ -118,15 +118,29 @@ async def upload_member_photo(
     return {"photo_url": photo_url}
 
 
-def compute_members_statistics(db: Session) -> MembersStatistics:
-    """Shared by the JSON statistics endpoint and the report export (2b.14)."""
+def compute_members_statistics(db: Session, as_of: date | None = None) -> MembersStatistics:
+    """Shared by the JSON statistics endpoint and the report export (2b.14).
+
+    When *as_of* is given the function counts members who were active on that
+    date (join_date <= as_of and leave_date is None or >= as_of) rather than
+    relying on the current Member.status field, so historical reports reflect
+    membership as it stood on the chosen day.
+    """
     members = db.query(Member).all()
-    today = date.today()
+    today = as_of or date.today()
     current_rotary_year = rotary_year(today)
 
     # All active members (including honorary) are counted in every stat.
     # The honorary_members card is kept as useful context alongside the total.
-    active_members = [m for m in members if m.status == "active"]
+    if as_of is not None:
+        active_members = [
+            m for m in members
+            if m.join_date is not None
+            and m.join_date <= as_of
+            and (m.leave_date is None or m.leave_date >= as_of)
+        ]
+    else:
+        active_members = [m for m in members if m.status == "active"]
 
     total_members = len(active_members)
     honorary_members = sum(1 for m in active_members if m.is_honorary)
@@ -241,10 +255,11 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
 
 @router.get("/members/statistics", response_model=MembersStatistics)
 def members_statistics(
+    as_of: date | None = Query(None, description="Return statistics as of this date (YYYY-MM-DD). Defaults to today."),
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(MEMBERS_STATISTICS, "read")),
 ):
-    return compute_members_statistics(db)
+    return compute_members_statistics(db, as_of=as_of)
 
 
 @router.post("/members/statistics/report")
@@ -258,10 +273,11 @@ def generate_statistics_report(
     # master instead of the app's own from-scratch deck. PDF has no slide
     # master concept, so this only applies when format=pptx.
     use_template: bool = Query(False),
+    as_of: date | None = Query(None, description="Base the report on membership as of this date (YYYY-MM-DD). Defaults to today."),
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(MEMBERS_STATISTICS, "read")),
 ):
-    stats = compute_members_statistics(db)
+    stats = compute_members_statistics(db, as_of=as_of)
 
     template_path = None
     if use_template:
@@ -270,7 +286,7 @@ def generate_statistics_report(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="The annual club template only applies to PowerPoint (PPTX) reports",
             )
-        template_path = download_template_for_year(rotary_year(date.today()))
+        template_path = download_template_for_year(rotary_year(as_of or date.today()))
         if template_path is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

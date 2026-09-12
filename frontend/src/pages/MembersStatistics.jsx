@@ -32,6 +32,7 @@ export default function MembersStatistics() {
   const { canRead } = useAccess("members.statistics");
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [reportFormat, setReportFormat] = useState("pdf");
   const [reportType, setReportType] = useState(
     () => sessionStorage.getItem(SESSION_KEY_REPORT_TYPE) || "simplified",
@@ -45,7 +46,8 @@ export default function MembersStatistics() {
 
   useEffect(() => {
     if (!canRead) return;
-    fetchMemberStatistics()
+    setStats(null);
+    fetchMemberStatistics(asOfDate)
       .then(setStats)
       .catch((err) => setError(err.detail || "Failed to load statistics"));
     fetchCurrentPptTemplate()
@@ -54,7 +56,7 @@ export default function MembersStatistics() {
         // Non-fatal — the template checkbox just stays disabled as if none
         // were uploaded (e.g. the user has no admin.ppt_template access).
       });
-  }, [canRead]);
+  }, [canRead, asOfDate]);
 
   function handleReportTypeChange(value) {
     setReportType(value);
@@ -82,6 +84,7 @@ export default function MembersStatistics() {
       const { blob, filename } = await generateStatisticsReport(reportFormat, {
         reportType,
         useTemplate: useTemplate && reportFormat === "pptx" && hasTemplate,
+        asOfDate,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -107,7 +110,7 @@ export default function MembersStatistics() {
     );
   }
 
-  if (!stats) {
+  if (!stats && !error) {
     return (
       <div className="admin-page">
         <h1>Member statistics</h1>
@@ -157,6 +160,19 @@ export default function MembersStatistics() {
       </p>
 
       <div className="mb-5 flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              As of date
+            </span>
+            <input
+              type="date"
+              value={asOfDate}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setAsOfDate(e.target.value)}
+              className="h-[38px] rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink-2)] focus:outline-none focus:ring-2 focus:ring-[var(--rotary-blue)]"
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Format
@@ -231,16 +247,8 @@ export default function MembersStatistics() {
           )}
         </div>
 
-      {/* Row 1: CP name card + 3 headline stats */}
-      <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card variant="stat-amber" className="flex flex-col">
-          <div className="flex items-baseline justify-between gap-2 min-w-0 overflow-hidden">
-            <span className="text-xl font-bold leading-tight truncate" title={stats.charter_president_name ?? undefined}>
-              {stats.charter_president_name ?? "—"}
-            </span>
-          </div>
-          <span className="mt-2 text-sm">Charter President</span>
-        </Card>
+      {/* Row 1: 3 headline stats */}
+      <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
         {STAT_ROW_1.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
             <div className="flex items-baseline justify-between gap-2">

@@ -59,23 +59,23 @@ CARD_TONES = [
     TONE_AMBER_BG,
 ]
 
-# 12 stat cards matching the live page's 3-row layout (used by build_pptx_report).
-# Each tuple: (label, stats-attribute-name-or-None-for-CP-name, tone-hex)
+# 11 stat cards matching the live page's layout (used by build_pptx_report).
+# Charter President removed; 11 cards lay out as 4+4+3 across 3 rows.
+# Each tuple: (label, stats-attribute-name, tone-hex)
 _PPTX_STAT_CARDS = [
     # Row 1
-    ("Charter President",               None,                              TONE_AMBER_BG),
     ("Total Members",                   "total_members",                   TONE_BLUE_BG),
     ("Honorary Members",                "honorary_members",                TONE_BLUE_BG),
     ("New Members (this Rotary year)",  "new_members_this_rotary_year",    TONE_LAVENDER_BG),
+    ("Countries Represented",           "countries_represented",           TONE_LAVENDER_BG),
     # Row 2
     ("Charter Members",                 "charter_members_count",           TONE_AMBER_BG),
     ("Past Presidents in Club",         "past_presidents_in_club_count",   TONE_AMBER_BG),
     ("Members Under 35",                "members_under_35_count",          TONE_GREEN_BG),
-    ("Countries Represented",           "countries_represented",           TONE_LAVENDER_BG),
+    ("Average Age",                     "average_age",                     TONE_AMBER_BG),
     # Row 3
     ("Number of Women",                 "women_count",                     TONE_TEAL_BG),
     ("Number of Men",                   "men_count",                       TONE_TEAL_BG),
-    ("Average Age",                     "average_age",                     TONE_AMBER_BG),
     ("Avg Tenure (Rotarian)",           "average_tenure_as_rotarian",      TONE_AMBER_BG),
 ]
 
@@ -612,16 +612,14 @@ def build_pptx_report(
     card_w    = (content_w - (card_cols - 1) * gap_x) // card_cols
     card_h    = max(sc(Inches(0.55)), (int(content_h * 0.38) - 2 * gap_y) // 3)
 
-    # ── 12 stat cards ─────────────────────────────────────────────────────────
+    # ── 11 stat cards (4+4+3 across 3 rows) ─────────────────────────────────
     for idx, (label, attr, tone) in enumerate(_PPTX_STAT_CARDS):
         col  = idx % card_cols
         row  = idx // card_cols
         left = margin_x + col * (card_w + gap_x)
         top  = content_top + row * (card_h + gap_y)
 
-        if attr is None:
-            value_str = stats.charter_president_name or "—"
-        elif attr in ("women_count", "men_count") and stats.total_members:
+        if attr in ("women_count", "men_count") and stats.total_members:
             v         = getattr(stats, attr)
             pct       = round(v / stats.total_members * 100)
             value_str = f"{v}  ·  {pct}%"
@@ -635,12 +633,12 @@ def build_pptx_report(
         tf.margin_left = Pt(5)
         tf.margin_top  = Pt(3)
         tf.text        = value_str
-        tf.paragraphs[0].font.size = Pt(16)
+        tf.paragraphs[0].font.size = Pt(20)
         tf.paragraphs[0].font.bold = True
         style_card_text_color(tf.paragraphs[0], using_template)
         label_p           = tf.add_paragraph()
         label_p.text      = label
-        label_p.font.size = Pt(7)
+        label_p.font.size = Pt(9)
 
     # ── 4 charts in a single row (4 columns × 1 row) ─────────────────────────
     # Charts are generated at _PPTX_CHART_FIGSIZE so their natural aspect ratio
