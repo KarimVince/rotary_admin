@@ -33,6 +33,8 @@ class MemberBase(BaseModel):
     proposer_name: str | None = None
     is_couple: bool = False
     is_honorary: bool = False
+    is_charter_member: bool = False
+    is_charter_president: bool = False
     notes: str | None = None
 
     @field_validator("status")
@@ -98,6 +100,8 @@ class MemberUpdate(BaseModel):
     proposer_name: str | None = None
     is_couple: bool | None = None
     is_honorary: bool | None = None
+    is_charter_member: bool | None = None
+    is_charter_president: bool | None = None
     notes: str | None = None
 
     @field_validator("status")
@@ -155,6 +159,8 @@ class MemberReadLimited(BaseModel):
     proposer_name: str | None
     is_couple: bool
     is_honorary: bool
+    is_charter_member: bool
+    is_charter_president: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime

@@ -47,6 +47,8 @@ const EMPTY_FORM = {
   address: "",
   is_couple: false,
   is_honorary: false,
+  is_charter_member: false,
+  is_charter_president: false,
   notes: "",
 };
 
@@ -274,6 +276,8 @@ export default function MembersList() {
       address: member.address ?? "",
       is_couple: Boolean(member.is_couple),
       is_honorary: Boolean(member.is_honorary),
+      is_charter_member: Boolean(member.is_charter_member),
+      is_charter_president: Boolean(member.is_charter_president),
       notes: member.notes ?? "",
     });
     setSaveError(null);
@@ -656,6 +660,24 @@ export default function MembersList() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="member-is-charter-member">Charter member</label>
+                  <input
+                    id="member-is-charter-member"
+                    type="checkbox"
+                    checked={form.is_charter_member}
+                    onChange={(event) => setForm({ ...form, is_charter_member: event.target.checked })}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="member-is-charter-president">Charter president</label>
+                  <input
+                    id="member-is-charter-president"
+                    type="checkbox"
+                    checked={form.is_charter_president}
+                    onChange={(event) => setForm({ ...form, is_charter_president: event.target.checked })}
+                  />
+                </div>
+                <div>
                   <label htmlFor="member-date-of-birth">Date of birth</label>
                   <input
                     id="member-date-of-birth"
@@ -1028,9 +1050,20 @@ export default function MembersList() {
               <Card
                 key={member.id}
                 variant="default"
-                className="flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow !gap-[7px] !p-[20px_16px]"
+                className="flex flex-col items-center text-center gap-1 cursor-pointer transition-shadow !gap-[7px] !p-0 overflow-hidden"
                 onClick={() => openDetail(member)}
               >
+                {/* Charter banner — president takes priority, never shown with charter member */}
+                {member.is_charter_president ? (
+                  <div className="w-full py-[5px] px-2 text-[10.5px] font-bold uppercase tracking-widest text-center text-white bg-[var(--rotary-gold)]">
+                    ★ Charter President
+                  </div>
+                ) : member.is_charter_member ? (
+                  <div className="w-full py-[5px] px-2 text-[10.5px] font-bold uppercase tracking-widest text-center text-white bg-[var(--rotary-blue)]">
+                    ✦ Charter Member
+                  </div>
+                ) : null}
+                <div className="flex flex-col items-center gap-[7px] p-[20px_16px] w-full">
                 {member.photo_url ? (
                   <img
                     className={`${avatarSizeClass} rounded-full object-cover shrink-0 bg-[var(--accent-soft)]`}
@@ -1068,6 +1101,7 @@ export default function MembersList() {
                 </div>
                 <div className="text-[11.5px] text-[var(--faint)] mt-1">
                   {member.years_in_this_club}y in club · {member.years_as_rotarian}y as Rotarian
+                </div>
                 </div>
               </Card>
             );

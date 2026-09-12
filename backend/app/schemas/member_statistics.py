@@ -32,3 +32,5 @@ class MembersStatistics(BaseModel):
     men_count: int
     average_age: float | None
     average_tenure_as_rotarian: float | None
+    charter_members_count: int
+    members_under_35_count: int

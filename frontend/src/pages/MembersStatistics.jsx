@@ -144,6 +144,20 @@ export default function MembersStatistics() {
         tone: "stat-amber",
       },
     ],
+    [
+      {
+        key: "charter_members_count",
+        value: stats.charter_members_count,
+        label: "Charter Members",
+        tone: "stat-amber",
+      },
+      {
+        key: "members_under_35_count",
+        value: stats.members_under_35_count,
+        label: "Members Under 35",
+        tone: "stat-green",
+      },
+    ],
   ];
 
   return (

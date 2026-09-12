@@ -75,6 +75,15 @@ class Member(Base):
     is_honorary: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
     )
+    # Charter flags: founding members of the club.  is_charter_president takes
+    # priority over is_charter_member — a charter president is never also shown
+    # as a plain charter member, to avoid redundancy in the UI.
+    is_charter_member: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    is_charter_president: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

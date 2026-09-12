@@ -23,7 +23,7 @@ router = APIRouter()
 MEMBERS_DIRECTORY = "members.directory"
 MEMBERS_STATISTICS = "members.statistics"
 
-AGE_BUCKETS = ["<30", "30-39", "40-49", "50-59", "60-69", "70+"]
+AGE_BUCKETS = ["<25", "25-34", "35-44", "45-54", "55-64", "65+"]
 TENURE_BUCKETS = ["0-5", "5-10", "10-20", "20+"]
 
 PHOTO_CONTENT_TYPE_EXTENSIONS = {
@@ -36,17 +36,17 @@ MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 
 def _age_bucket(age: int) -> str:
-    if age < 30:
-        return "<30"
-    if age < 40:
-        return "30-39"
-    if age < 50:
-        return "40-49"
-    if age < 60:
-        return "50-59"
-    if age < 70:
-        return "60-69"
-    return "70+"
+    if age < 25:
+        return "<25"
+    if age < 35:
+        return "25-34"
+    if age < 45:
+        return "35-44"
+    if age < 55:
+        return "45-54"
+    if age < 65:
+        return "55-64"
+    return "65+"
 
 
 def _tenure_bucket(years: float) -> str:
@@ -154,6 +154,13 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
     ]
     average_age = round(sum(ah_ages) / len(ah_ages), 1) if ah_ages else None
 
+    charter_members_count = sum(
+        1 for m in active_members if m.is_charter_member or m.is_charter_president
+    )
+    members_under_35_count = sum(
+        1 for age in ah_ages if age < 35
+    )
+
     ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_members]
     average_tenure_as_rotarian = (
         round(sum(ah_tenures_as_rotarian) / len(ah_tenures_as_rotarian), 1)
@@ -232,6 +239,8 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
         men_count=men_count,
         average_age=average_age,
         average_tenure_as_rotarian=average_tenure_as_rotarian,
+        charter_members_count=charter_members_count,
+        members_under_35_count=members_under_35_count,
     )
 
 
