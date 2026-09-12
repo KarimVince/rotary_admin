@@ -93,8 +93,10 @@ _PPTX_CHART_TITLES = [
 LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "rotary-logo.png"
 
 
-def _bar_chart_png(labels: list[str], values: list[float], title: str) -> bytes:
-    fig, ax = plt.subplots(figsize=(5.0, 2.6))
+def _bar_chart_png(
+    labels: list[str], values: list[float], title: str, figsize: tuple = (5.0, 2.6)
+) -> bytes:
+    fig, ax = plt.subplots(figsize=figsize)
     ax.bar(labels, values, color=ROTARY_BLUE)
     ax.set_title(title, fontsize=10)
     ax.tick_params(axis="x", rotation=30, labelsize=7)
@@ -154,8 +156,10 @@ def _line_chart_png(labels: list[str], values: list[float], title: str) -> bytes
     return _fig_to_png(fig)
 
 
-def _pie_chart_png(labels: list[str], values: list[float], title: str) -> bytes:
-    fig, ax = plt.subplots(figsize=(5.0, 2.8))
+def _pie_chart_png(
+    labels: list[str], values: list[float], title: str, figsize: tuple = (5.0, 2.8)
+) -> bytes:
+    fig, ax = plt.subplots(figsize=figsize)
     if sum(values) == 0:
         ax.text(0.5, 0.5, "No data", ha="center", va="center")
         ax.axis("off")
@@ -223,6 +227,43 @@ def render_charts(stats: MembersStatistics) -> dict[str, bytes]:
     )
 
     return charts
+
+
+# Compact figsize for the PPTX 2-column chart grid.
+# At ~6.35 in display width each chart auto-heights to ~1.59 in, so
+# two rows + gap fit comfortably in the space below the 12 stat cards.
+_PPTX_CHART_FIGSIZE = (6.0, 1.5)  # aspect 4:1, no distortion when placed width-only
+
+
+def render_pptx_4charts(stats: MembersStatistics) -> dict[str, bytes]:
+    """Renders the 4 PPTX charts at a compact aspect ratio (no height override needed)."""
+    fs = _PPTX_CHART_FIGSIZE
+    return {
+        "Gender distribution": _pie_chart_png(
+            [e.label for e in stats.by_gender],
+            [e.value for e in stats.by_gender],
+            "Gender distribution",
+            figsize=fs,
+        ),
+        "Age distribution": _bar_chart_png(
+            [e.label for e in stats.age_distribution],
+            [e.value for e in stats.age_distribution],
+            "Age distribution",
+            figsize=fs,
+        ),
+        "Nationality distribution": _pie_chart_png(
+            [e.label for e in stats.by_nationality],
+            [e.value for e in stats.by_nationality],
+            "Nationality distribution",
+            figsize=fs,
+        ),
+        "Tenure distribution (years as Rotarian)": _bar_chart_png(
+            [e.label for e in stats.tenure_distribution],
+            [e.value for e in stats.tenure_distribution],
+            "Tenure distribution (years as Rotarian)",
+            figsize=fs,
+        ),
+    }
 
 
 def _stat_cards() -> list[tuple[str, str]]:
@@ -495,12 +536,13 @@ def build_pptx_report(
     report_type: str = "simplified",
     template_path: BytesIO | None = None,
 ) -> bytes:
-    """One-slide PPTX report: 12 stat cards (4 × 3) + 4 compact charts (2 × 2).
+    """One-slide PPTX: 12 stat cards (4×3) + 4 compact charts (2×2).
 
-    When a district template is active the function respects the template's
-    header/footer bands — it does not overlay a logo, derives the safe content
-    area from the title-placeholder geometry, and clips the layout to the
-    slide's actual height so nothing overflows or hides behind a banner.
+    Template mode leaves the district banner/master completely untouched —
+    no logo, no heading, no placeholder population.  Content is placed in a
+    fixed safe area (1.5 in from top, 0.4 in from bottom) that clears all
+    typical district-template banners and footers without relying on
+    placeholder geometry (which varies wildly across templates).
     """
     using_template = template_path is not None
     if using_template:
@@ -512,8 +554,8 @@ def build_pptx_report(
         prs.slide_height = Inches(7.5)
         blank_layout = prs.slide_layouts[6]
 
-    # Scale every position/size so content fits regardless of the template's
-    # slide dimensions (4:3, 10 in wide, etc.).  Exactly 1.0 for the default deck.
+    # Scale every EMU so the layout fits regardless of the template's slide
+    # dimensions (4:3, 10 in wide, etc.).  Exactly 1.0 for the default deck.
     scale = prs.slide_width / Inches(13.333)
 
     def sc(emu):
@@ -521,41 +563,15 @@ def build_pptx_report(
 
     slide = prs.slides.add_slide(blank_layout)
 
-    # ── Heading ──────────────────────────────────────────────────────────────
+    # ── Content area ──────────────────────────────────────────────────────────
     if using_template:
-        # Populate the template's own title placeholder (inherits the template's
-        # font/colours); do NOT overlay a logo or freehand textbox that would
-        # fight the district banner.
-        add_heading(
-            slide,
-            True,
-            "Members Statistics",
-            f"Generated {date.today().isoformat()}",
-            # fallback box — only reached when the layout has no title placeholder
-            (sc(Inches(0.3)), sc(Inches(0.1)), prs.slide_width - sc(Inches(0.6)), sc(Inches(0.7))),
-        )
-        # Derive the safe content start from the title placeholder's bottom edge
-        # so stat cards never overlap the template's header band.
-        ph = _title_placeholder(slide)
-        content_top = (
-            ph.top + ph.height + sc(Inches(0.08))
-            if ph is not None
-            else sc(Inches(1.4))  # safe fallback for a typical district banner
-        )
-        # Safe bottom: stay above any footer/date metadata placeholder in the
-        # lower part of the slide (anything below 60 % of slide height).
-        content_bottom = prs.slide_height - sc(Inches(0.2))
-        for ph2 in slide.placeholders:
-            if ph2.placeholder_format.idx == 0:
-                continue
-            type_name = str(ph2.placeholder_format.type).split(" ")[0]
-            if (
-                type_name in _LAYOUT_METADATA_PLACEHOLDER_TYPES
-                and ph2.top > prs.slide_height * 0.6
-            ):
-                content_bottom = min(content_bottom, ph2.top - sc(Inches(0.08)))
+        # Leave the district banner completely untouched — no logo, no heading,
+        # no placeholder population.  A fixed 1.5 in top margin clears virtually
+        # all district templates; 0.4 in bottom clears typical footers.
+        content_top    = sc(Inches(1.5))
+        content_bottom = prs.slide_height - sc(Inches(0.4))
     else:
-        # Default (app-generated) deck: add the Rotary logo + freehand heading.
+        # Default deck: add Rotary logo + freehand heading.
         logo_right_edge = sc(Inches(0.3))
         if LOGO_PATH.exists():
             logo_pic = slide.shapes.add_picture(
@@ -575,72 +591,70 @@ def build_pptx_report(
                 sc(Inches(0.65)),
             ),
         )
-        content_top = sc(Inches(0.95))
+        content_top    = sc(Inches(0.95))
         content_bottom = prs.slide_height - sc(Inches(0.12))
 
-    # ── Shared geometry ───────────────────────────────────────────────────────
-    content_height = content_bottom - content_top
-    margin_x = sc(Inches(0.25))
-    content_w = prs.slide_width - 2 * margin_x
-    gap_x = sc(Inches(0.10))
-    gap_y = sc(Inches(0.07))
+    # ── Geometry ──────────────────────────────────────────────────────────────
+    content_h   = content_bottom - content_top
+    margin_x    = sc(Inches(0.25))
+    content_w   = prs.slide_width - 2 * margin_x
+    gap_x       = sc(Inches(0.10))
+    gap_y       = sc(Inches(0.07))
     chart_gap_x = sc(Inches(0.12))
     chart_gap_y = sc(Inches(0.10))
 
-    # Allocate 40 % of the content height to the 3 card rows, 60 % to charts.
+    # 12 stat cards: 4 columns × 3 rows, using 38 % of available height
     card_cols = 4
-    card_w = (content_w - (card_cols - 1) * gap_x) // card_cols
-    card_h = max(sc(Inches(0.55)), (int(content_height * 0.40) - 2 * gap_y) // 3)
+    card_w    = (content_w - (card_cols - 1) * gap_x) // card_cols
+    card_h    = max(sc(Inches(0.55)), (int(content_h * 0.38) - 2 * gap_y) // 3)
 
-    # ── 12 stat cards (4 columns × 3 rows) ───────────────────────────────────
+    # ── 12 stat cards ─────────────────────────────────────────────────────────
     for idx, (label, attr, tone) in enumerate(_PPTX_STAT_CARDS):
-        col = idx % card_cols
-        row = idx // card_cols
+        col  = idx % card_cols
+        row  = idx // card_cols
         left = margin_x + col * (card_w + gap_x)
-        top = content_top + row * (card_h + gap_y)
+        top  = content_top + row * (card_h + gap_y)
 
         if attr is None:
             value_str = stats.charter_president_name or "—"
         elif attr in ("women_count", "men_count") and stats.total_members:
-            v = getattr(stats, attr)
-            pct = round(v / stats.total_members * 100)
+            v         = getattr(stats, attr)
+            pct       = round(v / stats.total_members * 100)
             value_str = f"{v}  ·  {pct}%"
         else:
-            v = getattr(stats, attr)
+            v         = getattr(stats, attr)
             value_str = str(v if v is not None else "–")
 
-        box = slide.shapes.add_textbox(left, top, card_w, card_h)
+        box            = slide.shapes.add_textbox(left, top, card_w, card_h)
         style_card_fill(box, tone, using_template)
-        tf = box.text_frame
+        tf             = box.text_frame
         tf.margin_left = Pt(5)
-        tf.margin_top = Pt(3)
-        tf.text = value_str
+        tf.margin_top  = Pt(3)
+        tf.text        = value_str
         tf.paragraphs[0].font.size = Pt(16)
         tf.paragraphs[0].font.bold = True
         style_card_text_color(tf.paragraphs[0], using_template)
-        label_p = tf.add_paragraph()
-        label_p.text = label
+        label_p           = tf.add_paragraph()
+        label_p.text      = label
         label_p.font.size = Pt(7)
 
-    # ── 4 charts (2 columns × 2 rows): gender, age, nationality, tenure ───────
-    cards_bottom = content_top + 3 * (card_h + gap_y) - gap_y
+    # ── 4 charts in 2 × 2 grid ────────────────────────────────────────────────
+    # Charts are generated at _PPTX_CHART_FIGSIZE so their natural aspect ratio
+    # matches the intended cell shape; width-only placement preserves it exactly.
+    cards_bottom  = content_top + 3 * (card_h + gap_y) - gap_y
     chart_start_y = cards_bottom + sc(Inches(0.15))
-    chart_area_h = content_bottom - chart_start_y
+    chart_w       = (content_w - chart_gap_x) // 2
+    _fw, _fh      = _PPTX_CHART_FIGSIZE
+    chart_h_est   = int(chart_w * _fh / _fw)  # used only for row-2 offset
 
-    chart_w = (content_w - chart_gap_x) // 2
-    chart_h = max(sc(Inches(0.8)), (chart_area_h - chart_gap_y) // 2)
-
-    all_charts = render_charts(stats)
+    pptx_charts = render_pptx_4charts(stats)
     for idx, title in enumerate(_PPTX_CHART_TITLES):
-        png_bytes = all_charts[title]
-        col = idx % 2
-        row = idx // 2
+        png_bytes = pptx_charts[title]
+        col  = idx % 2
+        row  = idx // 2
         left = margin_x + col * (chart_w + chart_gap_x)
-        top = chart_start_y + row * (chart_h + chart_gap_y)
-        # Specify both width and height so charts fill the cell regardless of
-        # their natural aspect ratio; bar-chart distortion is imperceptible at
-        # presentation scale.
-        slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_w, height=chart_h)
+        top  = chart_start_y + row * (chart_h_est + chart_gap_y)
+        slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_w)
 
     if report_type == "integral":
         _add_pptx_detail_slides(prs, blank_layout, stats, sc, using_template)
