@@ -124,44 +124,41 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
     today = date.today()
     current_rotary_year = rotary_year(today)
 
-    # active_members: all active (including honorary) — used only for the
-    # honorary_members count and the CP name lookup.
-    # active_regular: active non-honorary — used for every other stat and
-    # every chart so that honorary members don't distort the totals.
+    # All active members (including honorary) are counted in every stat.
+    # The honorary_members card is kept as useful context alongside the total.
     active_members = [m for m in members if m.status == "active"]
-    active_regular = [m for m in active_members if not m.is_honorary]
 
-    total_members = len(active_regular)
+    total_members = len(active_members)
     honorary_members = sum(1 for m in active_members if m.is_honorary)
     new_members_this_rotary_year = sum(
         1
-        for member in active_regular
+        for member in active_members
         if member.join_date and rotary_year(member.join_date) == current_rotary_year
     )
     countries_represented = len(
-        {member.nationality for member in active_regular if member.nationality}
+        {member.nationality for member in active_members if member.nationality}
     )
-    women_count = sum(1 for member in active_regular if member.gender == "Female")
-    men_count = sum(1 for member in active_regular if member.gender == "Male")
+    women_count = sum(1 for member in active_members if member.gender == "Female")
+    men_count = sum(1 for member in active_members if member.gender == "Male")
 
     ah_ages = [
         (today - member.date_of_birth).days // 365
-        for member in active_regular
+        for member in active_members
         if member.date_of_birth
     ]
     average_age = round(sum(ah_ages) / len(ah_ages), 1) if ah_ages else None
 
     charter_members_count = sum(
-        1 for m in active_regular if m.is_charter_member or m.is_charter_president
+        1 for m in active_members if m.is_charter_member or m.is_charter_president
     )
     members_under_35_count = sum(1 for age in ah_ages if age < 35)
     past_presidents_in_club_count = sum(
-        1 for m in active_regular if m.is_past_president or m.is_charter_president
+        1 for m in active_members if m.is_past_president or m.is_charter_president
     )
     cp = next((m for m in active_members if m.is_charter_president), None)
     charter_president_name = f"{cp.first_name} {cp.last_name}" if cp else None
 
-    ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_regular]
+    ah_tenures_as_rotarian = [member.years_as_rotarian for member in active_members]
     average_tenure_as_rotarian = (
         round(sum(ah_tenures_as_rotarian) / len(ah_tenures_as_rotarian), 1)
         if ah_tenures_as_rotarian
@@ -172,12 +169,10 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
     join_year_counts: Counter = Counter(
         member.join_date.year for member in members if member.join_date
     )
-    # Charts scoped to active non-honorary members; by_status, by_join_year
-    # and growth are left unscoped (need Past members' leave events).
     nationality_counts: Counter = Counter(
-        member.nationality or "Unknown" for member in active_regular
+        member.nationality or "Unknown" for member in active_members
     )
-    gender_counts: Counter = Counter(member.gender or "Unknown" for member in active_regular)
+    gender_counts: Counter = Counter(member.gender or "Unknown" for member in active_members)
 
     growth: dict[int, dict[str, int]] = {}
     age_bucket_counts: Counter = Counter()
@@ -194,7 +189,7 @@ def compute_members_statistics(db: Session) -> MembersStatistics:
             growth.setdefault(leave_ry, {"joins": 0, "leaves": 0})
             growth[leave_ry]["leaves"] += 1
 
-    for member in active_regular:
+    for member in active_members:
         if member.join_date:
             tenure_bucket_counts[_tenure_bucket(member.years_as_rotarian)] += 1
 
