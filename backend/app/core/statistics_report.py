@@ -46,6 +46,8 @@ TONE_BLUE_BG = "#e3edfb"
 TONE_LAVENDER_BG = "#ece7fb"
 TONE_TEAL_BG = "#e0f4f1"
 TONE_AMBER_BG = "#fdf0da"
+TONE_GREEN_BG = "#e4f5e3"  # --tone-green-bg, same as live page
+
 CARD_TONES = [
     TONE_BLUE_BG,
     TONE_BLUE_BG,
@@ -55,6 +57,34 @@ CARD_TONES = [
     TONE_TEAL_BG,
     TONE_AMBER_BG,
     TONE_AMBER_BG,
+]
+
+# 12 stat cards matching the live page's 3-row layout (used by build_pptx_report).
+# Each tuple: (label, stats-attribute-name-or-None-for-CP-name, tone-hex)
+_PPTX_STAT_CARDS = [
+    # Row 1
+    ("Charter President",               None,                              TONE_AMBER_BG),
+    ("Total Members",                   "total_members",                   TONE_BLUE_BG),
+    ("Honorary Members",                "honorary_members",                TONE_BLUE_BG),
+    ("New Members (this Rotary year)",  "new_members_this_rotary_year",    TONE_LAVENDER_BG),
+    # Row 2
+    ("Charter Members",                 "charter_members_count",           TONE_AMBER_BG),
+    ("Past Presidents in Club",         "past_presidents_in_club_count",   TONE_AMBER_BG),
+    ("Members Under 35",                "members_under_35_count",          TONE_GREEN_BG),
+    ("Countries Represented",           "countries_represented",           TONE_LAVENDER_BG),
+    # Row 3
+    ("Number of Women",                 "women_count",                     TONE_TEAL_BG),
+    ("Number of Men",                   "men_count",                       TONE_TEAL_BG),
+    ("Average Age",                     "average_age",                     TONE_AMBER_BG),
+    ("Avg Tenure (Rotarian)",           "average_tenure_as_rotarian",      TONE_AMBER_BG),
+]
+
+# The 4 charts shown on the PPTX slide (2 × 2 grid below the 12 cards).
+_PPTX_CHART_TITLES = [
+    "Gender distribution",
+    "Age distribution",
+    "Nationality distribution",
+    "Tenure distribution (years as Rotarian)",
 ]
 
 # Kept in sync with frontend/src/assets/rotary-logo.png (see that file's own
@@ -465,8 +495,13 @@ def build_pptx_report(
     report_type: str = "simplified",
     template_path: BytesIO | None = None,
 ) -> bytes:
-    # Everything (heading, stat cards, all 6 charts) condensed onto a single
-    # widescreen slide rather than one-section-per-slide, per request.
+    """One-slide PPTX report: 12 stat cards (4 × 3) + 4 compact charts (2 × 2).
+
+    When a district template is active the function respects the template's
+    header/footer bands — it does not overlay a logo, derives the safe content
+    area from the title-placeholder geometry, and clips the layout to the
+    slide's actual height so nothing overflows or hides behind a banner.
+    """
     using_template = template_path is not None
     if using_template:
         prs = Presentation(template_path)
@@ -477,11 +512,8 @@ def build_pptx_report(
         prs.slide_height = Inches(7.5)
         blank_layout = prs.slide_layouts[6]
 
-    # The from-scratch layout below is designed against a 13.333in-wide
-    # widescreen deck. An uploaded template may use a different slide size
-    # (e.g. 10in widescreen, or 4:3) — scale every position/size by the ratio
-    # so content roughly fits instead of overflowing or bunching in a corner.
-    # `scale` is exactly 1 for the app's own default deck (no-op).
+    # Scale every position/size so content fits regardless of the template's
+    # slide dimensions (4:3, 10 in wide, etc.).  Exactly 1.0 for the default deck.
     scale = prs.slide_width / Inches(13.333)
 
     def sc(emu):
@@ -489,63 +521,126 @@ def build_pptx_report(
 
     slide = prs.slides.add_slide(blank_layout)
 
-    # The heading box starts right of the logo's actual rendered width (not a
-    # hardcoded guess) — the logo's aspect ratio makes its width at a fixed
-    # 0.6in height wider than the 0.8in gap a hardcoded left offset assumed,
-    # which is what caused the heading text to overlap the logo.
-    logo_right_edge = sc(Inches(0.3))
-    if LOGO_PATH.exists():
-        logo_pic = slide.shapes.add_picture(
-            str(LOGO_PATH), sc(Inches(0.3)), sc(Inches(0.2)), height=sc(Inches(0.6))
+    # ── Heading ──────────────────────────────────────────────────────────────
+    if using_template:
+        # Populate the template's own title placeholder (inherits the template's
+        # font/colours); do NOT overlay a logo or freehand textbox that would
+        # fight the district banner.
+        add_heading(
+            slide,
+            True,
+            "Members Statistics",
+            f"Generated {date.today().isoformat()}",
+            # fallback box — only reached when the layout has no title placeholder
+            (sc(Inches(0.3)), sc(Inches(0.1)), prs.slide_width - sc(Inches(0.6)), sc(Inches(0.7))),
         )
-        logo_right_edge = logo_pic.left + logo_pic.width
+        # Derive the safe content start from the title placeholder's bottom edge
+        # so stat cards never overlap the template's header band.
+        ph = _title_placeholder(slide)
+        content_top = (
+            ph.top + ph.height + sc(Inches(0.08))
+            if ph is not None
+            else sc(Inches(1.4))  # safe fallback for a typical district banner
+        )
+        # Safe bottom: stay above any footer/date metadata placeholder in the
+        # lower part of the slide (anything below 60 % of slide height).
+        content_bottom = prs.slide_height - sc(Inches(0.2))
+        for ph2 in slide.placeholders:
+            if ph2.placeholder_format.idx == 0:
+                continue
+            type_name = str(ph2.placeholder_format.type).split(" ")[0]
+            if (
+                type_name in _LAYOUT_METADATA_PLACEHOLDER_TYPES
+                and ph2.top > prs.slide_height * 0.6
+            ):
+                content_bottom = min(content_bottom, ph2.top - sc(Inches(0.08)))
+    else:
+        # Default (app-generated) deck: add the Rotary logo + freehand heading.
+        logo_right_edge = sc(Inches(0.3))
+        if LOGO_PATH.exists():
+            logo_pic = slide.shapes.add_picture(
+                str(LOGO_PATH), sc(Inches(0.3)), sc(Inches(0.2)), height=sc(Inches(0.6))
+            )
+            logo_right_edge = logo_pic.left + logo_pic.width
+        heading_left = logo_right_edge + sc(Inches(0.2))
+        add_heading(
+            slide,
+            False,
+            f"{CLUB_NAME} — Members Statistics",
+            f"Generated {date.today().isoformat()}",
+            (
+                heading_left,
+                sc(Inches(0.18)),
+                prs.slide_width - heading_left - sc(Inches(0.3)),
+                sc(Inches(0.65)),
+            ),
+        )
+        content_top = sc(Inches(0.95))
+        content_bottom = prs.slide_height - sc(Inches(0.12))
 
-    heading_left = logo_right_edge + sc(Inches(0.2))
-    add_heading(
-        slide,
-        using_template,
-        f"{CLUB_NAME} — Members Statistics Report",
-        f"Generated {date.today().isoformat()}",
-        (heading_left, sc(Inches(0.18)), prs.slide_width - heading_left - sc(Inches(0.3)), sc(Inches(0.65))),
-    )
+    # ── Shared geometry ───────────────────────────────────────────────────────
+    content_height = content_bottom - content_top
+    margin_x = sc(Inches(0.25))
+    content_w = prs.slide_width - 2 * margin_x
+    gap_x = sc(Inches(0.10))
+    gap_y = sc(Inches(0.07))
+    chart_gap_x = sc(Inches(0.12))
+    chart_gap_y = sc(Inches(0.10))
 
-    # Stat cards: 4 columns x 2 rows, compact
-    card_rows = _stat_cards()
-    columns = 4
-    card_width, card_height = sc(Inches(2.95)), sc(Inches(0.75))
-    gap_x, gap_y = sc(Inches(0.12)), sc(Inches(0.08))
-    start_x, start_y = sc(Inches(0.3)), sc(Inches(0.95))
-    for index, (label, attr) in enumerate(card_rows):
-        col = index % columns
-        row = index // columns
-        left = start_x + col * (card_width + gap_x)
-        top = start_y + row * (card_height + gap_y)
-        box = slide.shapes.add_textbox(left, top, card_width, card_height)
-        style_card_fill(box, CARD_TONES[index], using_template)
+    # Allocate 40 % of the content height to the 3 card rows, 60 % to charts.
+    card_cols = 4
+    card_w = (content_w - (card_cols - 1) * gap_x) // card_cols
+    card_h = max(sc(Inches(0.55)), (int(content_height * 0.40) - 2 * gap_y) // 3)
+
+    # ── 12 stat cards (4 columns × 3 rows) ───────────────────────────────────
+    for idx, (label, attr, tone) in enumerate(_PPTX_STAT_CARDS):
+        col = idx % card_cols
+        row = idx // card_cols
+        left = margin_x + col * (card_w + gap_x)
+        top = content_top + row * (card_h + gap_y)
+
+        if attr is None:
+            value_str = stats.charter_president_name or "—"
+        elif attr in ("women_count", "men_count") and stats.total_members:
+            v = getattr(stats, attr)
+            pct = round(v / stats.total_members * 100)
+            value_str = f"{v}  ·  {pct}%"
+        else:
+            v = getattr(stats, attr)
+            value_str = str(v if v is not None else "–")
+
+        box = slide.shapes.add_textbox(left, top, card_w, card_h)
+        style_card_fill(box, tone, using_template)
         tf = box.text_frame
-        tf.margin_left = Pt(6)
-        tf.margin_top = Pt(4)
-        value = getattr(stats, attr)
-        tf.text = str(value if value is not None else "–")
-        tf.paragraphs[0].font.size = Pt(20)
+        tf.margin_left = Pt(5)
+        tf.margin_top = Pt(3)
+        tf.text = value_str
+        tf.paragraphs[0].font.size = Pt(16)
         tf.paragraphs[0].font.bold = True
         style_card_text_color(tf.paragraphs[0], using_template)
         label_p = tf.add_paragraph()
         label_p.text = label
-        label_p.font.size = Pt(9)
+        label_p.font.size = Pt(7)
 
-    # Charts: 3 columns x 2 rows
-    chart_columns = 3
-    chart_width = sc(Inches(4.15))
-    chart_gap_x, chart_gap_y = sc(Inches(0.08)), sc(Inches(0.15))
-    chart_start_x, chart_start_y = sc(Inches(0.25)), sc(Inches(2.75))
-    chart_row_height = sc(Inches(2.2))
-    for index, (title, png_bytes) in enumerate(render_charts(stats).items()):
-        col = index % chart_columns
-        row = index // chart_columns
-        left = chart_start_x + col * (chart_width + chart_gap_x)
-        top = chart_start_y + row * (chart_row_height + chart_gap_y)
-        slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_width)
+    # ── 4 charts (2 columns × 2 rows): gender, age, nationality, tenure ───────
+    cards_bottom = content_top + 3 * (card_h + gap_y) - gap_y
+    chart_start_y = cards_bottom + sc(Inches(0.15))
+    chart_area_h = content_bottom - chart_start_y
+
+    chart_w = (content_w - chart_gap_x) // 2
+    chart_h = max(sc(Inches(0.8)), (chart_area_h - chart_gap_y) // 2)
+
+    all_charts = render_charts(stats)
+    for idx, title in enumerate(_PPTX_CHART_TITLES):
+        png_bytes = all_charts[title]
+        col = idx % 2
+        row = idx // 2
+        left = margin_x + col * (chart_w + chart_gap_x)
+        top = chart_start_y + row * (chart_h + chart_gap_y)
+        # Specify both width and height so charts fill the cell regardless of
+        # their natural aspect ratio; bar-chart distortion is imperceptible at
+        # presentation scale.
+        slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_w, height=chart_h)
 
     if report_type == "integral":
         _add_pptx_detail_slides(prs, blank_layout, stats, sc, using_template)
