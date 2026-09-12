@@ -229,10 +229,10 @@ def render_charts(stats: MembersStatistics) -> dict[str, bytes]:
     return charts
 
 
-# Compact figsize for the PPTX 2-column chart grid.
-# At ~6.35 in display width each chart auto-heights to ~1.59 in, so
-# two rows + gap fit comfortably in the space below the 12 stat cards.
-_PPTX_CHART_FIGSIZE = (6.0, 1.5)  # aspect 4:1, no distortion when placed width-only
+# Figsize for the PPTX 4-column single-row chart grid.
+# At ~3.13 in display width each chart auto-heights to ~2.93 in, giving a
+# nearly square cell that reads well for both bar charts and pie charts.
+_PPTX_CHART_FIGSIZE = (3.0, 2.8)  # aspect ~1:0.93, no distortion when placed width-only
 
 
 def render_pptx_4charts(stats: MembersStatistics) -> dict[str, bytes]:
@@ -513,22 +513,15 @@ def add_heading(slide, using_template: bool, title_text: str, subtitle_text: str
 
 
 def style_card_fill(box, tone_hex: str, using_template: bool) -> None:
-    """Story 8.33: the app's own pastel tone colours were being painted over
-    every stat card regardless of the template, hiding its background/colour
-    bands underneath. When a template is active, leave the card transparent
-    (outline only) so the template's branding shows through; keep the solid
-    tone fill for the app's own default deck, unchanged."""
-    if using_template:
-        box.fill.background()
-    else:
-        box.fill.solid()
-        box.fill.fore_color.rgb = RGBColor.from_string(tone_hex.lstrip("#").upper())
+    """Always paint the card with its pastel tone so the report matches the
+    live statistics page regardless of whether a district template is active."""
+    box.fill.solid()
+    box.fill.fore_color.rgb = RGBColor.from_string(tone_hex.lstrip("#").upper())
     box.line.fill.background()
 
 
 def style_card_text_color(paragraph, using_template: bool) -> None:
-    if not using_template:
-        paragraph.font.color.rgb = RGBColor.from_string("17458F")
+    paragraph.font.color.rgb = RGBColor.from_string("17458F")
 
 
 def build_pptx_report(
@@ -649,23 +642,18 @@ def build_pptx_report(
         label_p.text      = label
         label_p.font.size = Pt(7)
 
-    # ── 4 charts in 2 × 2 grid ────────────────────────────────────────────────
+    # ── 4 charts in a single row (4 columns × 1 row) ─────────────────────────
     # Charts are generated at _PPTX_CHART_FIGSIZE so their natural aspect ratio
     # matches the intended cell shape; width-only placement preserves it exactly.
     cards_bottom  = content_top + 3 * (card_h + gap_y) - gap_y
     chart_start_y = cards_bottom + sc(Inches(0.15))
-    chart_w       = (content_w - chart_gap_x) // 2
-    _fw, _fh      = _PPTX_CHART_FIGSIZE
-    chart_h_est   = int(chart_w * _fh / _fw)  # used only for row-2 offset
+    chart_w       = (content_w - 3 * chart_gap_x) // 4
 
     pptx_charts = render_pptx_4charts(stats)
     for idx, title in enumerate(_PPTX_CHART_TITLES):
         png_bytes = pptx_charts[title]
-        col  = idx % 2
-        row  = idx // 2
-        left = margin_x + col * (chart_w + chart_gap_x)
-        top  = chart_start_y + row * (chart_h_est + chart_gap_y)
-        slide.shapes.add_picture(BytesIO(png_bytes), left, top, width=chart_w)
+        left = margin_x + idx * (chart_w + chart_gap_x)
+        slide.shapes.add_picture(BytesIO(png_bytes), left, chart_start_y, width=chart_w)
 
     if report_type == "integral":
         _add_pptx_detail_slides(prs, blank_layout, stats, sc, using_template)
