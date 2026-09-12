@@ -263,10 +263,12 @@ export default function MembersStatistics() {
       <div className="stat-duo-grid mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
         {STAT_ROW_3.map((card) => (
           <Card key={card.key} variant={card.tone} className="flex flex-col">
-            <span className="text-3xl font-bold">{card.value}</span>
-            {card.subtitle && (
-              <span className="text-base font-semibold text-[var(--faint)]">{card.subtitle}</span>
-            )}
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-3xl font-bold">{card.value}</span>
+              {card.subtitle && (
+                <span className="text-base font-semibold text-[var(--faint)]">{card.subtitle}</span>
+              )}
+            </div>
             <span className="mt-2 text-sm">{card.label}</span>
           </Card>
         ))}
