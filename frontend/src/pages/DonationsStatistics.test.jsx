@@ -194,9 +194,9 @@ describe("DonationsStatistics", () => {
     expect(screen.getByText("900 HKD")).toBeInTheDocument();
     expect(screen.getByText("250 HKD")).toBeInTheDocument();   // planned donations
     expect(screen.getByText("1,150 HKD")).toBeInTheDocument(); // donated + planned
-    expect(
-      screen.getAllByText(new RegExp(`Total donated.*${THIS_YEAR}`, "i")).length,
-    ).toBeGreaterThan(0);
+    // The section heading carries the year; card labels do not — check both separately.
+    expect(screen.getByText(`Selected Year — ${THIS_YEAR}–${THIS_YEAR + 1}`)).toBeInTheDocument();
+    expect(screen.getAllByText(/Total donated/i).length).toBeGreaterThan(0);
   });
 
   // Story 16.35 — planned (not-yet-made) donation total shown as an
