@@ -1016,6 +1016,19 @@ select:focus {
   background: var(--tone-teal-bg);
 }
 
+/* Service hours badges in the NGO Directory card (year-filtered view).
+   Teal = actual hours delivered; purple-teal = planned/forecast. */
+.service-hours-badge {
+  background: var(--tone-teal-bg);
+  color: var(--color-stat-teal, #0f9d9f);
+}
+
+.service-hours-planned-badge {
+  background: var(--tone-teal-bg);
+  color: var(--color-donation-planned);
+  opacity: 0.85;
+}
+
 .org-detail-header {
   display: flex;
   align-items: center;

@@ -25,6 +25,13 @@ function formatHkd(value) {
   })} HKD`;
 }
 
+function formatHours(hours) {
+  return `${Number(hours).toLocaleString(undefined, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} h`;
+}
+
 const EMPTY_FORM = {
   name: "",
   description: "",
@@ -482,7 +489,7 @@ export default function OrganisationsList() {
           {classificationFilter
             ? "No organisations match the selected classification."
             : yearFilter !== null
-              ? `No organisations had donations in ${rotaryYearLabel(yearFilter)}.`
+              ? `No organisations had donations or services in ${rotaryYearLabel(yearFilter)}.`
               : "No organisations match your search or filters."}
         </p>
       )}
@@ -523,19 +530,26 @@ export default function OrganisationsList() {
                   {classificationsById.get(org.classification_id).name}
                 </span>
               )}
-              {/* Story 16.35 follow-up: an org can show up here for a
-                  planned donation with no actual one yet (year_total 0) —
-                  only render each badge when that figure is actually > 0,
-                  and never merge planned into the actual total. Neither the
-                  year (already implied by the active filter) nor the word
-                  "planned" appears in the text — the purple vs. default
-                  badge color alone is enough to tell them apart. */}
+              {/* Year-filtered badges: show each figure only when > 0.
+                  Donation badges: blue (actual) / purple (planned).
+                  Service hours badges: teal (actual) / purple-teal (planned).
+                  The year is implied by the active filter, so no year text. */}
               {yearFilter !== null && org.year_total > 0 && (
                 <span className="inline-badge">{formatHkd(org.year_total)}</span>
               )}
               {yearFilter !== null && org.year_total_planned > 0 && (
                 <span className="inline-badge donation-planned-badge-lg">
                   {formatHkd(org.year_total_planned)}
+                </span>
+              )}
+              {yearFilter !== null && org.year_service_hours > 0 && (
+                <span className="inline-badge service-hours-badge">
+                  {formatHours(org.year_service_hours)}
+                </span>
+              )}
+              {yearFilter !== null && org.year_service_hours_planned > 0 && (
+                <span className="inline-badge service-hours-planned-badge">
+                  {formatHours(org.year_service_hours_planned)}
                 </span>
               )}
               {canWrite && (

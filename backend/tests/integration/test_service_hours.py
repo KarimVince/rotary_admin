@@ -218,3 +218,92 @@ def test_deleting_organisation_cascades_to_service_hours(admin_client, make_orga
     response = admin_client.get("/api/v1/service-hours")
     assert response.status_code == 200
     assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Planned service hours (parallel to Donation.planned)
+# ---------------------------------------------------------------------------
+
+def test_create_planned_service_hour_requires_rotary_year(admin_client, make_organisation):
+    """A planned entry has no date — the caller must supply rotary_year directly."""
+    org = make_organisation()
+    response = admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 5.0, "planned": True},  # missing rotary_year
+    )
+    assert response.status_code == 422
+
+
+def test_create_planned_service_hour_no_member_no_date(admin_client, make_organisation):
+    """A planned entry can omit member and date — they are filled in on delivery."""
+    org = make_organisation()
+    response = admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 8.0, "planned": True, "rotary_year": 2025},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["planned"] is True
+    assert body["rotary_year"] == 2025
+    assert body["member_id"] is None
+    assert body["member_name"] is None
+    assert body["service_date"] is None
+
+
+def test_create_planned_service_hour_with_optional_member(admin_client, make_organisation, make_member):
+    """A planned entry may include a member even though the date is not yet known."""
+    org = make_organisation()
+    member = make_member()
+    response = admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 4.0, "planned": True, "rotary_year": 2025, "member_id": str(member.id)},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["planned"] is True
+    assert body["member_id"] == str(member.id)
+    assert body["member_name"] == "Jane Doe"
+    assert body["service_date"] is None
+
+
+def test_create_actual_service_hour_requires_member(admin_client, make_organisation):
+    """An actual (non-planned) entry must include member_id."""
+    org = make_organisation()
+    response = admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 3.0, "service_date": "2025-03-01"},  # missing member_id
+    )
+    assert response.status_code == 422
+
+
+def test_create_actual_service_hour_requires_service_date(admin_client, make_organisation, make_member):
+    """An actual (non-planned) entry must include service_date."""
+    org = make_organisation()
+    member = make_member()
+    response = admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 3.0, "member_id": str(member.id)},  # missing service_date
+    )
+    assert response.status_code == 422
+
+
+def test_convert_planned_to_actual_via_patch(admin_client, make_organisation, make_member):
+    """Marking a planned entry as delivered sets planned=False and records date + member."""
+    org = make_organisation()
+    member = make_member()
+    created = admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 6.0, "planned": True, "rotary_year": 2025},
+    ).json()
+    assert created["planned"] is True
+
+    response = admin_client.patch(
+        f"/api/v1/service-hours/{created['id']}",
+        json={"planned": False, "service_date": "2025-10-01", "member_id": str(member.id)},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["planned"] is False
+    assert body["service_date"] == "2025-10-01"
+    assert body["member_id"] == str(member.id)
+    assert body["rotary_year"] == 2025  # auto-recomputed from new service_date

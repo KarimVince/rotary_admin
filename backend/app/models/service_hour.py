@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -19,7 +20,12 @@ from app.db.session import Base
 
 class ServiceHour(Base):
     """Story 16.14 — volunteer service hours contributed by a member to an
-    NGO/Organisation, tracked alongside (but separate from) cash donations."""
+    NGO/Organisation, tracked alongside (but separate from) cash donations.
+
+    planned=True marks a forecast (no member or date yet) for a rotary year,
+    parallel to Donation.planned — it is converted to an actual entry by
+    setting planned=False, service_date and member_id when the service happens.
+    """
 
     __tablename__ = "service_hours"
     __table_args__ = (Index("idx_service_hours_org_year", "organisation_id", "rotary_year"),)
@@ -30,12 +36,15 @@ class ServiceHour(Base):
     organisation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False
     )
-    member_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("members.id", ondelete="CASCADE"), nullable=False
+    # Nullable for planned entries (member not yet assigned).
+    member_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("members.id", ondelete="CASCADE"), nullable=True
     )
     rotary_year: Mapped[int] = mapped_column(Integer, nullable=False)
     hours: Mapped["Numeric"] = mapped_column(Numeric(6, 2), nullable=False)
-    service_date: Mapped["Date"] = mapped_column(Date, nullable=False)
+    # Nullable for planned entries (date not yet known).
+    service_date: Mapped["Date | None"] = mapped_column(Date, nullable=True)
+    planned: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     notes: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")

@@ -66,8 +66,17 @@ const EMPTY_FORM = {
   planned: false,
   rotary_year: "",
 };
-// Story 16.14: same shape as EMPTY_FORM, hours instead of amount/currency.
-const EMPTY_SERVICE_HOUR_FORM = { member_id: "", hours: "", service_date: "", notes: "" };
+// Story 16.14 / planned services: parallel to EMPTY_FORM for donations.
+// `planned` + `rotary_year` work the same way — a planned service has no
+// date or member yet; the rotary year is picked directly from a select.
+const EMPTY_SERVICE_HOUR_FORM = {
+  member_id: "",
+  hours: "",
+  service_date: "",
+  notes: "",
+  planned: false,
+  rotary_year: "",
+};
 
 function formatHours(hours) {
   return `${Number(hours).toLocaleString(undefined, {
@@ -187,9 +196,14 @@ export default function OrganisationDetail() {
     () => (form.planned ? (form.rotary_year === "" ? null : Number(form.rotary_year)) : rotaryYear(form.donation_date)),
     [form.planned, form.rotary_year, form.donation_date],
   );
+  // For planned service entries the year comes from the form's own select;
+  // for actual entries it is derived from service_date (same as donations).
   const hoursFormRotaryYear = useMemo(
-    () => rotaryYear(hoursForm.service_date),
-    [hoursForm.service_date],
+    () =>
+      hoursForm.planned
+        ? hoursForm.rotary_year === "" ? null : Number(hoursForm.rotary_year)
+        : rotaryYear(hoursForm.service_date),
+    [hoursForm.planned, hoursForm.rotary_year, hoursForm.service_date],
   );
 
   // Story 16.35: totals only ever count actual (non-planned) donations —
@@ -229,27 +243,44 @@ export default function OrganisationDetail() {
     });
   }, [donations, donationYearFilter]);
 
-  const { currentYearServiceHours, pastServiceHours, totalHours, totalHoursCurrentYear } =
+  // Service hours year filter — mirrors the donation year filter so the user
+  // can browse a specific year's planned + actual service hours at a glance.
+  const [serviceYearFilter, setServiceYearFilter] = useState("all");
+
+  const serviceYearOptions = useMemo(() => {
+    const years = new Set(serviceHours.map((entry) => entry.rotary_year));
+    years.add(thisRotaryYear);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [serviceHours, thisRotaryYear]);
+
+  const filteredServiceHours = useMemo(() => {
+    const rows =
+      serviceYearFilter === "all"
+        ? serviceHours
+        : serviceHours.filter((entry) => entry.rotary_year === Number(serviceYearFilter));
+    // Newest first; planned entries (no date) sort after actual ones in the
+    // same year, mirroring the donation sort order.
+    return [...rows].sort((a, b) => {
+      if (a.rotary_year !== b.rotary_year) return b.rotary_year - a.rotary_year;
+      if (!a.service_date && !b.service_date) return 0;
+      if (!a.service_date) return 1;
+      if (!b.service_date) return -1;
+      return a.service_date < b.service_date ? 1 : -1;
+    });
+  }, [serviceHours, serviceYearFilter]);
+
+  const { totalHours, totalHoursCurrentYear } =
     useMemo(() => {
-      const current = [];
-      const past = [];
       let allTimeTotal = 0;
       let currentYearTotal = 0;
       serviceHours.forEach((entry) => {
-        allTimeTotal += Number(entry.hours);
-        if (entry.rotary_year === thisRotaryYear) {
-          current.push(entry);
+        // All-time total counts only actual (delivered) hours.
+        if (!entry.planned) allTimeTotal += Number(entry.hours);
+        if (entry.rotary_year === thisRotaryYear && !entry.planned) {
           currentYearTotal += Number(entry.hours);
-        } else {
-          past.push(entry);
         }
       });
-      return {
-        currentYearServiceHours: current,
-        pastServiceHours: past,
-        totalHours: allTimeTotal,
-        totalHoursCurrentYear: currentYearTotal,
-      };
+      return { totalHours: allTimeTotal, totalHoursCurrentYear: currentYearTotal };
     }, [serviceHours, thisRotaryYear]);
 
   function resetForm() {
@@ -331,10 +362,27 @@ export default function OrganisationDetail() {
   function startEditHours(entry) {
     setEditingHoursId(entry.id);
     setHoursForm({
-      member_id: entry.member_id,
+      member_id: entry.member_id ?? "",
       hours: String(entry.hours),
-      service_date: entry.service_date,
+      service_date: entry.service_date ?? "",
       notes: entry.notes ?? "",
+      planned: entry.planned,
+      rotary_year: String(entry.rotary_year),
+    });
+    setHoursSaveError(null);
+  }
+
+  // Converting a planned service to actual: pre-fill today's date, clear the
+  // Planned flag, keep everything else — same pattern as donation conversion.
+  function startConvertHours(entry) {
+    setEditingHoursId(entry.id);
+    setHoursForm({
+      member_id: entry.member_id ?? "",
+      hours: String(entry.hours),
+      service_date: new Date().toISOString().slice(0, 10),
+      notes: entry.notes ?? "",
+      planned: false,
+      rotary_year: String(entry.rotary_year),
     });
     setHoursSaveError(null);
   }
@@ -345,10 +393,19 @@ export default function OrganisationDetail() {
     setIsSavingHours(true);
     try {
       const payload = {
-        member_id: hoursForm.member_id,
         hours: Number(hoursForm.hours),
-        service_date: hoursForm.service_date,
         notes: hoursForm.notes === "" ? null : hoursForm.notes,
+        planned: hoursForm.planned,
+        ...(hoursForm.planned
+          ? {
+              service_date: null,
+              rotary_year: Number(hoursForm.rotary_year),
+              member_id: hoursForm.member_id || null,
+            }
+          : {
+              service_date: hoursForm.service_date,
+              member_id: hoursForm.member_id || null,
+            }),
       };
       if (editingHoursId) {
         await updateServiceHour(editingHoursId, payload);
@@ -374,19 +431,37 @@ export default function OrganisationDetail() {
   const CELL_CLASS = "px-5 py-[14px] text-[14px] text-[var(--color-muted-text)]";
   const CELL_STRONG_CLASS = "px-5 py-[14px] text-[14px] font-semibold text-[var(--text-h)]";
 
-  function renderHoursRow(entry, highlight) {
+  function renderHoursRow(entry, highlight, showYearColumn) {
     return (
       <tr
         key={entry.id}
         className={`border-b border-[var(--color-border-light)] last:border-b-0 ${highlight ? "service-hour-row-current" : ""}`}
       >
-        <td className={CELL_CLASS}>{rotaryYearLabel(entry.rotary_year)}</td>
-        <td className={CELL_STRONG_CLASS}>{entry.member_name}</td>
-        <td className={CELL_CLASS}>{formatHours(entry.hours)}</td>
-        <td className={CELL_CLASS}>{entry.service_date}</td>
+        {showYearColumn && (
+          <td className={CELL_CLASS}>{rotaryYearLabel(entry.rotary_year)}</td>
+        )}
+        <td
+          className={`px-5 py-[14px] text-[14px] font-semibold ${
+            entry.planned ? "donation-amount-planned" : "donation-amount-actual"
+          }`}
+        >
+          {formatHours(entry.hours)}
+          {entry.planned && <span className="donation-planned-badge">Planned</span>}
+        </td>
+        <td className={CELL_CLASS}>{entry.member_name ?? "—"}</td>
+        <td className={CELL_CLASS}>{entry.service_date ?? "—"}</td>
         <td className={CELL_CLASS}>{entry.notes ?? "—"}</td>
         {isAdmin && (
           <td className="px-5 py-[14px] text-right whitespace-nowrap">
+            {entry.planned && (
+              <button
+                type="button"
+                onClick={() => startConvertHours(entry)}
+                className={ACTION_BUTTON_CLASS}
+              >
+                Mark as delivered
+              </button>
+            )}
             <button type="button" onClick={() => startEditHours(entry)} className={ACTION_BUTTON_CLASS}>
               Edit
             </button>
@@ -703,51 +778,74 @@ export default function OrganisationDetail() {
       )}
 
 
-      <h2 className="service-hours-heading text-[19px] font-bold text-[var(--ink)] mt-8">
-        Services
-      </h2>
-
       <section className="service-hours-current-section">
-        <h3 className="seclabel">
-          Current rotary year ({rotaryYearLabel(thisRotaryYear)})
-        </h3>
-        {currentYearServiceHours.length === 0 ? (
-          <p className="member-empty-state">No service hours recorded this rotary year yet.</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="seclabel !mt-0">Services</h2>
+          <div className="flex flex-col gap-1.5 mb-2">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Rotary year
+            </span>
+            <SingleSelectDropdown
+              icon={Calendar}
+              ariaLabel="Filter service hours by rotary year"
+              minWidthClass="min-w-[170px]"
+              value={String(serviceYearFilter)}
+              options={[
+                { value: "all", label: "All years" },
+                ...serviceYearOptions.map((year) => ({
+                  value: String(year),
+                  label: `${rotaryYearLabel(year)}${year === thisRotaryYear ? " (current)" : ""}`,
+                })),
+              ]}
+              onSelect={setServiceYearFilter}
+            />
+          </div>
+        </div>
+        {filteredServiceHours.length === 0 ? (
+          <p className="member-empty-state">No service hours recorded for this selection yet.</p>
         ) : (
           <EntryTable
-            columns={["Rotary year", "Member", "Hours", "Date", "Notes"]}
+            columns={
+              serviceYearFilter === "all"
+                ? ["Rotary year", "Hours", "Member", "Date", "Notes"]
+                : ["Hours", "Member", "Date", "Notes"]
+            }
             isAdmin={isAdmin}
-            rows={currentYearServiceHours.map((entry) => renderHoursRow(entry, true))}
+            rows={filteredServiceHours.map((entry) =>
+              renderHoursRow(entry, entry.rotary_year === thisRotaryYear, serviceYearFilter === "all"),
+            )}
           />
         )}
       </section>
 
       {isAdmin && (
         <section className="service-hours-form-section mt-6">
-          <h3 className="seclabel !mt-0">
+          <h2 className="seclabel !mt-0">
             {editingHoursId ? "Edit service hours" : "Add services"}
-          </h3>
+          </h2>
           <Card variant="default" className="!p-5 !rounded-2xl max-w-[700px]">
             <form onSubmit={handleHoursSubmit} className="donation-form">
-              <div>
-                <label htmlFor="service-hour-member">Member name</label>
-                <select
-                  id="service-hour-member"
-                  value={hoursForm.member_id}
-                  onChange={(event) => setHoursForm({ ...hoursForm, member_id: event.target.value })}
-                  className={SELECT_CLASS}
-                  required
-                >
-                  <option value="" disabled>
-                    Select a member
-                  </option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.first_name} {member.last_name}
-                    </option>
-                  ))}
-                </select>
+              {/* Planned toggle — same pattern as donation Planned checkbox */}
+              <div className="field-full flex items-center gap-2">
+                <input
+                  id="service-hour-planned"
+                  type="checkbox"
+                  checked={hoursForm.planned}
+                  onChange={(event) =>
+                    setHoursForm({
+                      ...hoursForm,
+                      planned: event.target.checked,
+                      rotary_year: event.target.checked
+                        ? hoursForm.rotary_year || String(centralCurrentYear ?? thisRotaryYear)
+                        : hoursForm.rotary_year,
+                    })
+                  }
+                />
+                <label htmlFor="service-hour-planned" className="!mb-0">
+                  Planned service (not yet delivered — forecast for a rotary year)
+                </label>
               </div>
+
               <div>
                 <label htmlFor="service-hour-hours">Time (hours)</label>
                 <input
@@ -761,30 +859,77 @@ export default function OrganisationDetail() {
                   required
                 />
               </div>
+
+              {/* Member: optional for planned, required for actual */}
               <div>
-                <label htmlFor="service-hour-date">Date</label>
-                <input
-                  id="service-hour-date"
-                  type="date"
-                  value={hoursForm.service_date}
-                  onChange={(event) =>
-                    setHoursForm({ ...hoursForm, service_date: event.target.value })
-                  }
-                  className={INPUT_CLASS}
-                  required
-                />
+                <label htmlFor="service-hour-member">
+                  Member name{hoursForm.planned ? " (optional)" : ""}
+                </label>
+                <select
+                  id="service-hour-member"
+                  value={hoursForm.member_id}
+                  onChange={(event) => setHoursForm({ ...hoursForm, member_id: event.target.value })}
+                  className={SELECT_CLASS}
+                  required={!hoursForm.planned}
+                >
+                  <option value="">
+                    {hoursForm.planned ? "— Not yet assigned —" : "Select a member"}
+                  </option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.first_name} {member.last_name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label htmlFor="service-hour-rotary-year">Rotary year</label>
-                <input
-                  id="service-hour-rotary-year"
-                  type="text"
-                  readOnly
-                  value={hoursFormRotaryYear === null ? "" : rotaryYearLabel(hoursFormRotaryYear)}
-                  placeholder="Auto from date"
-                  className={INPUT_CLASS}
-                />
-              </div>
+
+              {/* Date / Rotary year — mirrors the donation form's planned toggle */}
+              {hoursForm.planned ? (
+                <div>
+                  <label htmlFor="service-hour-rotary-year-select">Rotary year</label>
+                  <select
+                    id="service-hour-rotary-year-select"
+                    value={hoursForm.rotary_year}
+                    onChange={(event) => setHoursForm({ ...hoursForm, rotary_year: event.target.value })}
+                    className={SELECT_CLASS}
+                    required
+                  >
+                    {allRotaryYearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {rotaryYearLabel(year)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="service-hour-date">Date</label>
+                    <input
+                      id="service-hour-date"
+                      type="date"
+                      value={hoursForm.service_date}
+                      onChange={(event) =>
+                        setHoursForm({ ...hoursForm, service_date: event.target.value })
+                      }
+                      className={INPUT_CLASS}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="service-hour-rotary-year">Rotary year</label>
+                    <input
+                      id="service-hour-rotary-year"
+                      type="text"
+                      readOnly
+                      value={hoursFormRotaryYear === null ? "" : rotaryYearLabel(hoursFormRotaryYear)}
+                      placeholder="Auto from date"
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="field-full">
                 <label htmlFor="service-hour-notes">Notes</label>
                 <input
@@ -810,21 +955,6 @@ export default function OrganisationDetail() {
           </Card>
         </section>
       )}
-
-      <section className="service-hours-history-section mt-6">
-        <h3 className="seclabel">
-          Service hours history (past years)
-        </h3>
-        {pastServiceHours.length === 0 ? (
-          <p className="member-empty-state">No historical service hours.</p>
-        ) : (
-          <EntryTable
-            columns={["Rotary year", "Member", "Hours", "Date", "Notes"]}
-            isAdmin={isAdmin}
-            rows={pastServiceHours.map((entry) => renderHoursRow(entry, false))}
-          />
-        )}
-      </section>
     </div>
   );
 }

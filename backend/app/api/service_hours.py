@@ -38,14 +38,20 @@ def _member_name(member: Member | None) -> str:
 
 
 def _to_read(service_hour: ServiceHour, member: Member | None) -> ServiceHourRead:
+    # Planned entries with no member yet show "—" rather than "Unknown member".
+    if service_hour.planned and service_hour.member_id is None:
+        name: str | None = None
+    else:
+        name = _member_name(member)
     return ServiceHourRead(
         id=service_hour.id,
         organisation_id=service_hour.organisation_id,
         member_id=service_hour.member_id,
-        member_name=_member_name(member),
+        member_name=name,
         rotary_year=service_hour.rotary_year,
         hours=float(service_hour.hours),
         service_date=service_hour.service_date,
+        planned=service_hour.planned,
         notes=service_hour.notes,
         created_by=service_hour.created_by,
         created_at=service_hour.created_at,
@@ -84,13 +90,39 @@ def create_service_hour(
     current_user: User = Depends(require_access(NGOS_ORGANISATIONS, "write")),
 ):
     _get_organisation_or_404(db, organisation_id)
-    member = db.get(Member, payload.member_id)
-    if member is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    # Actual entries require a member and a date.
+    if not payload.planned:
+        if payload.member_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="member_id is required for actual (non-planned) service hours",
+            )
+        if payload.service_date is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="service_date is required for actual (non-planned) service hours",
+            )
+
+    if payload.member_id is not None:
+        member = db.get(Member, payload.member_id)
+        if member is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    else:
+        member = None
 
     data = payload.model_dump()
+    # Rotary year: use the explicit value if provided; for actual entries,
+    # derive it from service_date; for planned entries without an explicit
+    # year, the caller must supply rotary_year.
     if data.get("rotary_year") is None:
-        data["rotary_year"] = rotary_year(data["service_date"])
+        if data.get("service_date") is not None:
+            data["rotary_year"] = rotary_year(data["service_date"])
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="rotary_year is required when service_date is not provided",
+            )
 
     service_hour = ServiceHour(
         organisation_id=organisation_id, created_by=current_user.id, **data
@@ -126,11 +158,11 @@ def update_service_hour(
     service_hour = _get_service_hour_or_404(db, service_hour_id)
 
     data = payload.model_dump(exclude_unset=True)
-    if "member_id" in data:
+    if "member_id" in data and data["member_id"] is not None:
         member = db.get(Member, data["member_id"])
         if member is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
-    if "service_date" in data and "rotary_year" not in data:
+    if "service_date" in data and data["service_date"] is not None and "rotary_year" not in data:
         data["rotary_year"] = rotary_year(data["service_date"])
 
     for field, value in data.items():
@@ -138,7 +170,7 @@ def update_service_hour(
 
     db.commit()
     db.refresh(service_hour)
-    member = db.get(Member, service_hour.member_id)
+    member = db.get(Member, service_hour.member_id) if service_hour.member_id else None
     return _to_read(service_hour, member)
 
 

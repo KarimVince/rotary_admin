@@ -8,7 +8,7 @@ from app.api.deps import require_access
 from app.core import storage
 from app.core.currency_conversion import convert_totals
 from app.db.session import get_db
-from app.models import Donation, ExchangeRate, NgoClassification, Organisation
+from app.models import Donation, ExchangeRate, NgoClassification, Organisation, ServiceHour
 from app.schemas.organisation import OrganisationCreate, OrganisationRead, OrganisationUpdate
 
 router = APIRouter()
@@ -47,16 +47,22 @@ def list_organisations(
     _current_user=Depends(require_access(NGOS_ORGANISATIONS, "read")),
 ):
     if rotary_year is not None:
-        # Story 16.35 follow-up: membership is by EITHER an actual or a
-        # planned donation in this year — an org with only a planned
-        # donation must still show up in a year-filtered list (the NGO
-        # Directory needs this). `year_total` below stays actual-only and
-        # the new `year_total_planned` carries the planned figure
-        # separately, so the two are never conflated into one number.
+        # Include organisations that have EITHER a donation (actual or
+        # planned) OR service hours (actual or planned) in this year.
+        # Story 16.35 follow-up: planned-only donation orgs must appear.
+        # New: service-hours-only orgs must also appear.
         org_ids_with_donation = db.query(Donation.organisation_id).filter(
             Donation.rotary_year == rotary_year
         )
-        query = db.query(Organisation).filter(Organisation.id.in_(org_ids_with_donation))
+        org_ids_with_service = db.query(ServiceHour.organisation_id).filter(
+            ServiceHour.rotary_year == rotary_year
+        )
+        query = db.query(Organisation).filter(
+            or_(
+                Organisation.id.in_(org_ids_with_donation),
+                Organisation.id.in_(org_ids_with_service),
+            )
+        )
     else:
         query = db.query(Organisation)
 
@@ -85,6 +91,15 @@ def list_organisations(
         target = planned_rows_by_org if planned else rows_by_org
         target.setdefault(org_id, []).append((currency, float(amount)))
 
+    # Service hours totals (actual and planned) by org for this year.
+    hours_by_org: dict[uuid.UUID, float] = {}
+    hours_planned_by_org: dict[uuid.UUID, float] = {}
+    for org_id, hours, sh_planned in db.query(
+        ServiceHour.organisation_id, ServiceHour.hours, ServiceHour.planned
+    ).filter(ServiceHour.rotary_year == rotary_year):
+        target_hours = hours_planned_by_org if sh_planned else hours_by_org
+        target_hours[org_id] = target_hours.get(org_id, 0.0) + float(hours)
+
     results = []
     for organisation in organisations:
         item = OrganisationRead.model_validate(organisation)
@@ -94,6 +109,8 @@ def list_organisations(
         item.year_total_planned = convert_totals(
             planned_rows_by_org.get(organisation.id, []), rates
         )["total_hkd"]
+        item.year_service_hours = hours_by_org.get(organisation.id, 0.0) or None
+        item.year_service_hours_planned = hours_planned_by_org.get(organisation.id, 0.0) or None
         results.append(item)
     return results
 

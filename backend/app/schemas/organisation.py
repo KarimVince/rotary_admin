@@ -66,3 +66,9 @@ class OrganisationRead(OrganisationBase):
     # the year-filtered list (year_total alone would be 0/None for it) and
     # the two figures never get conflated into one number.
     year_total_planned: float | None = None
+    # Total service hours (actual + planned) logged for this org in the
+    # filtered rotary year — None when no year filter is active.
+    year_service_hours: float | None = None
+    # Planned service hours for this org in the filtered rotary year (forecast,
+    # not yet delivered). None when no year filter is active.
+    year_service_hours_planned: float | None = None

@@ -294,3 +294,70 @@ def test_rotary_year_filter_keeps_actual_and_planned_totals_separate(
     assert len(body) == 1
     assert body[0]["year_total"] == 100.0
     assert body[0]["year_total_planned"] == 500.0
+
+
+# ---------------------------------------------------------------------------
+# Year filter includes organisations with service hours (not just donations)
+# ---------------------------------------------------------------------------
+
+def test_rotary_year_filter_includes_service_hours_only_org(
+    admin_client, make_organisation, make_member
+):
+    """An org with only service hours (no donations) must appear when filtering by year."""
+    org = make_organisation(name="Services Only Org")
+    member = make_member()
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"member_id": str(member.id), "hours": 5.0, "service_date": "2025-03-01"},
+        # rotary_year 2024 derived from date
+    )
+
+    response = admin_client.get("/api/v1/organisations", params={"rotary_year": 2024})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["name"] == "Services Only Org"
+    assert body[0]["year_service_hours"] == 5.0
+    assert body[0]["year_total"] is None or body[0]["year_total"] == 0.0
+
+
+def test_rotary_year_filter_shows_service_hours_badge_alongside_donation(
+    admin_client, make_organisation, make_member
+):
+    """An org with both a donation and service hours in the same year shows both totals."""
+    org = make_organisation(name="Dual Org")
+    member = make_member()
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/donations",
+        json={"amount": 200.0, "donation_date": "2025-03-01"},  # rotary_year 2024
+    )
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"member_id": str(member.id), "hours": 3.5, "service_date": "2025-02-15"},
+    )
+
+    response = admin_client.get("/api/v1/organisations", params={"rotary_year": 2024})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["year_total"] == 200.0
+    assert body[0]["year_service_hours"] == 3.5
+
+
+def test_rotary_year_filter_separates_planned_and_actual_service_hours(
+    admin_client, make_organisation
+):
+    """Planned service hours appear in year_service_hours_planned, not year_service_hours."""
+    org = make_organisation(name="Planned Services Org")
+    admin_client.post(
+        f"/api/v1/organisations/{org.id}/service-hours",
+        json={"hours": 10.0, "planned": True, "rotary_year": 2025},
+    )
+
+    response = admin_client.get("/api/v1/organisations", params={"rotary_year": 2025})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["name"] == "Planned Services Org"
+    assert body[0]["year_service_hours"] is None or body[0]["year_service_hours"] == 0.0
+    assert body[0]["year_service_hours_planned"] == 10.0
