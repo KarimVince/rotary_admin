@@ -18,17 +18,15 @@ def _grant_default_statistics_read(make_app_function, make_permission_matrix_ent
 
 
 def _age_bucket(age: int) -> str:
-    if age < 30:
-        return "<30"
-    if age < 40:
-        return "30-39"
-    if age < 50:
-        return "40-49"
-    if age < 60:
-        return "50-59"
-    if age < 70:
-        return "60-69"
-    return "70+"
+    if age < 35:
+        return "<35"
+    if age < 45:
+        return "35-44"
+    if age < 55:
+        return "45-54"
+    if age < 65:
+        return "55-64"
+    return "65+"
 
 
 def _years_ago(years: int) -> str:
@@ -62,7 +60,7 @@ def test_statistics_empty_dataset(user_client):
     assert body["growth_by_rotary_year"] == []
     assert body["by_nationality"] == []
     assert body["by_gender"] == []
-    assert len(body["age_distribution"]) == 6
+    assert len(body["age_distribution"]) == 5
     assert all(bucket["value"] == 0 for bucket in body["age_distribution"])
     assert len(body["tenure_distribution"]) == 4
     assert all(bucket["value"] == 0 for bucket in body["tenure_distribution"])
@@ -186,12 +184,11 @@ def test_statistics_reflects_seeded_data(admin_client, user_client):
     # Story 8.15 — age/tenure graphs are scoped to Active members only, so
     # Bob (past, age_mid, joined 2021-08-15) is excluded from both.
     expected_buckets = {
-        "<30": 0,
-        "30-39": 0,
-        "40-49": 0,
-        "50-59": 0,
-        "60-69": 0,
-        "70+": 0,
+        "<35": 0,
+        "35-44": 0,
+        "45-54": 0,
+        "55-64": 0,
+        "65+": 0,
     }
     expected_buckets[_age_bucket(age_young)] += 1
     expected_buckets[_age_bucket(age_old)] += 1

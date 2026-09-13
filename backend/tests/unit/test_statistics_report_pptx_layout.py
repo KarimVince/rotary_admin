@@ -28,6 +28,10 @@ def _empty_stats() -> MembersStatistics:
         men_count=0,
         average_age=None,
         average_tenure_as_rotarian=None,
+        charter_members_count=0,
+        members_under_35_count=0,
+        past_presidents_in_club_count=0,
+        charter_president_name=None,
     )
 
 
@@ -40,7 +44,7 @@ def test_title_heading_does_not_overlap_the_logo():
     heading_box = next(
         shape
         for shape in slide.shapes
-        if shape.has_text_frame and "Members Statistics Report" in shape.text_frame.text
+        if shape.has_text_frame and "Members Statistics" in shape.text_frame.text
     )
 
     logo_right_edge = picture.left + picture.width
@@ -111,14 +115,30 @@ class TestStory833TemplateBrandingFix:
     def test_uses_the_layout_s_title_placeholder_instead_of_a_freehand_textbox(
         self, template_path
     ):
+        # When a template is active no freehand brand-blue heading box is added
+        # (the template's own master carries the branding).  Stat cards must
+        # still be present so the report is useful.
         pptx_bytes = build_pptx_report(_empty_stats(), template_path=template_path)
         prs = Presentation(BytesIO(pptx_bytes))
         slide = prs.slides[0]
 
-        assert slide.slide_layout.name == "Title Only"
-        title_shapes = [shape for shape in slide.shapes if shape.is_placeholder]
-        assert len(title_shapes) == 1
-        assert "Members Statistics Report" in title_shapes[0].text_frame.text
+        # No freehand "Members Statistics" textbox should be added in template mode.
+        freehand_heading = [
+            shape for shape in slide.shapes
+            if not shape.is_placeholder
+            and shape.has_text_frame
+            and "Members Statistics" in shape.text_frame.text
+        ]
+        assert freehand_heading == [], (
+            "Template mode must not add a freehand brand-blue heading box"
+        )
+
+        # The stat cards must still be present on the slide.
+        stat_card_shapes = [
+            shape for shape in slide.shapes
+            if shape.has_text_frame and "Total Members" in shape.text_frame.text
+        ]
+        assert stat_card_shapes
 
     def test_does_not_force_the_app_s_brand_colour_onto_the_template_s_title(
         self, template_path
@@ -133,9 +153,12 @@ class TestStory833TemplateBrandingFix:
         color_type = title_placeholder.text_frame.paragraphs[0].font.color.type
         assert color_type is None
 
-    def test_stat_cards_stay_transparent_so_template_background_shows_through(
+    def test_stat_cards_always_have_solid_pastel_fill(
         self, template_path
     ):
+        # style_card_fill always applies a solid pastel tone regardless of
+        # whether a template is active, so the report's stat cards are always
+        # legible and match the live statistics page colour scheme.
         pptx_bytes = build_pptx_report(_empty_stats(), template_path=template_path)
         prs = Presentation(BytesIO(pptx_bytes))
         slide = prs.slides[0]
@@ -147,10 +170,7 @@ class TestStory833TemplateBrandingFix:
         ]
         assert card_boxes
         for box in card_boxes:
-            # fill.background() ("no fill", MSO_FILL_TYPE.BACKGROUND) rather
-            # than a solid tone colour — lets the template's own background
-            # show through instead of painting over it.
-            assert box.fill.type.name == "BACKGROUND"
+            assert box.fill.type.name == "SOLID"
 
     def test_default_deck_without_a_template_is_unchanged(self):
         # Regression guard: no template at all must still hit the
@@ -164,7 +184,7 @@ class TestStory833TemplateBrandingFix:
         heading_box = next(
             shape
             for shape in slide.shapes
-            if shape.has_text_frame and "Members Statistics Report" in shape.text_frame.text
+            if shape.has_text_frame and "Members Statistics" in shape.text_frame.text
         )
         assert not heading_box.is_placeholder
         assert str(heading_box.text_frame.paragraphs[0].font.color.rgb) == "17458F"

@@ -6,6 +6,7 @@ from PIL import Image
 from pptx import Presentation
 
 from app.core.donation_statistics_report import (
+    _CMP_FULL_THRESHOLD,
     _CMP_ORGS_PER_SEC,
     _footnote_text,
     _page_area_counts,
@@ -262,8 +263,10 @@ def test_build_pptx_comparison_report_shows_org_totals():
 
 
 def test_build_pptx_comparison_report_caps_per_section_at_max():
-    # _CMP_ORGS_PER_SEC orgs fit; the rest are silently dropped (no crash).
-    many = [_cmp_row(f"Org {i}") for i in range(_CMP_ORGS_PER_SEC + 3)]
+    # Use _CMP_FULL_THRESHOLD orgs so we stay in single-slide mode but
+    # still exceed _CMP_ORGS_PER_SEC — the excess is silently capped.
+    n = min(_CMP_ORGS_PER_SEC + 3, _CMP_FULL_THRESHOLD)
+    many = [_cmp_row(f"Org {i}") for i in range(n)]
     data = build_pptx_comparison_report(2024, many, 2025, many[:2], "HKD")
     prs = Presentation(BytesIO(data))
     assert len(prs.slides) == 1
