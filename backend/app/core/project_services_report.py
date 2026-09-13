@@ -1,4 +1,4 @@
-"""Project Services Report — A4 portrait PDF.
+"""Project Services Report — A4 portrait PDF + 16:9 landscape PPTX.
 
 Generates the "Annual Project Services Report" — one card per NGO active in the
 selected year, grouped by NGO classification, with local/international scope,
@@ -7,6 +7,11 @@ derived from the year's actual donation and service-hour records.
 
 Local = country is "Hong Kong" (case-insensitive); all others are International.
 Design mirrors the HTML artifact card layout as closely as reportlab allows.
+
+build_project_services_pptx() produces a landscape deck with the same data
+using the same chrome as the NGO statistics PPTX (matching donation_statistics_report.py):
+ - Slide 1: title / summary stats
+ - Slides 2-N: one slide per classification (paginated at 9 cards)
 """
 
 import math
@@ -14,6 +19,13 @@ import textwrap
 from io import BytesIO
 from pathlib import Path
 
+from PIL import Image as PILImage
+from pptx import Presentation as PptxPresentation
+from pptx.dml.color import RGBColor as PptxRGB
+from pptx.enum.shapes import MSO_SHAPE as PptxMSO
+from pptx.enum.text import PP_ALIGN as PptxPP
+from pptx.enum.text import MSO_ANCHOR as PptxMSOAnchor
+from pptx.util import Inches as PptxIn, Pt as PptxPt
 from reportlab.lib.colors import HexColor, white, Color
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
@@ -692,4 +704,528 @@ def build_project_services_pdf(
 
     _footer(c, page_num, total_pages, year_label)
     c.save()
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# PPTX — 16:9 landscape (Annual Project Services Report)
+# ---------------------------------------------------------------------------
+# Slide deck with the same data as the PDF but formatted for presentation.
+# Chrome (header band + logos) mirrors the NGO statistics PPTX design from
+# donation_statistics_report.py so all PPTX reports look consistent.
+#
+# Geometry: 1920×1080 px canvas at 144 dpi ≡ 13.333"×7.5" (Widescreen 16:9).
+# Pixel-to-EMU:  inches = px / 144  →  EMU = PptxIn(px / 144)
+# Pixel-to-pt:   points = px / 2
+# ---------------------------------------------------------------------------
+
+# ── Colour tokens (matching donation_statistics_report.py NGO PPTX theme) ──
+_PPTX_GREEN      = "#375E3A"   # chrome band background / card accent
+_PPTX_BLUE       = "#17458F"   # stat figures / amount chip
+_PPTX_BAND_GOLD  = "#D9BE86"   # kicker text in chrome band
+_PPTX_AMT_GOLD   = "#F7A81B"   # HKD amount foreground
+_PPTX_INK        = "#201E1D"   # primary body text
+_PPTX_GREY       = "#5B5F5B"   # secondary / description text
+_PPTX_CARD_BG    = "#FFFFFF"
+_PPTX_CARD_BR    = "#E4E3E0"
+
+# Section header dark-fill colour (left/dark end of the PDF gradient reused
+# as a solid fill here — gradient fills in python-pptx require an EMU-level
+# XML approach not worth the complexity).
+_PPTX_SECTION_COLOR: dict[str, str] = {
+    "Education & Literacy":                    "#1a3fa8",
+    "Poverty Alleviation & Social Welfare":    "#7C2D12",
+    "Health & Medical":                        "#065E7C",
+    "Humanitarian Relief & Disaster Response": "#7F1D1D",
+    "Youth Development":                       "#3730A3",
+    "Others":                                  "#065E7C",
+    "Unclassified":                            "#374151",
+}
+
+# ── Canvas constants (px) ──────────────────────────────────────────────────
+_PCW      = 1920      # slide width
+_PCH      = 1080      # slide height
+_PMX      = 96        # margin x (left / right)
+_PCWW     = 1728      # content width = _PCW - 2*_PMX
+_PBAND_H  = 192       # chrome header band height
+
+# ── Section-slide grid ─────────────────────────────────────────────────────
+_PSECT_H       = 60   # section header bar height (px)
+_PGRID_TOP     = _PBAND_H + 14 + _PSECT_H + 12   # = 278 px from slide top
+_PGRID_BOT     = 1050
+_PGRID_H       = _PGRID_BOT - _PGRID_TOP          # = 772 px
+_PCOLS         = 3
+_PCOL_GAP      = 20
+_PROW_GAP      = 14
+_PCARD_H       = 235    # px per card
+_PCARD_W       = (_PCWW - (_PCOLS - 1) * _PCOL_GAP) // _PCOLS  # = 562
+_PMAX_ROWS     = (_PGRID_H + _PROW_GAP) // (_PCARD_H + _PROW_GAP)  # = 3
+_PCARDS_SLIDE  = _PCOLS * _PMAX_ROWS                               # = 9
+
+# ── Pill approximate widths (px) ───────────────────────────────────────────
+# Pre-measured so we can position subsequent pills without font metrics.
+_PPILL_W: dict[str, int] = {
+    "Local": 56, "International": 90,
+    "Donation": 72, "Volunteer": 76, "Don. + Vol.": 92,
+    "Planned": 64, "Completed": 80, "Ongoing": 68, "Done": 56,
+}
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────
+
+def _pin(px: float) -> int:
+    """Pixels → EMU (1920px ≡ 13.333 in → 144px/in)."""
+    return PptxIn(px / 144)
+
+
+def _ppt(px: float) -> float:
+    """Pixels → points (1920px ≡ 960pt → 0.5 pt/px)."""
+    return px / 2
+
+
+def _prgb(hex_color: str) -> PptxRGB:
+    return PptxRGB.from_string(hex_color.lstrip("#").upper())
+
+
+def _ppill_w(label: str) -> int:
+    """Pixel width for a pill badge with the given label."""
+    return _PPILL_W.get(label, max(len(label) * 6 + 24, 56))
+
+
+def _psect_color(section_name: str) -> str:
+    """Dark hex color for a section header / card strip."""
+    return _PPTX_SECTION_COLOR.get(section_name, "#374151")
+
+
+# ── Chrome (band + logos + kicker/title) ───────────────────────────────────
+
+def _pdraw_chrome(slide, chrome: str, kicker: str, title: str) -> None:
+    """Draw the header band + kicker + title on any slide.
+
+    Two chrome variants (matching the NGO stats PPTX):
+    - "template": render the District 3450 band PNG as a full-slide background.
+    - "plain"   : draw a solid green rectangle + club lockup logo on the right.
+    """
+    dist_band = _ASSETS / "ngo-report-district-band.png"
+    if chrome == "template" and dist_band.exists():
+        slide.shapes.add_picture(
+            str(dist_band), 0, 0,
+            width=_pin(_PCW), height=_pin(_PCH),
+        )
+    else:
+        band = slide.shapes.add_shape(
+            PptxMSO.RECTANGLE, 0, 0, _pin(_PCW), _pin(_PBAND_H),
+        )
+        band.fill.solid()
+        band.fill.fore_color.rgb = _prgb(_PPTX_GREEN)
+        band.line.fill.background()
+        band.shadow.inherit = False
+        band.text_frame.clear()
+
+        if _CLUB_LOGO.exists():
+            with PILImage.open(_CLUB_LOGO) as im:
+                aspect = im.width / im.height
+            logo_h = _pin(120)
+            logo_w = int(logo_h * aspect)
+            slide.shapes.add_picture(
+                str(_CLUB_LOGO),
+                _pin(1824) - logo_w,
+                _pin(96) - logo_h // 2,
+                width=logo_w,
+                height=logo_h,
+            )
+
+    if kicker:
+        kb = slide.shapes.add_textbox(_pin(_PMX), _pin(52), _pin(1200), _pin(40))
+        kt = kb.text_frame
+        kt.text = kicker
+        kt.paragraphs[0].font.size = PptxPt(_ppt(24))
+        kt.paragraphs[0].font.bold = True
+        kt.paragraphs[0].font.color.rgb = _prgb(_PPTX_BAND_GOLD)
+
+    tb = slide.shapes.add_textbox(_pin(_PMX), _pin(80), _pin(1300), _pin(90))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.text = title
+    tf.paragraphs[0].font.size = PptxPt(_ppt(46))
+    tf.paragraphs[0].font.bold = True
+    tf.paragraphs[0].font.color.rgb = _prgb("#FFFFFF")
+
+
+# ── Title / summary slide ─────────────────────────────────────────────────
+
+def _padd_title_slide(
+    prs: PptxPresentation,
+    blank,
+    rows: list[dict],
+    ordered: list,
+    year_label: str,
+    chrome: str,
+) -> None:
+    """Slide 1: chrome + four summary stat cards + footnote."""
+    slide = prs.slides.add_slide(blank)
+    _pdraw_chrome(
+        slide, chrome,
+        kicker=f"Rotary Club of Discovery Bay · District 3450",
+        title="Annual Project Services Report",
+    )
+
+    total_actual   = sum(r.get("actual_hkd", 0.0)  for r in rows)
+    total_planned  = sum(r.get("planned_hkd", 0.0) for r in rows)
+    total_hours    = sum(r.get("actual_hours", 0.0) for r in rows)
+    org_count      = len(rows)
+    area_count     = len({r.get("classification") or "Unclassified" for r in rows})
+
+    stat_cards = [
+        {
+            "kicker": "Donated",
+            "figure": f"{total_actual:,.0f}",
+            "unit": "HKD",
+            "label": "Total donated to date",
+            "show": total_actual > 0,
+        },
+        {
+            "kicker": "Planned",
+            "figure": f"{total_planned:,.0f}",
+            "unit": "HKD",
+            "label": "Planned donations",
+            "show": total_planned > 0,
+        },
+        {
+            "kicker": "Reach",
+            "figure": str(org_count),
+            "unit": "",
+            "label": "Organisations supported",
+            "show": True,
+        },
+        {
+            "kicker": "Areas",
+            "figure": str(area_count),
+            "unit": "of focus",
+            "label": "Areas of focus covered",
+            "show": True,
+        },
+    ]
+    cards = [c for c in stat_cards if c["show"]]
+    cols  = len(cards) or 1
+
+    row_left = _pin(_PMX)
+    row_top  = _pin(352)
+    row_w    = _pin(_PCWW)
+    row_h    = _pin(392)
+    gap      = _pin(28)
+    card_w   = int((row_w - gap * (cols - 1)) / cols) if cols > 1 else row_w
+
+    for i, card in enumerate(cards):
+        left = row_left + i * (card_w + gap)
+
+        bg = slide.shapes.add_shape(PptxMSO.ROUNDED_RECTANGLE, left, row_top, card_w, row_h)
+        bg.fill.solid(); bg.fill.fore_color.rgb = _prgb("#FBFAF9")
+        bg.line.color.rgb = _prgb(_PPTX_CARD_BR); bg.line.width = PptxPt(1.5)
+        bg.shadow.inherit = False; bg.text_frame.clear()
+
+        bar = slide.shapes.add_shape(PptxMSO.RECTANGLE, left, row_top, card_w, _pin(8))
+        bar.fill.solid(); bar.fill.fore_color.rgb = _prgb(_PPTX_GREEN)
+        bar.line.fill.background(); bar.shadow.inherit = False; bar.text_frame.clear()
+
+        pad_x, pad_top = _pin(28), _pin(40)
+
+        kb = slide.shapes.add_textbox(left + pad_x, row_top + pad_top, card_w - 2 * pad_x, _pin(40))
+        kb.text_frame.text = card["kicker"]
+        kb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(24))
+        kb.text_frame.paragraphs[0].font.bold = True
+        kb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_GREEN)
+
+        fb = slide.shapes.add_textbox(
+            left + pad_x, row_top + pad_top + _pin(56), card_w - 2 * pad_x, _pin(110)
+        )
+        fb.text_frame.word_wrap = True
+        fb.text_frame.text = card["figure"]
+        fb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(84))
+        fb.text_frame.paragraphs[0].font.bold = True
+        fb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_BLUE)
+        if card["unit"]:
+            ur = fb.text_frame.paragraphs[0].add_run()
+            ur.text = f"  {card['unit']}"
+            ur.font.size = PptxPt(_ppt(32))
+            ur.font.bold = True
+            ur.font.color.rgb = _prgb(_PPTX_GREEN)
+
+        lb = slide.shapes.add_textbox(
+            left + pad_x, row_top + row_h - _pin(70), card_w - 2 * pad_x, _pin(50)
+        )
+        lb.text_frame.word_wrap = True
+        lb.text_frame.text = card["label"]
+        lb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(26))
+        lb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_GREY)
+
+    fn_text = (
+        f"{org_count} organisation{'s' if org_count != 1 else ''} supported "
+        f"across {area_count} area{'s' if area_count != 1 else ''} of focus"
+        f" · Rotary Year {year_label}"
+    )
+    fnb = slide.shapes.add_textbox(_pin(_PMX), _pin(944), _pin(_PCWW), _pin(90))
+    fnb.text_frame.word_wrap = True
+    fnb.text_frame.text = fn_text
+    fnb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(27))
+    fnb.text_frame.paragraphs[0].font.color.rgb = _prgb("#3A3D3A")
+
+
+# ── Classification section slide ──────────────────────────────────────────
+
+def _padd_section_slide(
+    prs: PptxPresentation,
+    blank,
+    section_name: str,
+    page_rows: list[dict],
+    page_num: int,
+    total_pages: int,
+    year_label: str,
+    chrome: str,
+) -> None:
+    """One classification slide with up to _PCARDS_SLIDE org cards."""
+    from app.core.report_images import pptx_safe_image
+
+    slide = prs.slides.add_slide(blank)
+    title_str = section_name
+    if total_pages > 1:
+        title_str += f" ({page_num} of {total_pages})"
+    _pdraw_chrome(slide, chrome, kicker=f"Rotary Year {year_label}", title=title_str)
+
+    # ── Section header bar ────────────────────────────────────────────────
+    sect_hex  = _psect_color(section_name)
+    sh_top    = _pin(_PBAND_H + 14)
+    sh_bar    = slide.shapes.add_shape(
+        PptxMSO.RECTANGLE, _pin(_PMX), sh_top, _pin(_PCWW), _pin(_PSECT_H),
+    )
+    sh_bar.fill.solid()
+    sh_bar.fill.fore_color.rgb = _prgb(sect_hex)
+    sh_bar.line.fill.background()
+    sh_bar.shadow.inherit = False
+    sh_bar.text_frame.clear()
+
+    # Section icon inside header bar
+    icon_file = _SECTION_ICON_FILES.get(section_name, "icon_others.png")
+    icon_path = _ASSETS / icon_file
+    icon_sz   = _pin(38)
+    if icon_path.exists():
+        try:
+            slide.shapes.add_picture(
+                str(icon_path),
+                _pin(_PMX + 12),
+                sh_top + (_pin(_PSECT_H) - icon_sz) // 2,
+                width=icon_sz, height=icon_sz,
+            )
+        except Exception:
+            pass
+
+    # Section name label
+    lbl    = slide.shapes.add_textbox(
+        _pin(_PMX + 58), sh_top, _pin(_PCWW - 60), _pin(_PSECT_H),
+    )
+    lbl_tf = lbl.text_frame
+    lbl_tf.word_wrap = False
+    lbl_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
+    lbl_p  = lbl_tf.paragraphs[0]
+    lbl_p.font.size  = PptxPt(_ppt(36))
+    lbl_p.font.bold  = True
+    lbl_p.font.color.rgb = _prgb("#FFFFFF")
+    lbl_p.text = section_name
+
+    # ── Card grid ─────────────────────────────────────────────────────────
+    for idx, row in enumerate(page_rows):
+        col  = idx % _PCOLS
+        grow = idx // _PCOLS
+        left = _pin(_PMX + col * (_PCARD_W + _PCOL_GAP))
+        top  = _pin(_PGRID_TOP + grow * (_PCARD_H + _PROW_GAP))
+        _padd_org_card(slide, row, section_name, left, top,
+                       _pin(_PCARD_W), _pin(_PCARD_H), pptx_safe_image)
+
+
+# ── NGO card ──────────────────────────────────────────────────────────────
+
+def _padd_org_card(slide, row: dict, section_name: str,
+                   left, top, width, height, pptx_safe_image) -> None:
+    """Draw one NGO card: background, left strip, logo, name, amount, pills, description."""
+    sect_hex = _psect_color(section_name)
+
+    # Card background (rounded)
+    bg = slide.shapes.add_shape(PptxMSO.ROUNDED_RECTANGLE, left, top, width, height)
+    bg.fill.solid(); bg.fill.fore_color.rgb = _prgb(_PPTX_CARD_BG)
+    bg.line.color.rgb = _prgb(_PPTX_CARD_BR); bg.line.width = PptxPt(1.5)
+    bg.shadow.inherit = False; bg.text_frame.clear()
+
+    # Left colour strip (section accent)
+    strip = slide.shapes.add_shape(PptxMSO.RECTANGLE, left, top, _pin(8), height)
+    strip.fill.solid(); strip.fill.fore_color.rgb = _prgb(sect_hex)
+    strip.line.fill.background(); strip.shadow.inherit = False; strip.text_frame.clear()
+
+    # Inner layout constants (all in px, relative to card top-left)
+    INNER_L  = 18    # left pad after strip (strip=8px + gap=10px)
+    INNER_T  = 12    # top pad
+    INNER_R  = 12    # right pad
+    LOGO_SZ  = 40    # logo bounding box in px
+
+    content_w_px = _PCARD_W - INNER_L - INNER_R
+
+    # ── Org logo (or fallback classification icon) ────────────────────────
+    logo_src = None
+    logo_bytes = row.get("logo_bytes")
+    if logo_bytes is not None:
+        safe = pptx_safe_image(logo_bytes)
+        if safe is not None:
+            logo_src = safe  # BytesIO → add_picture accepts it directly
+
+    if logo_src is None:
+        icon_fname = _SECTION_ICON_FILES.get(section_name, "icon_others.png")
+        icon_fpath = _ASSETS / icon_fname
+        if icon_fpath.exists():
+            logo_src = str(icon_fpath)
+
+    logo_offset_x = 0
+    if logo_src is not None:
+        logo_sz_emu = _pin(LOGO_SZ)
+        try:
+            slide.shapes.add_picture(
+                logo_src,
+                left + _pin(INNER_L),
+                top  + _pin(INNER_T),
+                width=logo_sz_emu, height=logo_sz_emu,
+            )
+            logo_offset_x = LOGO_SZ + 8
+        except Exception:
+            pass
+
+    name_l_px = INNER_L + logo_offset_x
+    name_w_px = content_w_px - logo_offset_x
+
+    # ── Org name ─────────────────────────────────────────────────────────
+    nb = slide.shapes.add_textbox(
+        left + _pin(name_l_px), top + _pin(INNER_T),
+        _pin(name_w_px), _pin(46),
+    )
+    nb.text_frame.word_wrap = True
+    nb.text_frame.text = row.get("name", "")
+    nb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(26))
+    nb.text_frame.paragraphs[0].font.bold = True
+    nb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_INK)
+
+    # ── Amount ────────────────────────────────────────────────────────────
+    amount = _display_amount(row)
+    amt_y  = INNER_T + 52
+    if amount:
+        ab = slide.shapes.add_textbox(
+            left + _pin(INNER_L), top + _pin(amt_y),
+            _pin(content_w_px), _pin(32),
+        )
+        ab.text_frame.text = amount
+        ab.text_frame.paragraphs[0].font.size = PptxPt(_ppt(24))
+        ab.text_frame.paragraphs[0].font.bold = True
+        ab.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_AMT_GOLD)
+        amt_y += 34
+    else:
+        amt_y += 8
+
+    # ── Pills ─────────────────────────────────────────────────────────────
+    fmt_pill, status_pill, scope_label, scope_key = _derive_pills(row)
+    pills = [(scope_label, scope_key), (fmt_pill, fmt_pill), (status_pill, status_pill)]
+    PILL_H_PX = 22
+    pill_y_px = amt_y
+    pill_x_px = INNER_L
+
+    for label, style_key in pills:
+        bg_hex, fg_hex = _PILL_STYLE.get(style_key, ("#E5E7EB", "#374151"))
+        pw = _ppill_w(label)
+
+        pr = slide.shapes.add_shape(
+            PptxMSO.ROUNDED_RECTANGLE,
+            left + _pin(pill_x_px), top + _pin(pill_y_px),
+            _pin(pw), _pin(PILL_H_PX),
+        )
+        pr.fill.solid(); pr.fill.fore_color.rgb = _prgb(bg_hex)
+        pr.line.fill.background(); pr.shadow.inherit = False
+        try:
+            pr.adjustments[0] = 50000   # maximum corner rounding → pill shape
+        except Exception:
+            pass
+
+        pt_b = slide.shapes.add_textbox(
+            left + _pin(pill_x_px), top + _pin(pill_y_px),
+            _pin(pw), _pin(PILL_H_PX),
+        )
+        pt_tf = pt_b.text_frame
+        pt_tf.word_wrap = False
+        pt_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
+        pt_p = pt_tf.paragraphs[0]
+        pt_p.text = label
+        pt_p.alignment = PptxPP.CENTER
+        pt_p.font.size = PptxPt(_ppt(16))
+        pt_p.font.bold = True
+        pt_p.font.color.rgb = _prgb(fg_hex)
+
+        pill_x_px += pw + 6
+
+    # ── Description ───────────────────────────────────────────────────────
+    desc = (row.get("description") or "").strip()
+    if desc:
+        desc_y  = pill_y_px + PILL_H_PX + 8
+        wrapped = textwrap.wrap(desc, width=80, max_lines=2)
+        db = slide.shapes.add_textbox(
+            left + _pin(INNER_L), top + _pin(desc_y),
+            _pin(content_w_px), _pin(38),
+        )
+        db.text_frame.word_wrap = True
+        db.text_frame.text      = " ".join(wrapped[:2])
+        db.text_frame.paragraphs[0].font.size  = PptxPt(_ppt(17))
+        db.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_GREY)
+
+
+# ── Public API ────────────────────────────────────────────────────────────
+
+def build_project_services_pptx(
+    rows: list[dict],
+    year: int,
+    chrome: str = "plain",
+) -> bytes:
+    """Build the landscape 16:9 PPTX Project Services deck.
+
+    ``rows`` — same list-of-dicts as build_project_services_pdf.
+    ``chrome`` — "plain" (green band + club logo) or "template" (District band PNG).
+    """
+    year_label = f"{year}–{year + 1}"
+
+    by_section: dict[str, list[dict]] = {}
+    for row in rows:
+        sec = row.get("classification") or "Unclassified"
+        by_section.setdefault(sec, []).append(row)
+
+    def _sec_key(name: str) -> int:
+        try:
+            return _SECTION_ORDER.index(name)
+        except ValueError:
+            return len(_SECTION_ORDER)
+
+    ordered = sorted(by_section.items(), key=lambda kv: _sec_key(kv[0]))
+    for _, sec_rows in ordered:
+        sec_rows.sort(key=lambda r: (r.get("name") or "").lower())
+
+    prs = PptxPresentation()
+    prs.slide_width  = PptxIn(13.333)
+    prs.slide_height = PptxIn(7.5)
+    blank = prs.slide_layouts[6]
+
+    _padd_title_slide(prs, blank, rows, ordered, year_label, chrome)
+
+    for section_name, sec_rows in ordered:
+        pages = [sec_rows[i : i + _PCARDS_SLIDE] for i in range(0, len(sec_rows), _PCARDS_SLIDE)]
+        for pi, page_rows in enumerate(pages):
+            _padd_section_slide(
+                prs, blank,
+                section_name, page_rows,
+                pi + 1, len(pages),
+                year_label, chrome,
+            )
+
+    buf = BytesIO()
+    prs.save(buf)
     return buf.getvalue()

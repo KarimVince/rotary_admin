@@ -14,7 +14,7 @@ from app.core.donation_statistics_report import (
     build_pptx_report,
     resolve_logo_bytes,
 )
-from app.core.project_services_report import build_project_services_pdf
+from app.core.project_services_report import build_project_services_pdf, build_project_services_pptx
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
@@ -588,8 +588,8 @@ def donation_statistics(
 @router.post("/donations/statistics/report")
 def generate_donation_statistics_report(
     report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
-    # "project-services" generates the A4 portrait card-based Project Services
-    # Report (always PDF — format param is ignored for this type).
+    # "project-services" generates the card-based Annual Project Services Report.
+    # Supports both format=pdf (A4 portrait) and format=pptx (16:9 landscape).
     # "simplified" and "integral" are kept for backward compatibility but
     # produce identical output since the Story 16.35 redesign.
     report_type: Literal["simplified", "integral", "project-services"] = Query("simplified", alias="type"),
@@ -613,16 +613,25 @@ def generate_donation_statistics_report(
     stats = _compute_donation_statistics(db, rotary_year, classification_id)
     selected_currency = currency or (stats.by_currency[0].currency if stats.by_currency else None)
 
-    # ── Project Services Report (card-based A4 PDF) ──────────────────────────
+    # ── Project Services Report (card-based PDF or landscape PPTX) ─────────────
     if report_type == "project-services":
         ps_rows = _project_services_rows_for_year(db, stats.selected_rotary_year)
-        content = build_project_services_pdf(ps_rows, stats.selected_rotary_year)
-        filename = generate_report_filename(
-            "project-services", "pdf", rotary_year=stats.selected_rotary_year
-        )
+        chrome  = "template" if use_template else "plain"
+        if report_format == "pptx":
+            content    = build_project_services_pptx(ps_rows, stats.selected_rotary_year, chrome=chrome)
+            media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            filename   = generate_report_filename(
+                "project-services", "pptx", rotary_year=stats.selected_rotary_year
+            )
+        else:
+            content    = build_project_services_pdf(ps_rows, stats.selected_rotary_year)
+            media_type = "application/pdf"
+            filename   = generate_report_filename(
+                "project-services", "pdf", rotary_year=stats.selected_rotary_year
+            )
         return Response(
             content=content,
-            media_type="application/pdf",
+            media_type=media_type,
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
