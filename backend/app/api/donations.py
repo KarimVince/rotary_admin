@@ -3,7 +3,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func
+from sqlalchemy import func, or_, case
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
@@ -14,6 +14,7 @@ from app.core.donation_statistics_report import (
     build_pptx_report,
     resolve_logo_bytes,
 )
+from app.core.project_services_report import build_project_services_pdf
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
@@ -434,6 +435,70 @@ def _compute_donation_statistics(
     )
 
 
+def _project_services_rows_for_year(db: Session, year: int) -> list[dict]:
+    """Fetch per-organisation data for the Project Services Report.
+
+    Returns one dict per organisation that has any donation (actual or planned)
+    OR any service hours (actual or planned) in the given rotary year.  Amounts
+    are always in HKD — non-HKD donations are excluded from the totals.
+
+    Keys: name, description, country, classification,
+          actual_hkd, planned_hkd, actual_hours, planned_hours
+    """
+    # Determine active org ids (donation OR service hours)
+    org_ids_don = {
+        r[0]
+        for r in db.query(Donation.organisation_id).filter(Donation.rotary_year == year).all()
+    }
+    org_ids_svc = {
+        r[0]
+        for r in db.query(ServiceHour.organisation_id).filter(ServiceHour.rotary_year == year).all()
+    }
+    all_ids = org_ids_don | org_ids_svc
+    if not all_ids:
+        return []
+
+    # Org details (with classification name)
+    orgs = (
+        db.query(Organisation, NgoClassification.name.label("classification"))
+        .outerjoin(NgoClassification, Organisation.classification_id == NgoClassification.id)
+        .filter(Organisation.id.in_(all_ids))
+        .all()
+    )
+
+    # Aggregate HKD donations by org (actual / planned separately)
+    actual_hkd: dict = {}
+    planned_hkd: dict = {}
+    for org_id, amount, planned in db.query(
+        Donation.organisation_id, Donation.amount, Donation.planned
+    ).filter(Donation.rotary_year == year, Donation.currency == "HKD").all():
+        target = planned_hkd if planned else actual_hkd
+        target[org_id] = target.get(org_id, 0.0) + float(amount)
+
+    # Aggregate service hours (actual / planned separately)
+    actual_hrs: dict = {}
+    planned_hrs: dict = {}
+    for org_id, hours, planned in db.query(
+        ServiceHour.organisation_id, ServiceHour.hours, ServiceHour.planned
+    ).filter(ServiceHour.rotary_year == year).all():
+        target = planned_hrs if planned else actual_hrs
+        target[org_id] = target.get(org_id, 0.0) + float(hours)
+
+    return [
+        {
+            "name": org.name,
+            "description": org.description,
+            "country": org.country,
+            "classification": classification or "Unclassified",
+            "actual_hkd": actual_hkd.get(org.id, 0.0),
+            "planned_hkd": planned_hkd.get(org.id, 0.0),
+            "actual_hours": actual_hrs.get(org.id, 0.0),
+            "planned_hours": planned_hrs.get(org.id, 0.0),
+        }
+        for org, classification in orgs
+    ]
+
+
 def _ngo_report_rows_for_selected_year(
     db: Session,
     selected_year: int,
@@ -522,12 +587,11 @@ def donation_statistics(
 @router.post("/donations/statistics/report")
 def generate_donation_statistics_report(
     report_format: Literal["pdf", "pptx"] = Query(..., alias="format"),
-    # Story 16.35 redesign: the district-template handoff replaced the old
-    # chart-heavy Simplified/Integral reports with one fixed design (Summary
-    # + Organisations). `type` is still accepted so existing frontend calls
-    # don't 422, but no longer changes the output — flagged here, not
-    # silently dropped.
-    report_type: Literal["simplified", "integral"] = Query("simplified", alias="type"),
+    # "project-services" generates the A4 portrait card-based Project Services
+    # Report (always PDF — format param is ignored for this type).
+    # "simplified" and "integral" are kept for backward compatibility but
+    # produce identical output since the Story 16.35 redesign.
+    report_type: Literal["simplified", "integral", "project-services"] = Query("simplified", alias="type"),
     use_template: bool = Query(
         False,
         description="Story 16.35 redesign: PPTX chrome variant — the District "
@@ -548,6 +612,20 @@ def generate_donation_statistics_report(
     stats = _compute_donation_statistics(db, rotary_year, classification_id)
     selected_currency = currency or (stats.by_currency[0].currency if stats.by_currency else None)
 
+    # ── Project Services Report (card-based A4 PDF) ──────────────────────────
+    if report_type == "project-services":
+        ps_rows = _project_services_rows_for_year(db, stats.selected_rotary_year)
+        content = build_project_services_pdf(ps_rows, stats.selected_rotary_year)
+        filename = generate_report_filename(
+            "project-services", "pdf", rotary_year=stats.selected_rotary_year
+        )
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # ── Standard NGO statistics report (PDF table or PPTX slides) ───────────
     classification_org_ids = None
     if classification_id is not None:
         classification_org_ids = db.query(Organisation.id).filter(

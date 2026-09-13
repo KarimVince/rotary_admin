@@ -11,8 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchDonationStatistics, generateDonationComparisonReport, generateDonationStatisticsReport } from "../api/donations";
-import { listNgoClassifications } from "../api/ngoClassifications";
+import { fetchDonationStatistics, generateDonationStatisticsReport } from "../api/donations";
 import Card from "../components/Card";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
@@ -27,9 +26,8 @@ function formatCurrency(value, currency) {
   })} ${currency}`;
 }
 
-const SESSION_KEY_REPORT_TYPE = "ngoStats.reportType";
-const SESSION_KEY_USE_TEMPLATE = "ngoStats.useTemplate";
-const SESSION_KEY_SHOW_HOURS = "ngoStats.showHours";
+const SESSION_KEY_USE_TEMPLATE   = "ngoStats.useTemplate";
+const SESSION_KEY_REPORT_FORMAT  = "ngoStats.reportFormat";
 
 const STAT_VARIANTS = ["stat-blue", "stat-lavender", "stat-teal", "stat-amber"];
 
@@ -39,59 +37,42 @@ export default function DonationsStatistics() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState(null);
-  const [reportFormat, setReportFormat] = useState("pdf");
-  const [reportType, setReportType] = useState(
-    () => sessionStorage.getItem(SESSION_KEY_REPORT_TYPE) || "simplified",
+  const [reportFormat, setReportFormat] = useState(
+    () => sessionStorage.getItem(SESSION_KEY_REPORT_FORMAT) || "pdf",
   );
   const [useTemplate, setUseTemplate] = useState(
     () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
   );
-  const [showHours, setShowHours] = useState(
-    () => sessionStorage.getItem(SESSION_KEY_SHOW_HOURS) === "true",
-  );
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
-  const [classifications, setClassifications] = useState([]);
-  const [classificationFilter, setClassificationFilter] = useState("");
-
-  function handleReportTypeChange(value) {
-    setReportType(value);
-    sessionStorage.setItem(SESSION_KEY_REPORT_TYPE, value);
-  }
 
   function handleUseTemplateChange(checked) {
     setUseTemplate(checked);
     sessionStorage.setItem(SESSION_KEY_USE_TEMPLATE, String(checked));
   }
 
-  function handleShowHoursChange(checked) {
-    setShowHours(checked);
-    sessionStorage.setItem(SESSION_KEY_SHOW_HOURS, String(checked));
+  function handleReportFormatChange(value) {
+    setReportFormat(value);
+    sessionStorage.setItem(SESSION_KEY_REPORT_FORMAT, value);
   }
-
-  // reportType "dg" = year-over-year comparison (year_a = selectedYear-1, year_b = selectedYear)
-  const isComparison = reportType === "dg";
 
   async function handleGenerateReport() {
     setIsGeneratingReport(true);
     setReportError(null);
     try {
       let blob, filename;
-      if (isComparison) {
-        ({ blob, filename } = await generateDonationComparisonReport({
-          yearA: selectedYear - 1,
-          yearB: selectedYear,
-          useTemplate,
+      if (reportFormat === "pdf") {
+        ({ blob, filename } = await generateDonationStatisticsReport("pdf", {
+          reportType: "project-services",
+          rotaryYear: selectedYear,
           currency: selectedCurrency,
         }));
       } else {
-        ({ blob, filename } = await generateDonationStatisticsReport(reportFormat, {
-          reportType,
-          useTemplate: useTemplate && reportFormat === "pptx",
+        ({ blob, filename } = await generateDonationStatisticsReport("pptx", {
+          reportType: "simplified",
+          useTemplate,
           rotaryYear: selectedYear,
-          classificationId: classificationFilter || undefined,
           currency: selectedCurrency,
-          showHours,
         }));
       }
       const url = URL.createObjectURL(blob);
@@ -110,24 +91,15 @@ export default function DonationsStatistics() {
   }
 
   useEffect(() => {
-    // Non-fatal — the filter just doesn't render if this fails.
-    listNgoClassifications()
-      .then(setClassifications)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!canRead) return;
-    const filters = { rotary_year: selectedYear };
-    if (classificationFilter) filters.classification_id = classificationFilter;
-    fetchDonationStatistics(filters)
+    fetchDonationStatistics({ rotary_year: selectedYear })
       .then((data) => {
         setStats(data);
         setSelectedCurrency((current) => current ?? data.by_currency[0]?.currency ?? null);
       })
       .catch((err) => setError(err.detail || "Failed to load donation statistics"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRead, selectedYear, classificationFilter]);
+  }, [canRead, selectedYear]);
 
   const currentStats = useMemo(
     () => stats?.by_currency.find((block) => block.currency === selectedCurrency) ?? null,
@@ -194,9 +166,7 @@ export default function DonationsStatistics() {
     (row) => ({ name: row.label, total: row.value }),
   );
 
-  const emptyChartMessage = classificationFilter
-    ? "No NGOs found for this classification."
-    : "No donations recorded yet.";
+  const emptyChartMessage = "No donations recorded yet.";
 
   // Story 16.14: hours have no currency, so they're the same single number
   // regardless of which currency block is selected above.
@@ -374,9 +344,7 @@ export default function DonationsStatistics() {
       <div className="chart-card">
         <h2>{title}</h2>
         {data.length === 0 ? (
-          <p className="member-empty-state">
-            {classificationFilter ? emptyChartMessage : emptyFallback}
-          </p>
+          <p className="member-empty-state">{emptyFallback}</p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(240, data.length * 28)}>
             <BarChart data={data} layout="vertical">
@@ -420,97 +388,35 @@ export default function DonationsStatistics() {
       <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-              Content
+              Format
             </span>
             <SingleSelectDropdown
-              ariaLabel="Content"
-              minWidthClass="min-w-[130px]"
+              ariaLabel="Format"
+              minWidthClass="min-w-[210px]"
               disabled={isGeneratingReport}
-              value={reportType}
+              value={reportFormat}
               options={[
-                { value: "simplified", label: "Simplified" },
-                { value: "integral", label: "Integral" },
-                { value: "dg", label: "DG comparison" },
+                { value: "pdf", label: "Project Services (PDF)" },
+                { value: "pptx", label: "PowerPoint (PPTX)" },
               ]}
-              onSelect={handleReportTypeChange}
+              onSelect={handleReportFormatChange}
             />
           </div>
 
-          {/* Format hidden for DG comparison (always PPTX) */}
-          {!isComparison && (
-            <div className="flex flex-col gap-1.5">
-              <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                Format
-              </span>
-              <SingleSelectDropdown
-                ariaLabel="Format"
-                minWidthClass="min-w-[170px]"
-                disabled={isGeneratingReport}
-                value={reportFormat}
-                options={[
-                  { value: "pdf", label: "PDF" },
-                  { value: "pptx", label: "PowerPoint (PPTX)" },
-                ]}
-                onSelect={setReportFormat}
-              />
-            </div>
-          )}
-
-          {!isComparison && classifications.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
-                Classification
-              </span>
-              <SingleSelectDropdown
-                ariaLabel="Classification"
-                minWidthClass="min-w-[170px]"
-                value={classificationFilter || "all"}
-                options={[
-                  { value: "all", label: "All classifications" },
-                  ...classifications.map((classification) => ({
-                    value: classification.id,
-                    label: classification.name,
-                  })),
-                ]}
-                onSelect={(value) => setClassificationFilter(value === "all" ? "" : value)}
-              />
-            </div>
-          )}
-
-          {/* District template chrome — applies to PPTX and DG comparison */}
-          <label
-            htmlFor="report-use-template"
-            className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
-            title={
-              !isComparison && reportFormat !== "pptx"
-                ? "The district template only applies to PowerPoint (PPTX) reports"
-                : undefined
-            }
-          >
-            <input
-              id="report-use-template"
-              type="checkbox"
-              checked={useTemplate}
-              onChange={(event) => handleUseTemplateChange(event.target.checked)}
-              disabled={isGeneratingReport || (!isComparison && reportFormat !== "pptx")}
-            />
-            District template
-          </label>
-
-          {/* Volunteer hours — only meaningful for the regular (non-comparison) report */}
-          {!isComparison && (
+          {/* District template — only available for PPTX */}
+          {reportFormat === "pptx" && (
             <label
-              htmlFor="report-show-hours"
+              htmlFor="report-use-template"
               className="flex h-[38px] items-center gap-2 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]"
             >
               <input
-                id="report-show-hours"
+                id="report-use-template"
                 type="checkbox"
-                checked={showHours}
-                onChange={(event) => handleShowHoursChange(event.target.checked)}
+                checked={useTemplate}
+                onChange={(event) => handleUseTemplateChange(event.target.checked)}
                 disabled={isGeneratingReport}
               />
-              Volunteer hours
+              District template
             </label>
           )}
 
