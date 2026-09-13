@@ -494,6 +494,7 @@ def _project_services_rows_for_year(db: Session, year: int) -> list[dict]:
             "planned_hkd": planned_hkd.get(org.id, 0.0),
             "actual_hours": actual_hrs.get(org.id, 0.0),
             "planned_hours": planned_hrs.get(org.id, 0.0),
+            "logo_bytes": resolve_logo_bytes(org.logo_url),
         }
         for org, classification in orgs
     ]

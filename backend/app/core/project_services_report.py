@@ -127,6 +127,10 @@ ICON_AREA      = 22     # icon bounding box size
 ICON_MARGIN_L  = 16     # icon left edge from section box
 ICON_MARGIN_R  = 10     # gap between icon right edge and label
 
+# Small classification icon shown before each card's org name
+CARD_ICON_SIZE = 16     # icon rendered size (pt)
+CARD_ICON_GAP  = 5      # gap between icon and name text
+
 STRIP_W        = 5      # left colour strip on each card
 CARD_INNER_L   = 12     # content left padding (after strip)
 CARD_INNER_R   = 10     # content right padding
@@ -294,7 +298,8 @@ def _card_height(row: dict) -> float:
     """Card height: one compact top row (name | amount+pills) + optional description."""
     desc_lines = _wrap_desc(row.get("description"))
     n          = len(desc_lines)
-    row_h      = NAME_SIZE              # single combined row height
+    # Row height must accommodate both the name text and the icon (whichever is taller)
+    row_h      = max(NAME_SIZE, CARD_ICON_SIZE)
     gap        = 9 if n else 0
     h = CARD_PAD_V + row_h + gap + n * DESC_LINE_H + CARD_PAD_V
     return max(h, 34.0)
@@ -483,7 +488,7 @@ def _draw_section(
     for i, row in enumerate(rows):
         if i > 0:
             cy += CARD_GAP
-        cy = _draw_card(c, row, cy, light_col)
+        cy = _draw_card(c, row, cy, light_col, section_name=section_name)
 
     return y_from_top + total_h + SECTION_GAP
 
@@ -493,12 +498,14 @@ def _draw_card(
     row: dict,
     y_from_top: float,
     strip_color: HexColor,
+    *,
+    section_name: str = "",
 ) -> float:
     """Draw one compact project card matching the HTML template layout.
 
     Card layout:
-      [strip] | Name (bold, left)   HK$X,XXX [Donation] [Planned] [Local]
-              | Description text (optional, muted, below)
+      [strip] | [icon] Name (bold, left)   HK$X,XXX [Donation] [Planned] [Local]
+              |        Description text (optional, muted, below)
     """
     card_h  = _card_height(row)
     card_x  = MARGIN + CARD_PX
@@ -521,9 +528,10 @@ def _draw_card(
     iright = card_x + card_w - CARD_INNER_R
 
     # Top row y: baseline anchor for name and amount text
-    row_y   = y_from_top + CARD_PAD_V     # y_from_top of the text baseline area
-    # Vertical centre of the row (for pills alignment)
-    row_mid = row_y + NAME_SIZE / 2       # mid-height of the name text block
+    row_y    = y_from_top + CARD_PAD_V          # y_from_top of the text baseline area
+    row_h    = max(NAME_SIZE, CARD_ICON_SIZE)   # actual row height (icon may be taller)
+    # Vertical centre of the full row (used for pill alignment)
+    row_mid  = row_y + row_h / 2
 
     # ── Derive content ────────────────────────────────────────────────────────
     fmt_pill, status_pill, scope_label, scope_key = _derive_pills(row)
@@ -535,6 +543,34 @@ def _draw_card(
         (scope_label, scope_key),    # show country name, colour by local/intl
     ]
 
+    # ── NGO logo (or fallback classification emoji) before the org name ──────
+    # Prefer the organisation's own uploaded logo; fall back to the generic
+    # Twemoji classification icon when no logo has been uploaded.
+    icon_offset = 0.0
+    logo_bytes = row.get("logo_bytes")  # BytesIO | None — from resolve_logo_bytes
+    fname      = _SECTION_ICON_FILES.get(section_name, "")
+    icon_src   = None  # will be an ImageReader-compatible source
+    if logo_bytes is not None:
+        logo_bytes.seek(0)
+        icon_src = ImageReader(logo_bytes)
+    elif fname:
+        icon_path = _ASSETS / fname
+        if icon_path.exists():
+            icon_src = ImageReader(str(icon_path))
+
+    if icon_src is not None:
+        sz = CARD_ICON_SIZE
+        # Vertically centre the icon within the name-row height
+        icon_draw_y = _py(row_y + (NAME_SIZE + sz) / 2)
+        try:
+            c.drawImage(icon_src, ix, icon_draw_y, width=sz, height=sz, mask="auto")
+            icon_offset = sz + CARD_ICON_GAP
+        except Exception:
+            pass
+
+    # Name text starts after icon (if any)
+    name_ix = ix + icon_offset
+
     # ── Calculate right-group width so we can truncate the name ──────────────
     rg_w = 0.0
     if amount_str:
@@ -544,7 +580,7 @@ def _draw_card(
     if rg_w > 0:
         rg_w -= PILL_GAP
 
-    name_max_w = iright - ix - (NAME_PILL_GAP + rg_w if rg_w else 0)
+    name_max_w = iright - name_ix - (NAME_PILL_GAP + rg_w if rg_w else 0)
 
     name = row.get("name", "")
     c.setFont(FONT_DISPLAY, NAME_SIZE)
@@ -554,7 +590,8 @@ def _draw_card(
         name = name.rstrip() + "…"
 
     c.setFillColor(TEXT_DARK)
-    c.drawString(ix, _py(row_y + NAME_SIZE), name)
+    # Baseline: vertically centre the name text within row_h
+    c.drawString(name_ix, _py(row_y + (row_h + NAME_SIZE) / 2), name)
 
     # ── Right group: amount chip then pills — right-aligned ───────────────────
     rx = iright - rg_w    # start of right group
@@ -562,17 +599,17 @@ def _draw_card(
     if amount_str:
         c.setFont(FONT_DISPLAY, AMOUNT_SIZE)
         c.setFillColor(GOLD)
-        c.drawString(rx, _py(row_y + AMOUNT_SIZE), amount_str)
+        c.drawString(rx, _py(row_y + (row_h + AMOUNT_SIZE) / 2), amount_str)
         rx += c.stringWidth(amount_str, FONT_DISPLAY, AMOUNT_SIZE) + PILL_GAP
 
-    # Pills centred vertically in the name row height
+    # Pills centred vertically in the full row height
     for label, sk in pill_items:
         rx = _pill(c, rx, row_mid, label, style_key=sk)
 
     # ── Description (if any) — below the top row ──────────────────────────────
     desc_lines = _wrap_desc(row.get("description"))
     if desc_lines:
-        iy = row_y + NAME_SIZE + 9
+        iy = row_y + row_h + 9
         c.setFont("Helvetica", DESC_SIZE)
         c.setFillColor(MUTED)
         for line in desc_lines:
