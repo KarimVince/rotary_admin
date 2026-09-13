@@ -85,7 +85,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render backend deploy
-        run: curl -fsS -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}"
+        run: |
+          if [ -z "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}" ]; then
+            echo "ERROR: RENDER_BACKEND_DEPLOY_HOOK_URL secret is not set" && exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}"
+          echo "Backend deploy triggered successfully"
 
       - name: Trigger Render frontend deploy
-        run: curl -fsS -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK_URL }}"
+        run: |
+          if [ -z "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK_URL }}" ]; then
+            echo "ERROR: RENDER_FRONTEND_DEPLOY_HOOK_URL secret is not set" && exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK_URL }}"
+          echo "Frontend deploy triggered successfully"
