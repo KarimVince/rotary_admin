@@ -25,7 +25,7 @@ from pptx.dml.color import RGBColor as PptxRGB
 from pptx.enum.shapes import MSO_SHAPE as PptxMSO
 from pptx.enum.text import PP_ALIGN as PptxPP
 from pptx.enum.text import MSO_ANCHOR as PptxMSOAnchor
-from pptx.util import Inches as PptxIn, Pt as PptxPt
+from pptx.util import Cm as PptxCm, Inches as PptxIn, Pt as PptxPt
 from reportlab.lib.colors import HexColor, white, Color
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
@@ -711,27 +711,31 @@ def build_project_services_pdf(
 # PPTX — 16:9 landscape (Annual Project Services Report)
 # ---------------------------------------------------------------------------
 # Slide deck with the same data as the PDF but formatted for presentation.
-# Chrome (header band + logos) mirrors the NGO statistics PPTX design from
-# donation_statistics_report.py so all PPTX reports look consistent.
 #
 # Geometry: 1920×1080 px canvas at 144 dpi ≡ 13.333"×7.5" (Widescreen 16:9).
 # Pixel-to-EMU:  inches = px / 144  →  EMU = PptxIn(px / 144)
 # Pixel-to-pt:   points = px / 2
+#
+# Two chrome variants:
+#   "plain"    — white background; header mirrors the PDF (both logos centred,
+#                club name + District 3450 + gold rule + report title + blue rule).
+#                No green band.
+#   "template" — District 3450 band PNG as full-slide background (green band).
 # ---------------------------------------------------------------------------
 
-# ── Colour tokens (matching donation_statistics_report.py NGO PPTX theme) ──
-_PPTX_GREEN      = "#375E3A"   # chrome band background / card accent
-_PPTX_BLUE       = "#17458F"   # stat figures / amount chip
-_PPTX_BAND_GOLD  = "#D9BE86"   # kicker text in chrome band
+# ── Colour tokens ──────────────────────────────────────────────────────────
+_PPTX_GREEN      = "#375E3A"   # template band / section-header / card strip
+_PPTX_BLUE       = "#17458F"   # rotary blue (club name, stat figures, rule)
+_PPTX_BAND_GOLD  = "#D9BE86"   # kicker text in template band
 _PPTX_AMT_GOLD   = "#F7A81B"   # HKD amount foreground
+_PPTX_GOLD_RULE  = "#D4A017"   # gold separator rule (matching PDF GOLD constant)
 _PPTX_INK        = "#201E1D"   # primary body text
 _PPTX_GREY       = "#5B5F5B"   # secondary / description text
+_PPTX_MUTED      = "#6B7280"   # muted labels (District 3450, year label)
 _PPTX_CARD_BG    = "#FFFFFF"
 _PPTX_CARD_BR    = "#E4E3E0"
 
-# Section header dark-fill colour (left/dark end of the PDF gradient reused
-# as a solid fill here — gradient fills in python-pptx require an EMU-level
-# XML approach not worth the complexity).
+# Section header dark-fill colour (solid, matching the PDF gradient start).
 _PPTX_SECTION_COLOR: dict[str, str] = {
     "Education & Literacy":                    "#1a3fa8",
     "Poverty Alleviation & Social Welfare":    "#7C2D12",
@@ -747,7 +751,11 @@ _PCW      = 1920      # slide width
 _PCH      = 1080      # slide height
 _PMX      = 96        # margin x (left / right)
 _PCWW     = 1728      # content width = _PCW - 2*_PMX
-_PBAND_H  = 192       # chrome header band height
+
+# Header heights (px) — both variants occupy the same zone so content
+# positions are identical regardless of chrome.
+_PBAND_H        = 192   # template: chrome band height
+_PPLAIN_HDR_H   = 192   # plain: white header height (matches template)
 
 # ── Section-slide grid ─────────────────────────────────────────────────────
 _PSECT_H       = 60   # section header bar height (px)
@@ -763,7 +771,6 @@ _PMAX_ROWS     = (_PGRID_H + _PROW_GAP) // (_PCARD_H + _PROW_GAP)  # = 3
 _PCARDS_SLIDE  = _PCOLS * _PMAX_ROWS                               # = 9
 
 # ── Pill approximate widths (px) ───────────────────────────────────────────
-# Pre-measured so we can position subsequent pills without font metrics.
 _PPILL_W: dict[str, int] = {
     "Local": 56, "International": 90,
     "Donation": 72, "Volunteer": 76, "Don. + Vol.": 92,
@@ -771,7 +778,7 @@ _PPILL_W: dict[str, int] = {
 }
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────
+# ── Low-level helpers ──────────────────────────────────────────────────────
 
 def _pin(px: float) -> int:
     """Pixels → EMU (1920px ≡ 13.333 in → 144px/in)."""
@@ -779,7 +786,7 @@ def _pin(px: float) -> int:
 
 
 def _ppt(px: float) -> float:
-    """Pixels → points (1920px ≡ 960pt → 0.5 pt/px)."""
+    """Pixels → points (0.5 pt/px)."""
     return px / 2
 
 
@@ -788,68 +795,210 @@ def _prgb(hex_color: str) -> PptxRGB:
 
 
 def _ppill_w(label: str) -> int:
-    """Pixel width for a pill badge with the given label."""
     return _PPILL_W.get(label, max(len(label) * 6 + 24, 56))
 
 
 def _psect_color(section_name: str) -> str:
-    """Dark hex color for a section header / card strip."""
     return _PPTX_SECTION_COLOR.get(section_name, "#374151")
 
 
-# ── Chrome (band + logos + kicker/title) ───────────────────────────────────
+# ── Logo helper (landscape PPTX) ───────────────────────────────────────────
 
-def _pdraw_chrome(slide, chrome: str, kicker: str, title: str) -> None:
-    """Draw the header band + kicker + title on any slide.
+def _pdraw_logo(slide, path: Path, col_x_px: float, col_w_px: float,
+                zone_top_px: float, zone_h_px: float, max_h_px: float) -> None:
+    """Draw a logo centred within its column zone, height-constrained at max_h_px."""
+    if not path.exists():
+        return
+    try:
+        with PILImage.open(path) as im:
+            aspect = im.width / im.height
+    except Exception:
+        return
+    max_w_px = col_w_px - 8
+    # height-constrain
+    h = min(max_h_px, zone_h_px - 10)
+    w = h * aspect
+    if w > max_w_px:
+        w = max_w_px; h = w / aspect
+    draw_x = col_x_px + (col_w_px - w) / 2
+    draw_y = zone_top_px + (zone_h_px - h) / 2
+    try:
+        slide.shapes.add_picture(
+            str(path), _pin(draw_x), _pin(draw_y),
+            width=_pin(w), height=_pin(h),
+        )
+    except Exception:
+        pass
 
-    Two chrome variants (matching the NGO stats PPTX):
-    - "template": render the District 3450 band PNG as a full-slide background.
-    - "plain"   : draw a solid green rectangle + club lockup logo on the right.
+
+# ── Chrome: plain (white, PDF-style) ──────────────────────────────────────
+
+def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
+    """White header matching the PDF _main_header layout (landscape scale).
+
+    Zones (all px from slide top):
+      0–140  logo zone: RI wheel left | club name + district + gold rule | lockup right
+      140–175 report-title zone: title_line + year_label
+      175–180 bottom blue rule
+      180–192 gap before content
     """
+    LOGO_COL_W  = 160    # px reserved for each side logo column
+    LOGO_ZONE_H = 140    # px height of the club-identity zone
+    LOGO_MAX_H  = 100    # max logo height in px (height-constrained so both equal)
+    cx_px       = _PCW / 2
+    center_l    = _PMX + LOGO_COL_W
+    center_w    = _PCW - 2 * (_PMX + LOGO_COL_W)
+
+    # ── 1. Logos ──────────────────────────────────────────────────────────
+    _pdraw_logo(slide, _RI_LOGO,
+                _PMX, LOGO_COL_W, 0, LOGO_ZONE_H, LOGO_MAX_H)
+    _pdraw_logo(slide, _CLUB_LOGO,
+                _PCW - _PMX - LOGO_COL_W, LOGO_COL_W, 0, LOGO_ZONE_H, LOGO_MAX_H)
+
+    # ── 2. Club name (centered, rotary blue, bold) ────────────────────────
+    nb = slide.shapes.add_textbox(
+        _pin(center_l), _pin(28), _pin(center_w), _pin(50),
+    )
+    nb_tf = nb.text_frame
+    nb_tf.word_wrap = False
+    nb_p = nb_tf.paragraphs[0]
+    nb_p.text      = CLUB_NAME.upper()
+    nb_p.alignment = PptxPP.CENTER
+    nb_p.font.size = PptxPt(_ppt(52))   # ≈ 26pt → visible but not huge
+    nb_p.font.bold = True
+    nb_p.font.color.rgb = _prgb(_PPTX_BLUE)
+
+    # ── 3. "District 3450" (centered, muted) ─────────────────────────────
+    db = slide.shapes.add_textbox(
+        _pin(center_l), _pin(82), _pin(center_w), _pin(28),
+    )
+    db_p = db.text_frame.paragraphs[0]
+    db_p.text      = "District 3450"
+    db_p.alignment = PptxPP.CENTER
+    db_p.font.size = PptxPt(_ppt(24))
+    db_p.font.color.rgb = _prgb(_PPTX_MUTED)
+
+    # ── 4. Gold separator rule ────────────────────────────────────────────
+    gold_w_px = 240
+    gb = slide.shapes.add_shape(
+        PptxMSO.RECTANGLE,
+        _pin(cx_px - gold_w_px / 2), _pin(113),
+        _pin(gold_w_px), _pin(4),
+    )
+    gb.fill.solid(); gb.fill.fore_color.rgb = _prgb(_PPTX_GOLD_RULE)
+    gb.line.fill.background(); gb.shadow.inherit = False; gb.text_frame.clear()
+
+    # ── 5. Report title ───────────────────────────────────────────────────
+    tb = slide.shapes.add_textbox(
+        _pin(center_l), _pin(122), _pin(center_w), _pin(36),
+    )
+    tp = tb.text_frame.paragraphs[0]
+    tp.text      = title_line
+    tp.alignment = PptxPP.CENTER
+    tp.font.size = PptxPt(_ppt(36))
+    tp.font.bold = True
+    tp.font.color.rgb = _prgb(_PPTX_INK)
+
+    # ── 6. Rotary year ────────────────────────────────────────────────────
+    yb = slide.shapes.add_textbox(
+        _pin(center_l), _pin(160), _pin(center_w), _pin(26),
+    )
+    yp = yb.text_frame.paragraphs[0]
+    yp.text      = f"Rotary Year {year_label}"
+    yp.alignment = PptxPP.CENTER
+    yp.font.size = PptxPt(_ppt(22))
+    yp.font.color.rgb = _prgb(_PPTX_MUTED)
+
+    # ── 7. Bottom blue rule (full content width) ──────────────────────────
+    rule = slide.shapes.add_shape(
+        PptxMSO.RECTANGLE,
+        _pin(_PMX), _pin(182), _pin(_PCWW), _pin(3),
+    )
+    rule.fill.solid(); rule.fill.fore_color.rgb = _prgb(_PPTX_BLUE)
+    rule.line.fill.background(); rule.shadow.inherit = False; rule.text_frame.clear()
+
+
+def _pdraw_slim_plain_header(slide, year_label: str, section_label: str) -> None:
+    """Slim white header for section slides (plain chrome) — mirrors PDF _slim_header.
+
+    Zones (px): 0–48 text row | 48–54 blue rule | 54–66 gap → content at y=66px
+    But we reuse _PBAND_H=192 as the chrome height so grid coordinates are
+    identical to the template variant.  The extra space below the rule is left
+    blank (white), keeping the section bar at the same y=206 as in template mode.
+    """
+    # RI logo (small, left)
+    if _RI_LOGO.exists():
+        _pdraw_logo(slide, _RI_LOGO, _PMX, 80, 8, 44, 36)
+
+    # Club name left
+    cl = slide.shapes.add_textbox(_pin(_PMX + 88), _pin(10), _pin(700), _pin(38))
+    cl_p = cl.text_frame.paragraphs[0]
+    cl_p.text = CLUB_NAME.upper()
+    cl_p.font.size = PptxPt(_ppt(28))
+    cl_p.font.bold = True
+    cl_p.font.color.rgb = _prgb(_PPTX_BLUE)
+
+    # Right label: section + year
+    right_text = f"{section_label}  ·  Rotary Year {year_label}"
+    rl = slide.shapes.add_textbox(_pin(800), _pin(10), _pin(_PCW - 800 - _PMX), _pin(38))
+    rp = rl.text_frame.paragraphs[0]
+    rp.text = right_text
+    rp.alignment = PptxPP.RIGHT
+    rp.font.size = PptxPt(_ppt(22))
+    rp.font.color.rgb = _prgb(_PPTX_MUTED)
+
+    # Blue rule
+    rule = slide.shapes.add_shape(
+        PptxMSO.RECTANGLE,
+        _pin(_PMX), _pin(52), _pin(_PCWW), _pin(2),
+    )
+    rule.fill.solid(); rule.fill.fore_color.rgb = _prgb(_PPTX_BLUE)
+    rule.line.fill.background(); rule.shadow.inherit = False; rule.text_frame.clear()
+
+
+# ── Chrome dispatcher ─────────────────────────────────────────────────────
+
+def _pdraw_chrome_title(slide, chrome: str, year_label: str) -> None:
+    """Header for the title / summary slide."""
     dist_band = _ASSETS / "ngo-report-district-band.png"
     if chrome == "template" and dist_band.exists():
-        slide.shapes.add_picture(
-            str(dist_band), 0, 0,
-            width=_pin(_PCW), height=_pin(_PCH),
-        )
-    else:
-        band = slide.shapes.add_shape(
-            PptxMSO.RECTANGLE, 0, 0, _pin(_PCW), _pin(_PBAND_H),
-        )
-        band.fill.solid()
-        band.fill.fore_color.rgb = _prgb(_PPTX_GREEN)
-        band.line.fill.background()
-        band.shadow.inherit = False
-        band.text_frame.clear()
-
-        if _CLUB_LOGO.exists():
-            with PILImage.open(_CLUB_LOGO) as im:
-                aspect = im.width / im.height
-            logo_h = _pin(120)
-            logo_w = int(logo_h * aspect)
-            slide.shapes.add_picture(
-                str(_CLUB_LOGO),
-                _pin(1824) - logo_w,
-                _pin(96) - logo_h // 2,
-                width=logo_w,
-                height=logo_h,
-            )
-
-    if kicker:
+        slide.shapes.add_picture(str(dist_band), 0, 0,
+                                 width=_pin(_PCW), height=_pin(_PCH))
+        # Kicker + title over the band
         kb = slide.shapes.add_textbox(_pin(_PMX), _pin(52), _pin(1200), _pin(40))
-        kt = kb.text_frame
-        kt.text = kicker
-        kt.paragraphs[0].font.size = PptxPt(_ppt(24))
-        kt.paragraphs[0].font.bold = True
-        kt.paragraphs[0].font.color.rgb = _prgb(_PPTX_BAND_GOLD)
+        kb.text_frame.text = f"Rotary Club of Discovery Bay · District 3450"
+        kb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(24))
+        kb.text_frame.paragraphs[0].font.bold = True
+        kb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_BAND_GOLD)
+        tb = slide.shapes.add_textbox(_pin(_PMX), _pin(80), _pin(1300), _pin(90))
+        tb.text_frame.word_wrap = True
+        tb.text_frame.text = "Annual Project Services Report"
+        tb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(46))
+        tb.text_frame.paragraphs[0].font.bold = True
+        tb.text_frame.paragraphs[0].font.color.rgb = _prgb("#FFFFFF")
+    else:
+        _pdraw_plain_header(slide, year_label, "ANNUAL PROJECT SERVICES REPORT")
 
-    tb = slide.shapes.add_textbox(_pin(_PMX), _pin(80), _pin(1300), _pin(90))
-    tf = tb.text_frame
-    tf.word_wrap = True
-    tf.text = title
-    tf.paragraphs[0].font.size = PptxPt(_ppt(46))
-    tf.paragraphs[0].font.bold = True
-    tf.paragraphs[0].font.color.rgb = _prgb("#FFFFFF")
+
+def _pdraw_chrome_section(slide, chrome: str, year_label: str, section_name: str) -> None:
+    """Header for classification / section slides."""
+    dist_band = _ASSETS / "ngo-report-district-band.png"
+    if chrome == "template" and dist_band.exists():
+        slide.shapes.add_picture(str(dist_band), 0, 0,
+                                 width=_pin(_PCW), height=_pin(_PCH))
+        kb = slide.shapes.add_textbox(_pin(_PMX), _pin(52), _pin(1200), _pin(40))
+        kb.text_frame.text = f"Rotary Year {year_label}"
+        kb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(24))
+        kb.text_frame.paragraphs[0].font.bold = True
+        kb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_BAND_GOLD)
+        tb = slide.shapes.add_textbox(_pin(_PMX), _pin(80), _pin(1300), _pin(90))
+        tb.text_frame.word_wrap = True
+        tb.text_frame.text = section_name
+        tb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(46))
+        tb.text_frame.paragraphs[0].font.bold = True
+        tb.text_frame.paragraphs[0].font.color.rgb = _prgb("#FFFFFF")
+    else:
+        _pdraw_slim_plain_header(slide, year_label, section_name)
 
 
 # ── Title / summary slide ─────────────────────────────────────────────────
@@ -864,11 +1013,7 @@ def _padd_title_slide(
 ) -> None:
     """Slide 1: chrome + four summary stat cards + footnote."""
     slide = prs.slides.add_slide(blank)
-    _pdraw_chrome(
-        slide, chrome,
-        kicker=f"Rotary Club of Discovery Bay · District 3450",
-        title="Annual Project Services Report",
-    )
+    _pdraw_chrome_title(slide, chrome, year_label)
 
     total_actual   = sum(r.get("actual_hkd", 0.0)  for r in rows)
     total_planned  = sum(r.get("planned_hkd", 0.0) for r in rows)
@@ -987,10 +1132,10 @@ def _padd_section_slide(
     from app.core.report_images import pptx_safe_image
 
     slide = prs.slides.add_slide(blank)
-    title_str = section_name
+    sect_label = section_name
     if total_pages > 1:
-        title_str += f" ({page_num} of {total_pages})"
-    _pdraw_chrome(slide, chrome, kicker=f"Rotary Year {year_label}", title=title_str)
+        sect_label += f" ({page_num} of {total_pages})"
+    _pdraw_chrome_section(slide, chrome, year_label, sect_label)
 
     # ── Section header bar ────────────────────────────────────────────────
     sect_hex  = _psect_color(section_name)
