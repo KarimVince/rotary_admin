@@ -224,32 +224,35 @@ export default function DonationsStatistics() {
   ];
 
   const selectedYearCards = [
+    // Green = confirmed / delivered money.
     {
       value: formatCurrency(stats.selected_year.total_hkd, "HKD"),
-      label: `Total donated — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+      label: "Total donated (HKD)",
+      variant: "stat-green",
     },
-    // Story 16.35 follow-up — moved right after the "given" (actual) HKD
-    // total, swapped with USD (was HKD, USD, Planned — now HKD, Planned,
-    // USD), and given its own dedicated reddish/purple tone (stat-rose)
-    // instead of cycling through the other cards' palette, so it reads as
-    // visually distinct from the actual-donation figures.
+    // Rose = forecast / not yet received.
     {
       value: formatCurrency(stats.selected_year_planned?.total_hkd ?? 0, "HKD"),
-      label: `Planned donations — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+      label: "Planned donations (HKD)",
       variant: "stat-rose",
     },
+    // Lavender = donated + planned combined — replaces the old USD card.
     {
-      value: formatCurrency(stats.selected_year.total_usd, "USD"),
-      label: `Total donated — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+      value: formatCurrency(
+        (stats.selected_year.total_hkd ?? 0) + (stats.selected_year_planned?.total_hkd ?? 0),
+        "HKD",
+      ),
+      label: "Total (donated + planned)",
+      variant: "stat-lavender",
     },
     {
       value:
         stats.selected_year_organisations_count_with_planned ?? stats.selected_year_organisations_count,
-      label: `Organisations supported — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+      label: "Organisations supported",
     },
     {
       value: `${stats.total_service_hours_selected_year.toLocaleString()} h`,
-      label: `Volunteer service hours — ${rotaryYearLabel(stats.selected_rotary_year)}`,
+      label: "Volunteer service hours",
     },
   ];
 
