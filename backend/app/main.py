@@ -58,6 +58,10 @@ app.add_middleware(
     allow_origins=settings.cors_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Expose Content-Disposition so the browser lets JavaScript read the
+    # attachment filename from download responses (without this the header
+    # is hidden by CORS and every downloaded file falls back to "download").
+    expose_headers=["Content-Disposition"],
 )
 
 os.makedirs(os.path.join(settings.upload_dir, "members"), exist_ok=True)
