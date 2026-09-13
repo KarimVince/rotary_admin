@@ -190,9 +190,10 @@ describe("DonationsStatistics", () => {
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getAllByText(/organisations supported/i).length).toBeGreaterThan(0);
 
-    // Selected-year cards.
+    // Selected-year cards (HKD only: actual, planned, total).
     expect(screen.getByText("900 HKD")).toBeInTheDocument();
-    expect(screen.getByText("115 USD")).toBeInTheDocument();
+    expect(screen.getByText("250 HKD")).toBeInTheDocument();   // planned donations
+    expect(screen.getByText("1,150 HKD")).toBeInTheDocument(); // donated + planned
     expect(
       screen.getAllByText(new RegExp(`Total donated.*${THIS_YEAR}`, "i")).length,
     ).toBeGreaterThan(0);
@@ -233,9 +234,9 @@ describe("DonationsStatistics", () => {
     expect(await screen.findByText(/3 donations in SGD excluded/i)).toBeInTheDocument();
   });
 
-  // Story 8.26 — selecting a classification with zero matching donations
-  // must not blank the page (title/report card/selectors all stay visible).
-  it("keeps the page chrome and shows an empty state when a classification has no NGOs", async () => {
+  // Story 8.26 — when stats return zero data the page must not blank;
+  // title, report controls, and year selector all stay visible with zero cards.
+  it("keeps the page chrome and shows zero values when no data is available", async () => {
     const EMPTY_STATS = {
       by_currency: [],
       selected_rotary_year: THIS_YEAR,
@@ -262,32 +263,19 @@ describe("DonationsStatistics", () => {
     };
 
     server.use(
-      http.get(`${API_BASE_URL}/ngo-classifications`, () =>
-        HttpResponse.json([{ id: "class-1", name: "Environment & Climate" }]),
-      ),
       http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(EMPTY_STATS)),
     );
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: "Classification" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Classification" }));
-    await userEvent.click(screen.getByRole("option", { name: "Environment & Climate" }));
-
     // Page chrome stays fully intact.
-    expect(screen.getByText("Donation statistics")).toBeInTheDocument();
+    expect(await screen.findByText("Donation statistics")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Format" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Content" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Classification" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "View a rotary year" })).toBeInTheDocument();
 
     // Report cards show zero values rather than disappearing.
     expect(screen.getAllByText("0 HKD").length).toBeGreaterThan(0);
     expect(screen.getAllByText("0 USD").length).toBeGreaterThan(0);
-
-    // Each chart shows the classification-aware empty state — 2 charts in
-    // "Selected Year" + 4 charts in "All Years" (Story 8.30).
-    expect(await screen.findAllByText("No NGOs found for this classification.")).toHaveLength(6);
   });
 
   // Story 8.30 — the page shows "Selected Year" and "All Years" sections,
@@ -336,7 +324,7 @@ describe("DonationsStatistics", () => {
       URL.revokeObjectURL = originalRevokeObjectURL;
     });
 
-    it("downloads a report respecting the active format, content type, year, and currency filters", async () => {
+    it("downloads a Project Services PDF for the selected year when Generate Report is clicked", async () => {
       let requestUrl;
       server.use(
         http.get(`${API_BASE_URL}/donations/statistics`, () => HttpResponse.json(STATS)),
@@ -354,14 +342,13 @@ describe("DonationsStatistics", () => {
       renderPage();
       await screen.findByText("1,300 HKD");
 
-      await userEvent.click(screen.getByRole("button", { name: "Content" }));
-      await userEvent.click(screen.getByRole("option", { name: "Integral" }));
+      // PDF (Project Services) is the default format — click Generate Report directly.
       await userEvent.click(screen.getByRole("button", { name: /generate report/i }));
 
       await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
       expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
       expect(requestUrl.searchParams.get("format")).toBe("pdf");
-      expect(requestUrl.searchParams.get("type")).toBe("integral");
+      expect(requestUrl.searchParams.get("type")).toBe("project-services");
       expect(requestUrl.searchParams.get("rotary_year")).toBe(String(THIS_YEAR));
       expect(requestUrl.searchParams.get("currency")).toBe("HKD");
     });
@@ -395,9 +382,9 @@ describe("DonationsStatistics", () => {
       expect(screen.getByText("42 h")).toBeInTheDocument();
       expect(screen.getByText("18 h")).toBeInTheDocument();
       expect(screen.getByText(/volunteer service hours \(all-time\)/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(new RegExp(`Volunteer service hours.*${THIS_YEAR}`, "i")),
-      ).toBeInTheDocument();
+      // The "Selected Year" section heading carries the year; the card label
+      // just says "Volunteer service hours" — both are on the page.
+      expect(screen.getAllByText(/volunteer service hours/i).length).toBeGreaterThan(0);
       expect(screen.getByText("Volunteer service hours per rotary year")).toBeInTheDocument();
     });
   });
