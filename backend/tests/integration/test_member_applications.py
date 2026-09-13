@@ -1,4 +1,4 @@
-from datetime import date
+import re
 
 import pytest
 
@@ -133,9 +133,11 @@ def test_download_returns_pdf_with_standardised_filename(admin_client, monkeypat
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     # Story 15.11: one-off form, no rotary-year segment.
-    assert response.headers["content-disposition"] == (
-        f'attachment; filename="member-application_{date.today().isoformat()}.pdf"'
-    )
+    # Format: member-application_YYYY-MM-DD_HHhMM.pdf
+    assert re.fullmatch(
+        r'attachment; filename="member-application_\d{4}-\d{2}-\d{2}_\d{2}h\d{2}\.pdf"',
+        response.headers["content-disposition"],
+    ), f"Unexpected content-disposition: {response.headers['content-disposition']}"
     assert response.content[:4] == b"%PDF"
 
 
