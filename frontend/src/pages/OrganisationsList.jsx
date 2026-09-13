@@ -530,27 +530,34 @@ export default function OrganisationsList() {
                   {classificationsById.get(org.classification_id).name}
                 </span>
               )}
-              {/* Year-filtered badges: show each figure only when > 0.
-                  Donation badges: blue (actual) / purple (planned).
-                  Service hours badges: teal (actual) / purple-teal (planned).
-                  The year is implied by the active filter, so no year text. */}
-              {yearFilter !== null && org.year_total > 0 && (
-                <span className="inline-badge">{formatHkd(org.year_total)}</span>
+              {/* Year-filtered badges — each type on its own line so the two
+                  groups never wrap into each other, but actual + planned for
+                  the same type always sit side-by-side on that one line. */}
+              {yearFilter !== null && (org.year_total > 0 || org.year_total_planned > 0) && (
+                <div className="flex flex-wrap justify-center gap-1">
+                  {org.year_total > 0 && (
+                    <span className="inline-badge !ml-0">{formatHkd(org.year_total)}</span>
+                  )}
+                  {org.year_total_planned > 0 && (
+                    <span className="inline-badge donation-planned-badge-lg !ml-0">
+                      {formatHkd(org.year_total_planned)}
+                    </span>
+                  )}
+                </div>
               )}
-              {yearFilter !== null && org.year_total_planned > 0 && (
-                <span className="inline-badge donation-planned-badge-lg">
-                  {formatHkd(org.year_total_planned)}
-                </span>
-              )}
-              {yearFilter !== null && org.year_service_hours > 0 && (
-                <span className="inline-badge service-hours-badge">
-                  {formatHours(org.year_service_hours)}
-                </span>
-              )}
-              {yearFilter !== null && org.year_service_hours_planned > 0 && (
-                <span className="inline-badge service-hours-planned-badge">
-                  {formatHours(org.year_service_hours_planned)}
-                </span>
+              {yearFilter !== null && (org.year_service_hours > 0 || org.year_service_hours_planned > 0) && (
+                <div className="flex flex-wrap justify-center gap-1">
+                  {org.year_service_hours > 0 && (
+                    <span className="inline-badge service-hours-badge !ml-0">
+                      {formatHours(org.year_service_hours)}
+                    </span>
+                  )}
+                  {org.year_service_hours_planned > 0 && (
+                    <span className="inline-badge service-hours-planned-badge !ml-0">
+                      {formatHours(org.year_service_hours_planned)}
+                    </span>
+                  )}
+                </div>
               )}
               {canWrite && (
                 <button
