@@ -99,14 +99,14 @@ _PILL_STYLE: dict[str, tuple[str, str]] = {
 # Asset paths
 # ---------------------------------------------------------------------------
 _ASSETS    = Path(__file__).resolve().parents[1] / "assets"
-_RI_LOGO   = _ASSETS / "club-logo-lockup.png"
-_CLUB_LOGO = _ASSETS / "rotary-logo.png"
+_RI_LOGO   = _ASSETS / "rotary-logo.png"           # left  — compact RI wheel
+_CLUB_LOGO = _ASSETS / "club-logo-lockup.png"      # right — club identity lockup
 
 # ---------------------------------------------------------------------------
 # Layout constants (points)
 # ---------------------------------------------------------------------------
-LOGO_COL_W     = 105
-LOGO_MAX_H     = 45          # max logo height — logos live in the club-identity zone only
+LOGO_COL_W     = 120         # equal reserved column for each side logo
+LOGO_MAX_H     = 30          # at col_w=120 all logos are height-constrained → equal 30pt height
 LOGO_ZONE_H    = 58          # height of the club-identity zone (logos + club name + district)
 
 MAIN_HEADER_H  = 93          # full header: LOGO_ZONE_H + report-title zone
@@ -295,7 +295,7 @@ def _card_height(row: dict) -> float:
     desc_lines = _wrap_desc(row.get("description"))
     n          = len(desc_lines)
     row_h      = NAME_SIZE              # single combined row height
-    gap        = 5 if n else 0
+    gap        = 9 if n else 0
     h = CARD_PAD_V + row_h + gap + n * DESC_LINE_H + CARD_PAD_V
     return max(h, 34.0)
 
@@ -346,36 +346,51 @@ def _derive_pills(row: dict) -> tuple[str, str, str, str]:
 
 def _main_header(c: rl_canvas.Canvas, year_label: str) -> float:
     top = MARGIN
+    cx  = PAGE_W / 2
 
-    # ── Club-identity zone (LOGO_ZONE_H tall): logos + club name + district ──
-    # Logos are centred WITHIN this zone only → same vertical centre as the text.
+    # ── 1. Center text block — defined first, anchored to page centre ─────────
+    # The center zone sits between the two equal logo columns; text is always
+    # page-centred regardless of logo sizes.  Dynamic font sizing ensures the
+    # club name never overflows into the logo columns even on systems that fall
+    # back to Helvetica-Bold (Linux / production servers without Avenir).
+    avail_name_w = PAGE_W - 2 * MARGIN - 2 * LOGO_COL_W - 10
+    name_str  = CLUB_NAME.upper()
+    name_size = 22
+    while name_size > 10 and c.stringWidth(name_str, FONT_DISPLAY, name_size) > avail_name_w:
+        name_size -= 0.5
+
+    # Vertical positions within the LOGO_ZONE_H band (club-identity zone)
+    # Text block centre ≈ top+28 (≈ zone centre); name baseline at top+34,
+    # district baseline at top+48.
+    c.setFont(FONT_DISPLAY, name_size); c.setFillColor(ROTARY_BLUE)
+    c.drawCentredString(cx, _py(top + 34), name_str)
+
+    c.setFont("Helvetica", 9); c.setFillColor(MUTED)
+    c.drawCentredString(cx, _py(top + 48), "District 3450")
+
+    # Gold separator rule between club-identity zone and report-title zone
+    c.setFillColor(GOLD)
+    c.rect(cx - 28, _py(top + LOGO_ZONE_H - 1), 56, 2, fill=1, stroke=0)
+
+    # ── 2. Logos — equal side columns, both constrained to LOGO_MAX_H ─────────
+    # Both logos are drawn within identical LOGO_COL_W × LOGO_ZONE_H cells.
+    # LOGO_MAX_H is chosen so the wide lockup (aspect ≈ 3.63) and the
+    # squarish wheel (aspect ≈ 1.28) both end up at approximately the same
+    # rendered height (~31–33 pt), making the header visually balanced.
     _draw_logo(c, _RI_LOGO,   MARGIN,                        LOGO_COL_W,
                top, LOGO_ZONE_H, LOGO_MAX_H)
     _draw_logo(c, _CLUB_LOGO, PAGE_W - MARGIN - LOGO_COL_W, LOGO_COL_W,
                top, LOGO_ZONE_H, LOGO_MAX_H)
 
-    cx = PAGE_W / 2
-    # Text baseline positions tuned so the visual text-block centre ≈ logo centre
-    # (logo centre = top + LOGO_ZONE_H/2 = top+29; text block centre ≈ top+27)
-    c.setFont(FONT_DISPLAY, 22); c.setFillColor(ROTARY_BLUE)
-    c.drawCentredString(cx, _py(top + 35), CLUB_NAME.upper())
-
-    c.setFont("Helvetica", 9); c.setFillColor(MUTED)
-    c.drawCentredString(cx, _py(top + 49), "District 3450")
-
-    # Gold separator between the two zones
-    c.setFillColor(GOLD)
-    c.rect(cx - 28, _py(top + LOGO_ZONE_H - 1), 56, 2, fill=1, stroke=0)
-
-    # ── Report-title zone (below club-identity zone) ───────────────────────────
-    ry = top + LOGO_ZONE_H + 7   # y_from_top for first report text line
+    # ── 3. Report-title zone (below club-identity zone) ────────────────────────
+    ry = top + LOGO_ZONE_H + 7
     c.setFont(FONT_DISPLAY, 14); c.setFillColor(TEXT_DARK)
     c.drawCentredString(cx, _py(ry + 13), "ANNUAL PROJECT SERVICES REPORT")
 
     c.setFont("Helvetica", 8.5); c.setFillColor(MUTED)
     c.drawCentredString(cx, _py(ry + 25), f"Rotary Year {year_label}")
 
-    # ── Bottom rule ───────────────────────────────────────────────────────────
+    # ── 4. Bottom rule ─────────────────────────────────────────────────────────
     hdr_bottom = top + MAIN_HEADER_H
     c.setStrokeColor(ROTARY_BLUE); c.setLineWidth(2)
     c.line(MARGIN, _py(hdr_bottom + 5), PAGE_W - MARGIN, _py(hdr_bottom + 5))
@@ -557,7 +572,7 @@ def _draw_card(
     # ── Description (if any) — below the top row ──────────────────────────────
     desc_lines = _wrap_desc(row.get("description"))
     if desc_lines:
-        iy = row_y + NAME_SIZE + 5
+        iy = row_y + NAME_SIZE + 9
         c.setFont("Helvetica", DESC_SIZE)
         c.setFillColor(MUTED)
         for line in desc_lines:
