@@ -69,7 +69,7 @@ export default function DonationsStatistics() {
         }));
       } else {
         ({ blob, filename } = await generateDonationStatisticsReport("pptx", {
-          reportType: "simplified",
+          reportType: "project-services",
           useTemplate,
           rotaryYear: selectedYear,
           currency: selectedCurrency,
