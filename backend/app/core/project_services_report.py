@@ -772,32 +772,34 @@ _PPLAIN_HDR_H   = 192   # plain: white header height (matches template)
 # Slides: slim header | section mini-headers + full-width cards (flowing)
 # | page number at bottom.  No title slide; all sections on the same flow.
 
-# Header matches the template band height exactly — _pdraw_plain_header fills
-# the same 192 px zone whether chrome is "plain" or "template".
-_PFLW_HDR_H  = 192   # px — full header zone
+# Header: plain header trimmed to 182 px to remove year/rule overlap.
+_PFLW_HDR_H      = 160   # px — plain chrome header (blue rule ends at ~155)
+_PFLW_TMPL_HDR_H = 210   # px — template chrome: band is taller, push content lower
 _PFLW_BOT_H  = 28    # px — page-number zone at bottom
-_PFLW_PAD_T  = 12    # px — gap below header before first item
+_PFLW_PAD_T  = 10    # px — gap below header before first item
 _PFLW_PAD_B  = 8     # px — gap above page number
-_PFLW_CONT_T = _PFLW_HDR_H + _PFLW_PAD_T          # = 204 px
-_PFLW_CONT_B = _PCH  - _PFLW_BOT_H - _PFLW_PAD_B  # = 1044 px
-_PFLW_AVAIL  = _PFLW_CONT_B - _PFLW_CONT_T         # = 840 px per slide
+_PFLW_CONT_T = _PFLW_HDR_H + _PFLW_PAD_T                # = 170 px  (plain chrome)
+_PFLW_TMPL_CONT_T = _PFLW_TMPL_HDR_H + _PFLW_PAD_T      # = 220 px  (template chrome)
+_PFLW_CONT_B = _PCH  - _PFLW_BOT_H - _PFLW_PAD_B        # = 1044 px
+_PFLW_AVAIL  = _PFLW_CONT_B - _PFLW_CONT_T               # = 874 px per slide (plain)
+_PFLW_TMPL_AVAIL = _PFLW_CONT_B - _PFLW_TMPL_CONT_T      # = 824 px per slide (template)
 
 # Flow item heights (px)
-_PFLW_SECT_H   = 44   # section mini-header
-_PFLW_SECT_GAP = 10   # gap between mini-header and first card below it
+_PFLW_SECT_H   = 88   # section band — doubled, large icon + big text, top-only corners
+_PFLW_SECT_GAP = 12   # gap between band and first card below it
 _PFLW_SECT_SEP = 20   # extra gap before a new section when not first on slide
-_PFLW_CARD_H   = 160  # full-width card — tall enough for 3-line wrapped description
+_PFLW_CARD_H   = 190  # full-width card — row1: logo+name+amount+pills; row2: desc (taller)
 _PFLW_CARD_GAP = 8    # gap between consecutive cards
 
 # Full-width card x / width (full content band)
 _PFLW_CARD_X = _PMX      # = 96 px
 _PFLW_CARD_W = _PCWW     # = 1728 px
 
-# ── Pill approximate widths (px at 8pt font) ───────────────────────────────
+# ── Pill approximate widths (px at 10pt font) ──────────────────────────────
 _PPILL_W: dict[str, int] = {
-    "Local": 52, "International": 88,
-    "Donation": 68, "Volunteer": 72, "Don. + Vol.": 88,
-    "Planned": 60, "Completed": 76, "Ongoing": 64, "Done": 52,
+    "Local": 68, "International": 118,
+    "Donation": 90, "Volunteer": 96, "Don. + Vol.": 112,
+    "Planned": 80, "Completed": 100, "Ongoing": 84, "Done": 68,
 }
 
 
@@ -839,10 +841,11 @@ def _pdraw_flow_header(slide, chrome: str, year_label: str,
         # Full-slide background band
         slide.shapes.add_picture(str(dist_band), 0, 0,
                                  width=_pin(_PCW), height=_pin(_PCH))
-        # White panel covering the content area so cards sit on white
+        # White panel covering the content area — starts at _PFLW_TMPL_HDR_H so
+        # the band's graphic zone (taller than the plain header) is fully clear.
         panel = slide.shapes.add_shape(
             PptxMSO.RECTANGLE,
-            0, _pin(_PFLW_HDR_H), _pin(_PCW), _pin(_PCH - _PFLW_HDR_H),
+            0, _pin(_PFLW_TMPL_HDR_H), _pin(_PCW), _pin(_PCH - _PFLW_TMPL_HDR_H),
         )
         panel.fill.solid(); panel.fill.fore_color.rgb = _prgb("#FFFFFF")
         panel.line.fill.background(); panel.shadow.inherit = False; panel.text_frame.clear()
@@ -877,52 +880,76 @@ def _pdraw_flow_header(slide, chrome: str, year_label: str,
 
 def _pdraw_section_mini_header(slide, section_name: str,
                                 y_px: float, cont: bool = False) -> None:
-    """44 px section band: dark solid colour + icon + white name."""
+    """88 px section band (doubled): dark solid colour, rounded TOP corners only,
+    large icon (42 px) and big white text (24 pt).  Bottom corners are squared
+    off by overlaying a plain rectangle over the lower half.
+    """
+    SECT_H   = _PFLW_SECT_H    # = 88
     sect_hex = _psect_color(section_name)
 
-    band = slide.shapes.add_shape(
-        PptxMSO.RECTANGLE,
+    # ── Rounded rect (all four corners get rounded by python-pptx) ────────
+    band_rr = slide.shapes.add_shape(
+        PptxMSO.ROUNDED_RECTANGLE,
         _pin(_PFLW_CARD_X), _pin(y_px),
-        _pin(_PFLW_CARD_W), _pin(_PFLW_SECT_H),
+        _pin(_PFLW_CARD_W), _pin(SECT_H),
     )
-    band.fill.solid(); band.fill.fore_color.rgb = _prgb(sect_hex)
-    band.line.fill.background(); band.shadow.inherit = False; band.text_frame.clear()
+    band_rr.fill.solid(); band_rr.fill.fore_color.rgb = _prgb(sect_hex)
+    band_rr.line.fill.background(); band_rr.shadow.inherit = False; band_rr.text_frame.clear()
+    try:
+        band_rr.adjustments[0] = 12000   # ≈ 10-11 px radius on 88 px height
+    except Exception:
+        pass
 
-    ICON_SZ = 28
+    # ── Square off bottom corners: overlay a plain rect on the lower half ─
+    band_sq = slide.shapes.add_shape(
+        PptxMSO.RECTANGLE,
+        _pin(_PFLW_CARD_X), _pin(y_px + SECT_H // 2),
+        _pin(_PFLW_CARD_W), _pin(SECT_H // 2 + 2),
+    )
+    band_sq.fill.solid(); band_sq.fill.fore_color.rgb = _prgb(sect_hex)
+    band_sq.line.fill.background(); band_sq.shadow.inherit = False; band_sq.text_frame.clear()
+
+    # ── Icon (vertically centred) ─────────────────────────────────────────
+    ICON_SZ   = 42
+    ICON_PAD  = 20
     icon_file = _SECTION_ICON_FILES.get(section_name, "icon_others.png")
     icon_path = _ASSETS / icon_file
-    icon_y    = y_px + (_PFLW_SECT_H - ICON_SZ) // 2
+    icon_y    = y_px + (SECT_H - ICON_SZ) // 2
     if icon_path.exists():
         try:
             slide.shapes.add_picture(
                 str(icon_path),
-                _pin(_PFLW_CARD_X + 12), _pin(icon_y),
+                _pin(_PFLW_CARD_X + ICON_PAD), _pin(icon_y),
                 width=_pin(ICON_SZ), height=_pin(ICON_SZ),
             )
         except Exception:
             pass
 
+    # ── Section label (big, bold, white, vertically centred) ─────────────
     label = section_name + (" (cont.)" if cont else "")
-    lbl   = slide.shapes.add_textbox(
-        _pin(_PFLW_CARD_X + 48), _pin(y_px),
-        _pin(_PFLW_CARD_W - 52), _pin(_PFLW_SECT_H),
+    TEXT_X = _PFLW_CARD_X + ICON_PAD + ICON_SZ + 16
+    lbl = slide.shapes.add_textbox(
+        _pin(TEXT_X), _pin(y_px),
+        _pin(_PFLW_CARD_W - TEXT_X + _PFLW_CARD_X - 16), _pin(SECT_H),
     )
     lbl_tf = lbl.text_frame
     lbl_tf.word_wrap = False
     lbl_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
     lbl_p = lbl_tf.paragraphs[0]
     lbl_p.text      = label
-    lbl_p.font.size = PptxPt(_ppt(26))
+    lbl_p.font.size = PptxPt(_ppt(48))   # 24 pt — same visual weight as PDF section heading
     lbl_p.font.bold = True
     lbl_p.font.color.rgb = _prgb("#FFFFFF")
 
 
 def _padd_flow_card(slide, row: dict, section_name: str,
                     y_px: float, pptx_safe_image) -> None:
-    """Full-width 150 px card:
-      Row 1 (top): strip | logo | name (bold, wraps) | amount (right, gold)
-      Row 2:       pills (scope / format / status)
-      Row 3:       description (muted, wraps to multiple lines)
+    """Full-width 160 px card — two rows:
+      Row 1: [left-rounded strip] | [logo] | [name bold] | [HK$amount gold] | [pills…]
+      Row 2: [description muted, wraps full width]
+
+    Strip has left-only rounded corners (ROUNDED_RECT + RECT overlay trick).
+    Pills sit on the same line as name + amount, to the right of the amount.
     """
     light_hex = _PPTX_SECTION_LIGHT.get(section_name, "#17458F")
 
@@ -931,37 +958,61 @@ def _padd_flow_card(slide, row: dict, section_name: str,
     width  = _pin(_PFLW_CARD_W)
     height = _pin(_PFLW_CARD_H)
 
-    # ── Card background ───────────────────────────────────────────────────
+    # ── Card background (rounded rectangle) ───────────────────────────────
     bg = slide.shapes.add_shape(PptxMSO.ROUNDED_RECTANGLE, left, top, width, height)
     bg.fill.solid(); bg.fill.fore_color.rgb = _prgb(_PPTX_CARD_BG)
     bg.line.color.rgb = _prgb(_PPTX_CARD_BR); bg.line.width = PptxPt(1.0)
     bg.shadow.inherit = False; bg.text_frame.clear()
 
-    # ── Left colour strip (8 px, light section accent) ────────────────────
-    STRIP_W = 8
-    strip = slide.shapes.add_shape(
-        PptxMSO.RECTANGLE, left, top, _pin(STRIP_W), height,
+    # ── Left colour strip — 14 px, LEFT corners rounded only ─────────────
+    STRIP_W = 14
+    # Draw a rounded rect twice as wide so left semicircle appears
+    strip_rr = slide.shapes.add_shape(
+        PptxMSO.ROUNDED_RECTANGLE, left, top, _pin(STRIP_W * 2), height,
     )
-    strip.fill.solid(); strip.fill.fore_color.rgb = _prgb(light_hex)
-    strip.line.fill.background(); strip.shadow.inherit = False; strip.text_frame.clear()
+    strip_rr.fill.solid(); strip_rr.fill.fore_color.rgb = _prgb(light_hex)
+    strip_rr.line.fill.background(); strip_rr.shadow.inherit = False
+    strip_rr.text_frame.clear()
+    try:
+        strip_rr.adjustments[0] = 50000   # full semicircle on left side
+    except Exception:
+        pass
+    # Square off the right half of the rounded rect
+    strip_sq = slide.shapes.add_shape(
+        PptxMSO.RECTANGLE, left + _pin(STRIP_W), top, _pin(STRIP_W + 2), height,
+    )
+    strip_sq.fill.solid(); strip_sq.fill.fore_color.rgb = _prgb(light_hex)
+    strip_sq.line.fill.background(); strip_sq.shadow.inherit = False; strip_sq.text_frame.clear()
 
-    # ── Layout constants (px, card-relative from card left = 0) ──────────
-    INNER_L  = STRIP_W + 14   # = 22 — after strip + left pad
-    INNER_T  = 12              # top pad
-    INNER_R  = 14              # right pad
-    LOGO_SZ  = 46              # logo / icon bounding box
-    NAME_X   = INNER_L + LOGO_SZ + 12   # = 80
-    AMT_W    = 200
-    AMT_X    = _PFLW_CARD_W - INNER_R - AMT_W   # = 1514
+    # ── Layout constants (px, card-relative: 0 = card left edge) ─────────
+    # strip_rr extends to STRIP_W*2=28px; strip_sq overlay extends to STRIP_W*2+2=30px.
+    # INNER_L must clear 30px + comfortable padding.
+    INNER_L  = STRIP_W * 2 + 8   # = 36 — starts well clear of strip overlay
+    INNER_T  = 16                  # top pad inside card
+    INNER_R  = 16                  # right pad
+    LOGO_SZ  = 48                  # logo bounding box (square)
+    NAME_X   = INNER_L + LOGO_SZ + 12   # = 96
 
-    # Row vertical positions
-    ROW1_H   = LOGO_SZ         # logo/name/amount zone height = 46 px
-    PILL_Y   = INNER_T + ROW1_H + 10   # = 68
-    PILL_H   = 26
-    DESC_Y   = PILL_Y + PILL_H + 10   # = 104
-    DESC_H   = _PFLW_CARD_H - DESC_Y - INNER_R   # = 150 − 104 − 14 = 32 px → 2-3 lines
+    # Right-side fixed zone layout (from right):
+    #   INNER_R(16) | PILL_ZONE(360) | GAP(14) | AMT_W(220) | → name fills rest
+    PILL_ZONE = 360   # max space for 3 wide pills + inter-pill gaps (10pt font)
+    AMT_W     = 220
+    GAP_A_P   = 14    # gap between amount right edge and first pill
+    AMT_X     = _PFLW_CARD_W - INNER_R - PILL_ZONE - GAP_A_P - AMT_W  # ≈ 1118
+    NAME_W    = AMT_X - NAME_X - 12                                      # ≈ 1010
 
-    # ── Logo ──────────────────────────────────────────────────────────────
+    # Row 1 height = logo + breathing room on both sides
+    ROW1_H   = 56
+    PILL_H   = 30
+    # Pills vertically centred in row 1
+    PILL_Y_CARD = INNER_T + (ROW1_H - PILL_H) // 2   # card-relative y for pills
+    PILL_X_BASE = AMT_X + AMT_W + GAP_A_P             # card-relative x for first pill
+
+    # Row 2 — description (uses remaining card height)
+    DESC_Y  = INNER_T + ROW1_H + 10                          # = 82
+    DESC_H  = _PFLW_CARD_H - DESC_Y - INNER_R                # = 190−82−16 = 92 px
+
+    # ── Logo (vertically centred in row 1) ────────────────────────────────
     logo_src   = None
     logo_bytes = row.get("logo_bytes")
     if logo_bytes is not None:
@@ -973,18 +1024,18 @@ def _padd_flow_card(slide, row: dict, section_name: str,
         icon_fpath = _ASSETS / icon_fname
         if icon_fpath.exists():
             logo_src = str(icon_fpath)
+    logo_top_off = INNER_T + (ROW1_H - LOGO_SZ) // 2
     if logo_src is not None:
         try:
             slide.shapes.add_picture(
                 logo_src,
-                left + _pin(INNER_L), top + _pin(INNER_T),
+                left + _pin(INNER_L), top + _pin(logo_top_off),
                 width=_pin(LOGO_SZ), height=_pin(LOGO_SZ),
             )
         except Exception:
             pass
 
-    # ── Name (bold, wraps to 2 lines within row 1) ────────────────────────
-    NAME_W = AMT_X - NAME_X - 16   # fills row 1 between logo and amount
+    # ── Name (bold, single or 2-line wrap) ────────────────────────────────
     nb = slide.shapes.add_textbox(
         left + _pin(NAME_X), top + _pin(INNER_T),
         _pin(NAME_W), _pin(ROW1_H),
@@ -994,11 +1045,11 @@ def _padd_flow_card(slide, row: dict, section_name: str,
     nb_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
     nb_p = nb_tf.paragraphs[0]
     nb_p.text      = row.get("name", "")
-    nb_p.font.size = PptxPt(_ppt(26))
+    nb_p.font.size = PptxPt(_ppt(32))   # 16 pt
     nb_p.font.bold = True
     nb_p.font.color.rgb = _prgb(_PPTX_INK)
 
-    # ── Amount (right-aligned, gold, same row as name) ────────────────────
+    # ── Amount (left-aligned in fixed column, gold) ────────────────────────
     amount = _display_amount(row)
     if amount:
         ab = slide.shapes.add_textbox(
@@ -1010,15 +1061,15 @@ def _padd_flow_card(slide, row: dict, section_name: str,
         ab_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
         ab_p = ab_tf.paragraphs[0]
         ab_p.text      = amount
-        ab_p.alignment = PptxPP.RIGHT
-        ab_p.font.size = PptxPt(_ppt(26))
+        ab_p.alignment = PptxPP.LEFT
+        ab_p.font.size = PptxPt(_ppt(32))   # 16 pt
         ab_p.font.bold = True
         ab_p.font.color.rgb = _prgb(_PPTX_AMT_GOLD)
 
-    # ── Pills (left-aligned on row 2) ─────────────────────────────────────
+    # ── Pills — same row as name + amount, right of amount ────────────────
     fmt_pill, status_pill, scope_label, scope_key = _derive_pills(row)
-    pill_x_px = INNER_L   # card-relative, starts after strip+pad
-    pill_y_abs = y_px + PILL_Y   # slide-absolute y
+    pill_x_px  = PILL_X_BASE          # card-relative x, advances right each pill
+    pill_y_abs = y_px + PILL_Y_CARD   # slide-absolute y
 
     for label, style_key in [
         (scope_label, scope_key),
@@ -1027,6 +1078,9 @@ def _padd_flow_card(slide, row: dict, section_name: str,
     ]:
         bg_hex, fg_hex = _PILL_STYLE.get(style_key, ("#E5E7EB", "#374151"))
         pw = _ppill_w(label)
+        # Guard: stop if pills would overflow card
+        if pill_x_px + pw + INNER_R > _PFLW_CARD_W:
+            break
 
         pr = slide.shapes.add_shape(
             PptxMSO.ROUNDED_RECTANGLE,
@@ -1035,6 +1089,7 @@ def _padd_flow_card(slide, row: dict, section_name: str,
         )
         pr.fill.solid(); pr.fill.fore_color.rgb = _prgb(bg_hex)
         pr.line.fill.background(); pr.shadow.inherit = False
+        pr.text_frame.clear()
         try:
             pr.adjustments[0] = 50000
         except Exception:
@@ -1050,13 +1105,13 @@ def _padd_flow_card(slide, row: dict, section_name: str,
         pt_p = pt_tf.paragraphs[0]
         pt_p.text      = label
         pt_p.alignment = PptxPP.CENTER
-        pt_p.font.size = PptxPt(_ppt(16))
+        pt_p.font.size = PptxPt(_ppt(20))   # 10 pt
         pt_p.font.bold = True
         pt_p.font.color.rgb = _prgb(fg_hex)
 
-        pill_x_px += pw + 8
+        pill_x_px += pw + 12   # 12 px gap between pills
 
-    # ── Description (wraps, row 3) ────────────────────────────────────────
+    # ── Description (wraps full width, row 2) ─────────────────────────────
     desc = (row.get("description") or "").strip()
     if desc:
         db = slide.shapes.add_textbox(
@@ -1068,7 +1123,7 @@ def _padd_flow_card(slide, row: dict, section_name: str,
         db_tf.vertical_anchor = PptxMSOAnchor.TOP
         db_p = db_tf.paragraphs[0]
         db_p.text      = desc
-        db_p.font.size = PptxPt(_ppt(18))
+        db_p.font.size = PptxPt(_ppt(28))   # 14 pt — readable with plenty of space
         db_p.font.color.rgb = _prgb(_PPTX_GREY)
 
 
@@ -1107,14 +1162,14 @@ def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
     """White header matching the PDF _main_header layout (landscape scale).
 
     Zones (all px from slide top):
-      0–140  logo zone: RI wheel left | club name + district + gold rule | lockup right
-      140–175 report-title zone: title_line + year_label
-      175–180 bottom blue rule
-      180–192 gap before content
+      0–120  logo zone: RI wheel left | club name + district + gold rule | lockup right
+      120–148 report-title zone: title_line + year_label
+      152     bottom blue rule (3px) — 4px clear from year which ends at ~148
+      _PFLW_HDR_H = 160 → 8px gap before first content item
     """
     LOGO_COL_W  = 160    # px reserved for each side logo column
-    LOGO_ZONE_H = 140    # px height of the club-identity zone
-    LOGO_MAX_H  = 100    # max logo height in px (height-constrained so both equal)
+    LOGO_ZONE_H = 120    # px — compressed to push title zone up
+    LOGO_MAX_H  = 86     # max logo height in px
     cx_px       = _PCW / 2
     center_l    = _PMX + LOGO_COL_W
     center_w    = _PCW - 2 * (_PMX + LOGO_COL_W)
@@ -1127,20 +1182,20 @@ def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
 
     # ── 2. Club name (centered, rotary blue, bold) ────────────────────────
     nb = slide.shapes.add_textbox(
-        _pin(center_l), _pin(28), _pin(center_w), _pin(50),
+        _pin(center_l), _pin(14), _pin(center_w), _pin(44),
     )
     nb_tf = nb.text_frame
     nb_tf.word_wrap = False
     nb_p = nb_tf.paragraphs[0]
     nb_p.text      = CLUB_NAME.upper()
     nb_p.alignment = PptxPP.CENTER
-    nb_p.font.size = PptxPt(_ppt(52))   # ≈ 26pt → visible but not huge
+    nb_p.font.size = PptxPt(_ppt(52))   # 26pt
     nb_p.font.bold = True
     nb_p.font.color.rgb = _prgb(_PPTX_BLUE)
 
     # ── 3. "District 3450" (centered, muted) ─────────────────────────────
     db = slide.shapes.add_textbox(
-        _pin(center_l), _pin(82), _pin(center_w), _pin(28),
+        _pin(center_l), _pin(60), _pin(center_w), _pin(26),
     )
     db_p = db.text_frame.paragraphs[0]
     db_p.text      = "District 3450"
@@ -1152,7 +1207,7 @@ def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
     gold_w_px = 240
     gb = slide.shapes.add_shape(
         PptxMSO.RECTANGLE,
-        _pin(cx_px - gold_w_px / 2), _pin(113),
+        _pin(cx_px - gold_w_px / 2), _pin(88),
         _pin(gold_w_px), _pin(4),
     )
     gb.fill.solid(); gb.fill.fore_color.rgb = _prgb(_PPTX_GOLD_RULE)
@@ -1160,7 +1215,7 @@ def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
 
     # ── 5. Report title ───────────────────────────────────────────────────
     tb = slide.shapes.add_textbox(
-        _pin(center_l), _pin(122), _pin(center_w), _pin(36),
+        _pin(center_l), _pin(95), _pin(center_w), _pin(28),
     )
     tp = tb.text_frame.paragraphs[0]
     tp.text      = title_line
@@ -1169,9 +1224,9 @@ def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
     tp.font.bold = True
     tp.font.color.rgb = _prgb(_PPTX_INK)
 
-    # ── 6. Rotary year ────────────────────────────────────────────────────
+    # ── 6. Rotary year — ends at ~148 ────────────────────────────────────
     yb = slide.shapes.add_textbox(
-        _pin(center_l), _pin(160), _pin(center_w), _pin(26),
+        _pin(center_l), _pin(125), _pin(center_w), _pin(22),
     )
     yp = yb.text_frame.paragraphs[0]
     yp.text      = f"Rotary Year {year_label}"
@@ -1179,10 +1234,10 @@ def _pdraw_plain_header(slide, year_label: str, title_line: str) -> None:
     yp.font.size = PptxPt(_ppt(22))
     yp.font.color.rgb = _prgb(_PPTX_MUTED)
 
-    # ── 7. Bottom blue rule (full content width) ──────────────────────────
+    # ── 7. Bottom blue rule — y=152, 4px clear from year ─────────────────
     rule = slide.shapes.add_shape(
         PptxMSO.RECTANGLE,
-        _pin(_PMX), _pin(182), _pin(_PCWW), _pin(3),
+        _pin(_PMX), _pin(152), _pin(_PCWW), _pin(3),
     )
     rule.fill.solid(); rule.fill.fore_color.rgb = _prgb(_PPTX_BLUE)
     rule.line.fill.background(); rule.shadow.inherit = False; rule.text_frame.clear()
@@ -1661,7 +1716,9 @@ def build_project_services_pptx(
 
     # ── Pack items into slides ────────────────────────────────────────────
     # Items: {"type": "section"|"section_cont"|"card", "name"/"row"/"section", "y": px}
-    AVAIL    = _PFLW_AVAIL
+    _tmpl = chrome == "template" and (_ASSETS / "ngo-report-district-band.png").exists()
+    CONT_T   = _PFLW_TMPL_CONT_T if _tmpl else _PFLW_CONT_T
+    AVAIL    = _PFLW_TMPL_AVAIL  if _tmpl else _PFLW_AVAIL
     SECT_H   = _PFLW_SECT_H
     SECT_GAP = _PFLW_SECT_GAP
     SECT_SEP = _PFLW_SECT_SEP
@@ -1718,7 +1775,7 @@ def build_project_services_pptx(
         _pdraw_flow_header(slide, chrome, year_label, page_num, total_pages)
 
         for item in items:
-            abs_y = _PFLW_CONT_T + item["y"]   # absolute y on slide (px)
+            abs_y = CONT_T + item["y"]   # absolute y on slide (px)
             if item["type"] in ("section", "section_cont"):
                 _pdraw_section_mini_header(
                     slide, item["name"], abs_y,
