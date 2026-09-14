@@ -746,6 +746,17 @@ _PPTX_SECTION_COLOR: dict[str, str] = {
     "Unclassified":                            "#374151",
 }
 
+# Light accent colors for card left strip — lighter end of each section gradient
+_PPTX_SECTION_LIGHT: dict[str, str] = {
+    "Education & Literacy":                    "#2563EB",
+    "Poverty Alleviation & Social Welfare":    "#D97706",
+    "Health & Medical":                        "#0891B2",
+    "Humanitarian Relief & Disaster Response": "#DC2626",
+    "Youth Development":                       "#4F46E5",
+    "Others":                                  "#0891B2",
+    "Unclassified":                            "#17458F",
+}
+
 # ── Canvas constants (px) ──────────────────────────────────────────────────
 _PCW      = 1920      # slide width
 _PCH      = 1080      # slide height
@@ -757,24 +768,36 @@ _PCWW     = 1728      # content width = _PCW - 2*_PMX
 _PBAND_H        = 192   # template: chrome band height
 _PPLAIN_HDR_H   = 192   # plain: white header height (matches template)
 
-# ── Section-slide grid ─────────────────────────────────────────────────────
-_PSECT_H       = 60   # section header bar height (px)
-_PGRID_TOP     = _PBAND_H + 14 + _PSECT_H + 12   # = 278 px from slide top
-_PGRID_BOT     = 1050
-_PGRID_H       = _PGRID_BOT - _PGRID_TOP          # = 772 px
-_PCOLS         = 3
-_PCOL_GAP      = 20
-_PROW_GAP      = 14
-_PCARD_H       = 235    # px per card
-_PCARD_W       = (_PCWW - (_PCOLS - 1) * _PCOL_GAP) // _PCOLS  # = 562
-_PMAX_ROWS     = (_PGRID_H + _PROW_GAP) // (_PCARD_H + _PROW_GAP)  # = 3
-_PCARDS_SLIDE  = _PCOLS * _PMAX_ROWS                               # = 9
+# ── Section slide geometry ─────────────────────────────────────────────────
+# Layout mirrors the PDF: grey section background box containing a dark
+# gradient header (solid fill approximation) + a 3-column card grid.
 
-# ── Pill approximate widths (px) ───────────────────────────────────────────
+_PCONTENT_TOP  = _PBAND_H + 12      # = 204 px — where content starts
+
+# Section background box (inset from content margins, like PDF CARD_PX)
+_PSECT_BOX_INS = 9                  # box inset from _PMX each side
+_PSECT_BOX_X   = _PMX + _PSECT_BOX_INS   # = 105
+_PSECT_BOX_W   = _PCWW - 2 * _PSECT_BOX_INS  # = 1710
+
+# Section header band (inside the box)
+_PSECT_H       = 48    # px
+
+# Card grid (inside the section box, with an inner inset)
+_PCARD_INS     = 9     # card-area inset from section box edge each side
+_PCARD_AREA_W  = _PSECT_BOX_W - 2 * _PCARD_INS   # = 1692
+_PCOLS         = 3
+_PCOL_GAP      = 14
+_PROW_GAP      = 12
+_PCARD_H       = 190   # px — fills slide: (864-48-10-10-3×12)/4 = 190px per row
+_PCARD_W       = (_PCARD_AREA_W - (_PCOLS - 1) * _PCOL_GAP) // _PCOLS   # = 554
+_PMAX_ROWS     = 4
+_PCARDS_SLIDE  = _PCOLS * _PMAX_ROWS   # = 12
+
+# ── Pill approximate widths (px at 8pt font) ───────────────────────────────
 _PPILL_W: dict[str, int] = {
-    "Local": 56, "International": 90,
-    "Donation": 72, "Volunteer": 76, "Don. + Vol.": 92,
-    "Planned": 64, "Completed": 80, "Ongoing": 68, "Done": 56,
+    "Local": 52, "International": 88,
+    "Donation": 68, "Volunteer": 72, "Don. + Vol.": 88,
+    "Planned": 60, "Completed": 76, "Ongoing": 64, "Done": 52,
 }
 
 
@@ -1128,61 +1151,78 @@ def _padd_section_slide(
     year_label: str,
     chrome: str,
 ) -> None:
-    """One classification slide with up to _PCARDS_SLIDE org cards."""
+    """One classification slide: grey section box + gradient header + 3-col card grid."""
     from app.core.report_images import pptx_safe_image
 
     slide = prs.slides.add_slide(blank)
     sect_label = section_name
     if total_pages > 1:
-        sect_label += f" ({page_num} of {total_pages})"
+        sect_label += f" ({page_num}/{total_pages})"
     _pdraw_chrome_section(slide, chrome, year_label, sect_label)
 
-    # ── Section header bar ────────────────────────────────────────────────
-    sect_hex  = _psect_color(section_name)
-    sh_top    = _pin(_PBAND_H + 14)
-    sh_bar    = slide.shapes.add_shape(
-        PptxMSO.RECTANGLE, _pin(_PMX), sh_top, _pin(_PCWW), _pin(_PSECT_H),
+    # ── Grey section background box (full content width, rounded) ─────────────
+    BOX_H   = _PCH - _PCONTENT_TOP - 12   # = 864 px
+    sect_bg = slide.shapes.add_shape(
+        PptxMSO.ROUNDED_RECTANGLE,
+        _pin(_PSECT_BOX_X), _pin(_PCONTENT_TOP),
+        _pin(_PSECT_BOX_W), _pin(BOX_H),
     )
-    sh_bar.fill.solid()
-    sh_bar.fill.fore_color.rgb = _prgb(sect_hex)
-    sh_bar.line.fill.background()
-    sh_bar.shadow.inherit = False
-    sh_bar.text_frame.clear()
+    sect_bg.fill.solid()
+    sect_bg.fill.fore_color.rgb = _prgb("#F1F5F9")
+    sect_bg.line.fill.background()
+    sect_bg.shadow.inherit = False
+    sect_bg.text_frame.clear()
 
-    # Section icon inside header bar
+    # ── Dark section header band (at top of box) ───────────────────────────────
+    sect_hex = _psect_color(section_name)
+    hdr_band = slide.shapes.add_shape(
+        PptxMSO.ROUNDED_RECTANGLE,
+        _pin(_PSECT_BOX_X), _pin(_PCONTENT_TOP),
+        _pin(_PSECT_BOX_W), _pin(_PSECT_H + 10),   # extra height so only top corners round
+    )
+    hdr_band.fill.solid()
+    hdr_band.fill.fore_color.rgb = _prgb(sect_hex)
+    hdr_band.line.fill.background()
+    hdr_band.shadow.inherit = False
+    hdr_band.text_frame.clear()
+
+    # Section icon inside header band
+    ICON_SZ   = 30
     icon_file = _SECTION_ICON_FILES.get(section_name, "icon_others.png")
     icon_path = _ASSETS / icon_file
-    icon_sz   = _pin(38)
+    icon_y    = _PCONTENT_TOP + (_PSECT_H - ICON_SZ) // 2
     if icon_path.exists():
         try:
             slide.shapes.add_picture(
                 str(icon_path),
-                _pin(_PMX + 12),
-                sh_top + (_pin(_PSECT_H) - icon_sz) // 2,
-                width=icon_sz, height=icon_sz,
+                _pin(_PSECT_BOX_X + 14), _pin(icon_y),
+                width=_pin(ICON_SZ), height=_pin(ICON_SZ),
             )
         except Exception:
             pass
 
-    # Section name label
+    # Section name (white bold, vertically centred in header band)
     lbl    = slide.shapes.add_textbox(
-        _pin(_PMX + 58), sh_top, _pin(_PCWW - 60), _pin(_PSECT_H),
+        _pin(_PSECT_BOX_X + 52), _pin(_PCONTENT_TOP),
+        _pin(_PSECT_BOX_W - 56), _pin(_PSECT_H),
     )
     lbl_tf = lbl.text_frame
     lbl_tf.word_wrap = False
     lbl_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
     lbl_p  = lbl_tf.paragraphs[0]
-    lbl_p.font.size  = PptxPt(_ppt(36))
+    lbl_p.font.size  = PptxPt(_ppt(30))
     lbl_p.font.bold  = True
     lbl_p.font.color.rgb = _prgb("#FFFFFF")
     lbl_p.text = section_name
 
-    # ── Card grid ─────────────────────────────────────────────────────────
+    # ── Card grid (inside box, below header band) ──────────────────────────────
+    CARDS_TOP = _PCONTENT_TOP + _PSECT_H + 10   # px from slide top
+
     for idx, row in enumerate(page_rows):
         col  = idx % _PCOLS
         grow = idx // _PCOLS
-        left = _pin(_PMX + col * (_PCARD_W + _PCOL_GAP))
-        top  = _pin(_PGRID_TOP + grow * (_PCARD_H + _PROW_GAP))
+        left = _pin(_PSECT_BOX_X + _PCARD_INS + col * (_PCARD_W + _PCOL_GAP))
+        top  = _pin(CARDS_TOP + grow * (_PCARD_H + _PROW_GAP))
         _padd_org_card(slide, row, section_name, left, top,
                        _pin(_PCARD_W), _pin(_PCARD_H), pptx_safe_image)
 
@@ -1191,35 +1231,37 @@ def _padd_section_slide(
 
 def _padd_org_card(slide, row: dict, section_name: str,
                    left, top, width, height, pptx_safe_image) -> None:
-    """Draw one NGO card: background, left strip, logo, name, amount, pills, description."""
-    sect_hex = _psect_color(section_name)
+    """Draw one NGO card: white rounded bg, light-colour strip, logo, name,
+    amount right-aligned, pills, description — matching the PDF card layout."""
+    light_hex = _PPTX_SECTION_LIGHT.get(section_name, "#17458F")
 
-    # Card background (rounded)
+    # ── Card background (white rounded rect with border) ──────────────────
     bg = slide.shapes.add_shape(PptxMSO.ROUNDED_RECTANGLE, left, top, width, height)
     bg.fill.solid(); bg.fill.fore_color.rgb = _prgb(_PPTX_CARD_BG)
-    bg.line.color.rgb = _prgb(_PPTX_CARD_BR); bg.line.width = PptxPt(1.5)
+    bg.line.color.rgb = _prgb(_PPTX_CARD_BR); bg.line.width = PptxPt(1.0)
     bg.shadow.inherit = False; bg.text_frame.clear()
 
-    # Left colour strip (section accent)
-    strip = slide.shapes.add_shape(PptxMSO.RECTANGLE, left, top, _pin(8), height)
-    strip.fill.solid(); strip.fill.fore_color.rgb = _prgb(sect_hex)
+    # ── Left colour strip (light accent, 6 px wide) ───────────────────────
+    STRIP_W = 6
+    strip = slide.shapes.add_shape(PptxMSO.RECTANGLE, left, top, _pin(STRIP_W), height)
+    strip.fill.solid(); strip.fill.fore_color.rgb = _prgb(light_hex)
     strip.line.fill.background(); strip.shadow.inherit = False; strip.text_frame.clear()
 
-    # Inner layout constants (all in px, relative to card top-left)
-    INNER_L  = 18    # left pad after strip (strip=8px + gap=10px)
-    INNER_T  = 12    # top pad
-    INNER_R  = 12    # right pad
-    LOGO_SZ  = 40    # logo bounding box in px
-
-    content_w_px = _PCARD_W - INNER_L - INNER_R
+    # ── Inner layout constants (px, relative to card top-left) ────────────
+    INNER_L  = STRIP_W + 10   # = 16 px  (after strip + gap)
+    INNER_T  = 12              # top pad
+    INNER_R  = 12              # right pad
+    LOGO_SZ  = 40              # logo / section-icon bounding box
+    # Right edge of card content area (px from card left)
+    content_r = _PCARD_W - INNER_R
 
     # ── Org logo (or fallback classification icon) ────────────────────────
-    logo_src = None
+    logo_src   = None
     logo_bytes = row.get("logo_bytes")
     if logo_bytes is not None:
         safe = pptx_safe_image(logo_bytes)
         if safe is not None:
-            logo_src = safe  # BytesIO → add_picture accepts it directly
+            logo_src = safe
 
     if logo_src is None:
         icon_fname = _SECTION_ICON_FILES.get(section_name, "icon_others.png")
@@ -1227,58 +1269,66 @@ def _padd_org_card(slide, row: dict, section_name: str,
         if icon_fpath.exists():
             logo_src = str(icon_fpath)
 
-    logo_offset_x = 0
+    logo_placed = False
     if logo_src is not None:
-        logo_sz_emu = _pin(LOGO_SZ)
         try:
             slide.shapes.add_picture(
                 logo_src,
                 left + _pin(INNER_L),
                 top  + _pin(INNER_T),
-                width=logo_sz_emu, height=logo_sz_emu,
+                width=_pin(LOGO_SZ), height=_pin(LOGO_SZ),
             )
-            logo_offset_x = LOGO_SZ + 8
+            logo_placed = True
         except Exception:
             pass
 
-    name_l_px = INNER_L + logo_offset_x
-    name_w_px = content_w_px - logo_offset_x
+    name_l_px = INNER_L + (LOGO_SZ + 8 if logo_placed else 0)
 
-    # ── Org name ─────────────────────────────────────────────────────────
+    # Amount box width reserved on the right of the name row
+    AMT_W = 190   # px — enough for "HK$999,999" at 12pt bold
+
+    # Name occupies the space between logo and amount column
+    name_w_px = max(content_r - name_l_px - AMT_W - 8, 60)
+
+    # ── Org name (bold, 2-line wrap) ──────────────────────────────────────
     nb = slide.shapes.add_textbox(
         left + _pin(name_l_px), top + _pin(INNER_T),
         _pin(name_w_px), _pin(46),
     )
     nb.text_frame.word_wrap = True
     nb.text_frame.text = row.get("name", "")
-    nb.text_frame.paragraphs[0].font.size = PptxPt(_ppt(26))
-    nb.text_frame.paragraphs[0].font.bold = True
-    nb.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_INK)
+    nb_p = nb.text_frame.paragraphs[0]
+    nb_p.font.size  = PptxPt(_ppt(24))
+    nb_p.font.bold  = True
+    nb_p.font.color.rgb = _prgb(_PPTX_INK)
 
-    # ── Amount ────────────────────────────────────────────────────────────
+    # ── Amount (right-aligned, same top row as name) ───────────────────────
     amount = _display_amount(row)
-    amt_y  = INNER_T + 52
     if amount:
         ab = slide.shapes.add_textbox(
-            left + _pin(INNER_L), top + _pin(amt_y),
-            _pin(content_w_px), _pin(32),
+            left + _pin(content_r - AMT_W), top + _pin(INNER_T),
+            _pin(AMT_W), _pin(32),
         )
-        ab.text_frame.text = amount
-        ab.text_frame.paragraphs[0].font.size = PptxPt(_ppt(24))
-        ab.text_frame.paragraphs[0].font.bold = True
-        ab.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_AMT_GOLD)
-        amt_y += 34
-    else:
-        amt_y += 8
+        ab_tf = ab.text_frame
+        ab_tf.word_wrap = False
+        ab_p = ab_tf.paragraphs[0]
+        ab_p.text       = amount
+        ab_p.alignment  = PptxPP.RIGHT
+        ab_p.font.size  = PptxPt(_ppt(24))
+        ab_p.font.bold  = True
+        ab_p.font.color.rgb = _prgb(_PPTX_AMT_GOLD)
 
-    # ── Pills ─────────────────────────────────────────────────────────────
-    fmt_pill, status_pill, scope_label, scope_key = _derive_pills(row)
-    pills = [(scope_label, scope_key), (fmt_pill, fmt_pill), (status_pill, status_pill)]
+    # ── Pills row (below name/logo zone) ──────────────────────────────────
     PILL_H_PX = 22
-    pill_y_px = amt_y
+    pill_y_px = INNER_T + 54
     pill_x_px = INNER_L
 
-    for label, style_key in pills:
+    fmt_pill, status_pill, scope_label, scope_key = _derive_pills(row)
+    for label, style_key in [
+        (scope_label, scope_key),
+        (fmt_pill,    fmt_pill),
+        (status_pill, status_pill),
+    ]:
         bg_hex, fg_hex = _PILL_STYLE.get(style_key, ("#E5E7EB", "#374151"))
         pw = _ppill_w(label)
 
@@ -1290,7 +1340,7 @@ def _padd_org_card(slide, row: dict, section_name: str,
         pr.fill.solid(); pr.fill.fore_color.rgb = _prgb(bg_hex)
         pr.line.fill.background(); pr.shadow.inherit = False
         try:
-            pr.adjustments[0] = 50000   # maximum corner rounding → pill shape
+            pr.adjustments[0] = 50000   # maximum corner radius → pill shape
         except Exception:
             pass
 
@@ -1302,27 +1352,27 @@ def _padd_org_card(slide, row: dict, section_name: str,
         pt_tf.word_wrap = False
         pt_tf.vertical_anchor = PptxMSOAnchor.MIDDLE
         pt_p = pt_tf.paragraphs[0]
-        pt_p.text = label
+        pt_p.text      = label
         pt_p.alignment = PptxPP.CENTER
-        pt_p.font.size = PptxPt(_ppt(16))
+        pt_p.font.size = PptxPt(_ppt(15))
         pt_p.font.bold = True
         pt_p.font.color.rgb = _prgb(fg_hex)
 
         pill_x_px += pw + 6
 
-    # ── Description ───────────────────────────────────────────────────────
+    # ── Description (muted, wraps to fill remaining card height) ──────────
     desc = (row.get("description") or "").strip()
     if desc:
-        desc_y  = pill_y_px + PILL_H_PX + 8
-        wrapped = textwrap.wrap(desc, width=80, max_lines=2)
+        desc_y = pill_y_px + PILL_H_PX + 8
         db = slide.shapes.add_textbox(
             left + _pin(INNER_L), top + _pin(desc_y),
-            _pin(content_w_px), _pin(38),
+            _pin(content_r - INNER_L), _pin(_PCARD_H - desc_y - INNER_R),
         )
         db.text_frame.word_wrap = True
-        db.text_frame.text      = " ".join(wrapped[:2])
-        db.text_frame.paragraphs[0].font.size  = PptxPt(_ppt(17))
-        db.text_frame.paragraphs[0].font.color.rgb = _prgb(_PPTX_GREY)
+        db.text_frame.text      = desc
+        db_p = db.text_frame.paragraphs[0]
+        db_p.font.size  = PptxPt(_ppt(17))
+        db_p.font.color.rgb = _prgb(_PPTX_GREY)
 
 
 # ── Public API ────────────────────────────────────────────────────────────
