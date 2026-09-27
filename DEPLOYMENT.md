@@ -213,9 +213,17 @@ Supabase's free tier auto-pauses a project after 7 days with no API
 activity, which breaks member photos, NGO logos, and PPT templates (all
 served from Supabase Storage — see `backend/app/core/storage.py`) until
 someone notices and manually resumes it in the Supabase dashboard.
-`.github/workflows/supabase-keepalive.yml` pings the Storage API once a day
-on a fixed schedule so the 7-day clock never runs out, regardless of real
-traffic.
+`.github/workflows/supabase-keepalive.yml` pings it once a day on a fixed
+schedule so the 7-day clock never runs out, regardless of real traffic.
+
+**Note (2026-09-27):** pinging the Storage API alone turned out to be
+insufficient in practice — a "scheduled to be paused" warning still arrived
+even with that daily ping running and succeeding. This project uses Supabase
+for Storage only (no app tables), so its Postgres compute instance saw no
+query activity. The workflow now also calls the Auth admin "list users"
+endpoint (`/auth/v1/admin/users`), which queries `auth.users` in that same
+Postgres instance — a real DB query, using the same two secrets, no separate
+Postgres connection string needed.
 
 1. In GitHub: repo → Settings → Secrets and variables → Actions → New
    repository secret. Add the same values the backend itself uses (see

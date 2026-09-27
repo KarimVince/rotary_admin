@@ -1,11 +1,18 @@
 # Supabase's free tier auto-pauses a project after 7 days with no API
-# activity — Storage/Auth/DB access all count, but the app being idle for a
-# slow week is enough to trip it, which breaks member photos/NGO logos/PPT
-# templates (all served from Supabase Storage, see backend/app/core/storage.py)
-# until someone notices and manually resumes the project.
+# activity — this app uses this Supabase project for Storage only (member
+# photos/NGO logos/PPT templates, see backend/app/core/storage.py), no
+# Postgres tables of its own, so the project's underlying compute instance
+# was sitting untouched.
 #
-# This workflow pings the Storage API on a fixed daily schedule regardless of
-# real traffic, so the 7-day inactivity clock never runs out.
+# IMPORTANT: pinging the Storage API alone (the original version of this
+# workflow) was NOT sufficient — despite running successfully every day, a
+# "scheduled to be paused" warning still arrived (confirmed in practice,
+# 2026-09-25). Supabase's pause check appears to specifically track
+# database-query activity, which a Storage bucket-list call doesn't
+# generate. The Auth admin "list users" call below queries auth.users in
+# the project's actual Postgres instance, so it counts as a real DB query
+# even though the app has no tables/data of its own there — no separate
+# Postgres connection string needed, it reuses the same service-role key.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions),
 # same project the backend itself uses (see backend/.env.example):
@@ -26,6 +33,16 @@ jobs:
       - name: Ping Supabase Storage API
         run: |
           curl -fsS "${SUPABASE_URL}/storage/v1/bucket" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -o /dev/null
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Ping Supabase Auth (real Postgres query, not just Storage)
+        run: |
+          curl -fsS "${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -o /dev/null
