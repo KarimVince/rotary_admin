@@ -13,7 +13,7 @@ reference). Faithfully ported to reportlab platypus:
   full-width name column. Continuously numbered 1..N, alphabetical by
   surname, active + honorary combined (no section split) — matches the
   club's real paper template, per Story 16.33's original brief.
-- Blank Visiting Rotarians / Guests tables (Pay-only — no Attendance
+- Blank Visiting Rotarians / Friends of Rotary Club tables (Cash/FPS only — no Attendance
   column: being listed already means present) — always empty rows, no data
   source for either in this app.
 - A bottom tally + signature block. Attendance/Payment checkboxes and the
@@ -280,19 +280,19 @@ def _combined_roster(
 
 def _member_table(rows: list[tuple[int, AttendanceRecordRead]], header_style, index_style, name_style):
     """One half of the two-column member roster (`.tbl.mgrid`): #, Member,
-    Att, Pay — 26/name/40/40px columns, 26px rows, azure header, zebra body.
+    Att, Cash, FPS — 26/name/38/38/38px columns, 26px rows, azure header, zebra body.
     Both checkboxes are real fillable fields; Attendance starts pre-checked
-    when the app already has that member marked present (Payment has no
-    such source, so it always starts blank)."""
-    col_widths = [_px(26), None, _px(40), _px(40)]
+    when the app already has that member marked present (Cash/FPS have no
+    such source, so they always start blank)."""
+    col_widths = [_px(26), None, _px(38), _px(38), _px(38)]
     # Table needs an explicit width for every column when others are fixed
     # and only one is auto (`None`) — width the auto column so the row sums
     # to the design's per-card width (half the content column, minus half
     # the 16px inter-card gap).
     card_width = (letter[0] - 2 * PAGE_MARGIN_H - _px(16)) / 2
-    col_widths[1] = card_width - _px(26) - 2 * _px(40)
+    col_widths[1] = card_width - _px(26) - 3 * _px(38)
 
-    header = ["", "MEMBER", "ATT", "PAY"]
+    header = ["", "MEMBER", "ATT", "CASH", "FPS"]
     data = [[Paragraph(h, header_style) for h in header]]
     for index, member in rows:
         data.append(
@@ -300,7 +300,8 @@ def _member_table(rows: list[tuple[int, AttendanceRecordRead]], header_style, in
                 Paragraph(str(index), index_style),
                 Paragraph(escape(f"{member.last_name} {member.first_name}"), name_style),
                 _CheckboxField(_unique_name(f"att_{index}"), checked=member.present),
-                _CheckboxField(_unique_name(f"pay_{index}")),
+                _CheckboxField(_unique_name(f"cash_{index}")),
+                _CheckboxField(_unique_name(f"fps_{index}")),
             ]
         )
 
@@ -311,12 +312,12 @@ def _member_table(rows: list[tuple[int, AttendanceRecordRead]], header_style, in
         ("BOX", (0, 0), (-1, -1), 1, colors.HexColor(RULE)),
         ("LINEBELOW", (0, 1), (-1, -2), 0.5, colors.HexColor(HAIR)),
         ("ALIGN", (0, 0), (0, -1), "CENTER"),
-        ("ALIGN", (2, 0), (3, -1), "CENTER"),
+        ("ALIGN", (2, 0), (4, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (1, 0), (1, -1), _px(10)),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("LEFTPADDING", (0, 0), (0, -1), 0),
-        ("LEFTPADDING", (2, 0), (3, -1), 0),
+        ("LEFTPADDING", (2, 0), (4, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         # Zebra striping starts on the first body row (odd design rows,
@@ -330,16 +331,16 @@ def _member_table(rows: list[tuple[int, AttendanceRecordRead]], header_style, in
 
 def _wide_table(columns: tuple[str, str], blank_rows: int, header_style, cell_style, field_prefix: str):
     """Visiting Rotarians / Guests table (`.tbl.wide.lgrid`): Name / <col2>
-    / Pay, 1.15fr:1fr:52px, 27px rows, Pay-only checkbox — no Attendance
+    / Cash / FPS, 1.15fr:1fr:46px:46px, 27px rows, Cash+FPS checkboxes — no Attendance
     column (a listed visitor/guest was by definition present). Name/<col2>
     are fillable text fields and Pay a fillable checkbox, so the whole row
     can be typed in on-screen rather than handwritten."""
     content_width = letter[0] - 2 * PAGE_MARGIN_H
-    pay_width = _px(52)
-    remaining = content_width - pay_width
+    pay_width = _px(46)
+    remaining = content_width - 2 * pay_width
     name_width = remaining * 1.15 / 2.15
     col2_width = remaining * 1 / 2.15
-    col_widths = [name_width, col2_width, pay_width]
+    col_widths = [name_width, col2_width, pay_width, pay_width]
     row_height = _px(27)
     field_font_size = cell_style.fontSize
 
@@ -347,7 +348,8 @@ def _wide_table(columns: tuple[str, str], blank_rows: int, header_style, cell_st
         [
             Paragraph(columns[0].upper(), header_style),
             Paragraph(columns[1].upper(), header_style),
-            Paragraph("PAY", header_style),
+            Paragraph("CASH", header_style),
+            Paragraph("FPS", header_style),
         ]
     ]
     for row in range(blank_rows):
@@ -355,7 +357,8 @@ def _wide_table(columns: tuple[str, str], blank_rows: int, header_style, cell_st
             [
                 _TextField(_unique_name(f"{field_prefix}_{row}_name"), name_width, row_height, font_size=field_font_size),
                 _TextField(_unique_name(f"{field_prefix}_{row}_col2"), col2_width, row_height, font_size=field_font_size),
-                _CheckboxField(_unique_name(f"{field_prefix}_{row}_pay")),
+                _CheckboxField(_unique_name(f"{field_prefix}_{row}_cash")),
+                _CheckboxField(_unique_name(f"{field_prefix}_{row}_fps")),
             ]
         )
 
@@ -367,10 +370,10 @@ def _wide_table(columns: tuple[str, str], blank_rows: int, header_style, cell_st
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(AZURE)),
                 ("BOX", (0, 0), (-1, -1), 1, colors.HexColor(RULE)),
                 ("LINEBELOW", (0, 1), (-1, -2), 0.5, colors.HexColor(HAIR)),
-                ("ALIGN", (2, 0), (2, -1), "CENTER"),
+                ("ALIGN", (2, 0), (3, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (1, -1), _px(10)),
-                ("LEFTPADDING", (2, 0), (2, -1), 0),
+                ("LEFTPADDING", (2, 0), (3, -1), 0),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                 ("TOPPADDING", (0, 0), (-1, -1), 0),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
@@ -494,12 +497,15 @@ def _tally_box(label: str, styles, *, money: bool, currency: bool, width: float)
     return box
 
 
-def _tally_group(labels: list[tuple[str, bool, bool]], styles, width: float):
+TALLY_GAP = _px(8)
+
+
+def _tally_group(labels: list[tuple[str, bool, bool]], styles, box_width: float):
     """`labels` = [(label, is_money, has_currency_marker), ...] — one of the
-    two 4-box `repeat(4,1fr)` tally groups (Members/Visitors/Guests/Total,
-    or Paid/Revenue/Cost/Result)."""
-    gap = _px(8)
-    box_width = (width - 3 * gap) / 4
+    two tally groups (Members/Rotarian/Friends/Total, or
+    Paid/Guest/Revenue/Cost/Result), every box the same `box_width` so the
+    4- and 5-box groups line up as one row."""
+    gap = TALLY_GAP
     row = []
     col_widths = []
     for index, (label, money, currency) in enumerate(labels):
@@ -724,34 +730,41 @@ def build_attendance_sheet_pdf(
     story.append(Spacer(1, _px(18)))
     story.append(
         _section_header(
-            "Guests",
+            "Friends of Rotary Club of Discovery Bay",
             styles,
             note="Payment only",
         )
     )
     story.append(Spacer(1, _px(4)))
     story.append(
-        _wide_table(("Name", "Host Rotarian"), GUEST_BLANK_ROWS, wide_header_style, wide_cell_style, "guest")
+        _wide_table(("Name", "Host Rotarian"), GUEST_BLANK_ROWS, wide_header_style, wide_cell_style, "friend")
     )
 
     # ── Tally + signature ──
     story.append(Spacer(1, _px(8)))
+    tally_group_gap = _px(18)
+    count_labels = [("Members", False, False), ("Rotarian", False, False), ("Friends", False, False), ("Total", False, False)]
+    money_labels = [
+        ("Paid", True, False),
+        ("Guest", True, False),
+        ("Revenue", True, True),
+        ("Cost", True, True),
+        ("Result", True, True),
+    ]
+    n_boxes = len(count_labels) + len(money_labels)
+    n_gaps = (len(count_labels) - 1) + (len(money_labels) - 1)
+    tally_box_width = (content_width - n_gaps * TALLY_GAP - tally_group_gap) / n_boxes
+    count_width = len(count_labels) * tally_box_width + (len(count_labels) - 1) * TALLY_GAP
+    money_width = len(money_labels) * tally_box_width + (len(money_labels) - 1) * TALLY_GAP
     tally_row = Table(
         [
             [
-                _tally_group(
-                    [("Members", False, False), ("Visitors", False, False), ("Guests", False, False), ("Total", False, False)],
-                    styles,
-                    content_width / 2 - _px(9),
-                ),
-                _tally_group(
-                    [("Paid", True, False), ("Revenue", True, True), ("Cost", True, True), ("Result", True, True)],
-                    styles,
-                    content_width / 2 - _px(9),
-                ),
+                _tally_group(count_labels, styles, tally_box_width),
+                "",
+                _tally_group(money_labels, styles, tally_box_width),
             ]
         ],
-        colWidths=[content_width / 2 - _px(9), content_width / 2 - _px(9)],
+        colWidths=[count_width, tally_group_gap, money_width],
     )
     tally_row.setStyle(
         TableStyle(
@@ -761,7 +774,6 @@ def build_attendance_sheet_pdf(
                 ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                 ("TOPPADDING", (0, 0), (-1, -1), 0),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ("LEFTPADDING", (1, 0), (1, 0), _px(18)),
             ]
         )
     )
