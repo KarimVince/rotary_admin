@@ -62,7 +62,7 @@ export function buildWhatsappInvite(event) {
   lines.push(event.location ? `${label} at ${event.location}` : label);
   if (event.start_time) {
     const start = startMinutes(event.start_time);
-    lines.push(`Fellowship from ${formatClock(start)} Dinner ${formatClock(start + DINNER_OFFSET_MINUTES)}`);
+    lines.push(`Fellowship from ${formatClock(start)} - Dinner ${formatClock(start + DINNER_OFFSET_MINUTES)}`);
   }
 
   const price = priceForLocation(event.location);

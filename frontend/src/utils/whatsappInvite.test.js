@@ -43,7 +43,7 @@ describe("buildWhatsappInvite", () => {
   it("includes date, regular meeting label, location and times", () => {
     expect(lines).toContain("Tuesday 20 October 2026");
     expect(lines).toContain("Regular meeting at Tangram - AKI Hotel Wanchai");
-    expect(lines).toContain("Fellowship from 7pm Dinner 7:35pm");
+    expect(lines).toContain("Fellowship from 7pm - Dinner 7:35pm");
   });
 
   it("asks to register with the Wanchai price", () => {
