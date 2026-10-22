@@ -59,12 +59,11 @@ export function buildWhatsappInvite(event) {
   lines.push(formatInviteDate(event.event_date));
 
   const label = event.event_type === "Dinner" ? "Regular meeting" : event.name;
-  let meeting = event.location ? `${label} at ${event.location}` : label;
+  lines.push(event.location ? `${label} at ${event.location}` : label);
   if (event.start_time) {
     const start = startMinutes(event.start_time);
-    meeting += ` – Fellowship from ${formatClock(start)} Dinner ${formatClock(start + DINNER_OFFSET_MINUTES)}`;
+    lines.push(`Fellowship from ${formatClock(start)} Dinner ${formatClock(start + DINNER_OFFSET_MINUTES)}`);
   }
-  lines.push(meeting);
 
   const price = priceForLocation(event.location);
   lines.push(price === null ? "Please register" : `Please register - HKD ${price}`);
