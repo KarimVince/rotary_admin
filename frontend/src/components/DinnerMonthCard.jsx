@@ -1,4 +1,4 @@
-import { CalendarPlus, ClipboardList, Pencil, Trash2 } from "lucide-react";
+import { CalendarPlus, ClipboardList, MessageCircle, Pencil, Trash2 } from "lucide-react";
 import { ATTENDANCE_GREEN_MIN } from "../utils/attendanceThresholds";
 import { formatTime12h, isFutureEventDate } from "../utils/eventDate";
 import Card from "./Card";
@@ -124,6 +124,7 @@ export default function MonthCard({
   onDelete,
   onExportMonth,
   onExportEvent,
+  onCopyInvite,
   speakerLabel,
 }) {
   const attendanceSummary = monthAttendanceSummary(events);
@@ -228,6 +229,17 @@ export default function MonthCard({
                   className="grid h-[30px] w-[30px] place-items-center rounded-[7px] !bg-transparent text-[var(--muted)] hover:!bg-[var(--accent-soft)] hover:text-[var(--accent)]"
                 >
                   <CalendarPlus className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
+              {onCopyInvite && (
+                <button
+                  type="button"
+                  onClick={() => onCopyInvite(event)}
+                  title="Copy WhatsApp registration message"
+                  aria-label="Copy WhatsApp registration message"
+                  className="grid h-[30px] w-[30px] place-items-center rounded-[7px] !bg-transparent text-[var(--muted)] hover:!bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                >
+                  <MessageCircle className="w-4 h-4" aria-hidden="true" />
                 </button>
               )}
               {canWrite && onEdit && (

@@ -14,6 +14,7 @@ import { useRotaryYears } from "../hooks/useRotaryYears";
 import { rotaryYearLabel } from "../utils/rotaryYear";
 import { todayInHongKong } from "../utils/eventDate";
 import { downloadIcs, slugify } from "../utils/ics";
+import { buildWhatsappInvite } from "../utils/whatsappInvite";
 import Card from "../components/Card";
 import DinnerForecastEventFormModal from "../components/DinnerForecastEventFormModal";
 import MultiSelectDropdown from "../components/MultiSelectDropdown";
@@ -56,6 +57,7 @@ export default function DinnerEvents() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [startingEventId, setStartingEventId] = useState(null);
   const [rowError, setRowError] = useState(null);
+  const [inviteNotice, setInviteNotice] = useState(null);
 
   const SESSION_KEY_FORMAT = "dinnerEvents.report.format";
   const SESSION_KEY_USE_TEMPLATE = "dinnerEvents.report.useTemplate";
@@ -167,6 +169,19 @@ export default function DinnerEvents() {
   // global (all upcoming, across every month currently loaded) levels.
   function handleExportEvent(event) {
     downloadIcs(`rotary-${slugify(event.name)}-${event.event_date}.ics`, [event]);
+  }
+
+  // WhatsApp registration message: copied to the clipboard, ready to paste.
+  async function handleCopyInvite(event) {
+    setRowError(null);
+    try {
+      await navigator.clipboard.writeText(buildWhatsappInvite(event));
+      setInviteNotice(`WhatsApp message for ${event.name} copied — paste it into the group.`);
+      setTimeout(() => setInviteNotice(null), 4000);
+    } catch {
+      setInviteNotice(null);
+      setRowError("Could not copy the WhatsApp message to the clipboard");
+    }
   }
 
   function handleExportMonth(monthKey, monthEvents) {
@@ -359,6 +374,7 @@ export default function DinnerEvents() {
         </p>
       )}
       {rowError && <p role="alert">{rowError}</p>}
+      {inviteNotice && <p role="status">{inviteNotice}</p>}
 
       {isLoading && <p>Loading…</p>}
       {loadError && <p role="alert">{loadError}</p>}
@@ -410,6 +426,7 @@ export default function DinnerEvents() {
               onDelete={handleDelete}
               onExportMonth={handleExportMonth}
               onExportEvent={handleExportEvent}
+              onCopyInvite={handleCopyInvite}
               speakerLabel={(event) => event.speaker_name || ""}
             />
           ))}
