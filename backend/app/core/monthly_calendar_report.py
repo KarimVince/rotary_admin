@@ -93,16 +93,23 @@ def _by_day(events: list[AttendanceEvent]) -> dict[int, list[AttendanceEvent]]:
     return days
 
 
-def _detail_lines(events: list[AttendanceEvent]) -> list[tuple[str, str]]:
-    """[(dates label, event name)] — same-name events merged, ordered by
-    first occurrence."""
-    grouped: dict[str, list[date_type]] = {}
-    for event in sorted(events, key=_sort_key):
-        grouped.setdefault(event.name, []).append(event.event_date)
+def _detail_lines(events: list[AttendanceEvent]) -> list[tuple[str, str, str]]:
+    """One entry per event, date order: (date label, description, colour key).
+    The description is the event name, followed by the speaker and their
+    organisation when a speaker is planned."""
     lines = []
-    for name, dates in grouped.items():
-        labels = [f"{d.strftime('%b')} {d.day}" for d in dates]
-        lines.append((" & ".join(labels) if len(labels) <= 2 else ", ".join(labels), name))
+    for event in sorted(events, key=_sort_key):
+        label = f"{event.event_date.strftime('%b')} {event.event_date.day}"
+        text = event.name
+        speaker = (getattr(event, "speaker_name", None) or "").strip()
+        org = (getattr(event, "ngo_organisation_name", None) or "").strip()
+        if speaker and org:
+            text += f" \u2014 Speaker: {speaker} ({org})"
+        elif speaker:
+            text += f" \u2014 Speaker: {speaker}"
+        elif org:
+            text += f" \u2014 {org}"
+        lines.append((label, text, event.name))
     return lines
 
 
@@ -169,7 +176,7 @@ def build_pdf_report(
     # Layout: grid left (~69%), details right.
     gap = 6
     grid_left = margin
-    grid_w = (page_w - 2 * margin) * 0.69
+    grid_w = (page_w - 2 * margin) * 0.60
     details_left = grid_left + grid_w + 0.3 * inch
     details_w = page_w - margin - details_left
     cell_w = (grid_w - 6 * gap) / 7
@@ -238,9 +245,13 @@ def build_pdf_report(
         c.setFont("Helvetica", 9.5)
         c.setFillColor(colors.HexColor("#6b7686"))
         c.drawString(details_left, y, "No events this month.")
-    for dates, name in lines:
-        _fill, border, _text = palette[name]
-        wrapped = simpleSplit(f"{dates} - {name}", "Helvetica", 9.5, details_w - 14)
+    for dates, text, key in lines:
+        _fill, border, _text = palette[key]
+        # One line per event: shrink the font to fit, wrap only as a last resort.
+        font_size = 9.5
+        while font_size > 7.5 and c.stringWidth(f"{dates} - {text}", "Helvetica", font_size) > details_w - 14:
+            font_size -= 0.5
+        wrapped = simpleSplit(f"{dates} - {text}", "Helvetica", font_size, details_w - 14)
         if y - len(wrapped) * 12 < footer_y:
             break
         c.setFillColor(colors.HexColor(border))
@@ -248,14 +259,14 @@ def build_pdf_report(
         for li, line in enumerate(wrapped):
             if li == 0 and line.startswith(dates):
                 c.setFillColor(colors.HexColor("#0c2340"))
-                c.setFont("Helvetica-Bold", 9.5)
+                c.setFont("Helvetica-Bold", font_size)
                 c.drawString(details_left + 12, y, dates)
-                dates_w = c.stringWidth(dates, "Helvetica-Bold", 9.5)
-                c.setFont("Helvetica", 9.5)
+                dates_w = c.stringWidth(dates, "Helvetica-Bold", font_size)
+                c.setFont("Helvetica", font_size)
                 c.setFillColor(colors.HexColor("#4a5568"))
                 c.drawString(details_left + 12 + dates_w, y, line[len(dates):])
             else:
-                c.setFont("Helvetica", 9.5)
+                c.setFont("Helvetica", font_size)
                 c.setFillColor(colors.HexColor("#4a5568"))
                 c.drawString(details_left + 12, y, line)
             y -= 12
@@ -281,8 +292,8 @@ _W, _H = 1920, 1080
 _BAND_H = 160
 _SIDE = 72
 _GAP = 10
-_GRID_W = 1230 - _SIDE  # calendar grid width
-_DETAILS_X = 1290
+_GRID_W = 1150 - _SIDE  # calendar grid width
+_DETAILS_X = 1210
 _DETAILS_W = _W - _SIDE - _DETAILS_X
 
 
@@ -425,10 +436,10 @@ def build_pptx_report(
     lines = _detail_lines(events)
     if not lines:
         _text(slide, _DETAILS_X, y, _DETAILS_W, 30, "No events this month.", 13, False, "#6B7686")
-    for dates, name in lines:
+    for dates, text, key in lines:
         if y > _H - 90:
             break
-        _fill, border, _t = palette[name]
+        _fill, border, _t = palette[key]
         dot = slide.shapes.add_shape(
             MSO_SHAPE.OVAL, _px_len(_DETAILS_X), _px_len(y + 8), _px_len(14), _px_len(14)
         )
@@ -444,14 +455,14 @@ def build_pptx_report(
         p = box.text_frame.paragraphs[0]
         r1 = p.add_run()
         r1.text = dates
-        r1.font.size = Pt(13)
+        r1.font.size = Pt(12)
         r1.font.bold = True
         r1.font.color.rgb = _rgb("#0C2340")
         r2 = p.add_run()
-        r2.text = f" - {name}"
-        r2.font.size = Pt(13)
+        r2.text = f" - {text}"
+        r2.font.size = Pt(12)
         r2.font.color.rgb = _rgb("#4A5568")
-        wrapped_lines = 1 + (len(dates) + len(name) + 3) // 38
+        wrapped_lines = 1 + (len(dates) + len(text) + 3) // 58
         y += 12 + 24 * wrapped_lines
 
     _text(slide, _W - _SIDE - 700, _H - 50, 700, 26, CLUB_NAME, 12, False, "#17458F", PP_ALIGN.RIGHT)
