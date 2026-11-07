@@ -30,6 +30,11 @@ type rather than provisioning a new bucket: completed/filled-in attendance
 sheets (`AttendanceAudit`, `app/api/attendance_audit.py`) go under an
 `audit/{event_id}/{uuid}.{ext}` prefix in the same bucket, so they never
 collide with EventMinutes' own `{event_id}/{uuid}.{ext}` objects.
+
+The NGO Project File (`ServiceProjectDocument`, `app/api/service_projects.py`)
+reuses the same private bucket again under an
+`ngo-projects/{organisation_id}/{rotary_year}/{uuid}.{ext}` prefix — no new
+bucket to provision.
 """
 import httpx
 

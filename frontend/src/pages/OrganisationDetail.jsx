@@ -18,6 +18,7 @@ import {
   updateServiceHour,
 } from "../api/serviceHours";
 import Card from "../components/Card";
+import OrganisationProjectFile from "../components/OrganisationProjectFile";
 import SingleSelectDropdown from "../components/SingleSelectDropdown";
 import { useAccess } from "../hooks/useAccess";
 import { useRotaryYears } from "../hooks/useRotaryYears";
@@ -955,6 +956,16 @@ export default function OrganisationDetail() {
           </Card>
         </section>
       )}
+
+      {/* NGO Project File — yearly preparation work + documents. Loads its
+          own data, so a failure here never blocks the rest of the page. */}
+      <OrganisationProjectFile
+        organisationId={organisationId}
+        members={members}
+        canWrite={isAdmin}
+        yearOptions={allRotaryYearOptions}
+        defaultYear={centralCurrentYear ?? thisRotaryYear}
+      />
     </div>
   );
 }

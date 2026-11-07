@@ -327,7 +327,11 @@ describe("OrganisationDetail", () => {
       await waitForLoaded();
 
       await userEvent.click(screen.getByLabelText("Filter donations by rotary year"));
-      await userEvent.click(screen.getByText(`${THIS_YEAR}–${THIS_YEAR + 1} (current)`));
+      // By role: the Project File section's year dropdown also displays
+      // "(current)" as its selected value, so plain text matching is ambiguous.
+      await userEvent.click(
+        screen.getByRole("option", { name: `${THIS_YEAR}–${THIS_YEAR + 1} (current)` }),
+      );
 
       // Scope to the donations section — the service-hours table also has a
       // "Rotary year" header and is unaffected by the donation year filter.

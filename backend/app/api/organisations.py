@@ -5,6 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_access
+from app.api.service_projects import delete_project_files
 from app.core import storage
 from app.core.currency_conversion import convert_totals
 from app.db.session import get_db
@@ -202,13 +203,15 @@ def delete_organisation(
     _current_user=Depends(require_access(NGOS_ORGANISATIONS, "write")),
 ):
     """Hard delete. Any donations tied to this organisation are removed too
-    via the ON DELETE CASCADE on donations.organisation_id."""
+    via the ON DELETE CASCADE on donations.organisation_id. Project File
+    documents are removed from storage first (rows cascade, objects don't)."""
     organisation = db.get(Organisation, organisation_id)
     if organisation is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Organisation not found"
         )
 
+    delete_project_files(db, organisation_id)
     db.delete(organisation)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

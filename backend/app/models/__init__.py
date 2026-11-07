@@ -40,6 +40,7 @@ from app.models.ppt_template import PptTemplate
 from app.models.rotary_friend import RotaryFriend
 from app.models.rotary_year import RotaryYear
 from app.models.service_hour import ServiceHour
+from app.models.service_project import ServiceProject, ServiceProjectDocument
 from app.models.user import User
 
 __all__ = [
@@ -85,5 +86,7 @@ __all__ = [
     "RotaryFriend",
     "RotaryYear",
     "ServiceHour",
+    "ServiceProject",
+    "ServiceProjectDocument",
     "User",
 ]
