@@ -560,6 +560,7 @@ export default function OrganisationDetail() {
           )}
         </div>
         <h1 className="text-[22px] font-bold text-[var(--ink)]">{organisation.name}</h1>
+        {organisation.is_club_project && <span className="ngo-pill">Club Service Project</span>}
         {organisation.classification_id && classificationsById.has(organisation.classification_id) && (
           <span
             className={`ngo-pill ${classificationColorClass(
@@ -959,13 +960,15 @@ export default function OrganisationDetail() {
 
       {/* NGO Project File — yearly preparation work + documents. Loads its
           own data, so a failure here never blocks the rest of the page. */}
-      <OrganisationProjectFile
-        organisationId={organisationId}
-        members={members}
-        canWrite={isAdmin}
-        yearOptions={allRotaryYearOptions}
-        defaultYear={centralCurrentYear ?? thisRotaryYear}
-      />
+      {organisation.is_club_project && (
+        <OrganisationProjectFile
+          organisationId={organisationId}
+          members={members}
+          canWrite={isAdmin}
+          yearOptions={allRotaryYearOptions}
+          defaultYear={centralCurrentYear ?? thisRotaryYear}
+        />
+      )}
     </div>
   );
 }

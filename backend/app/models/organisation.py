@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,12 @@ class Organisation(Base):
     # rather than blocking the delete or removing the organisation.
     classification_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("ngo_classifications.id", ondelete="SET NULL")
+    )
+    # Club Service Project flag: marks the club's own projects (any cause —
+    # elderly, youth, ...). Independent of classification; when set, the
+    # NGO Project File section is shown on the organisation page.
+    is_club_project: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), default=False
     )
     created_at: Mapped["DateTime"] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

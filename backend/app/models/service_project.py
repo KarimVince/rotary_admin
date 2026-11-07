@@ -31,8 +31,8 @@ class ServiceProject(Base):
     Deliberately separate from Donation/ServiceHour: money and time stay in
     their own tables (which feed the NGO Statistics and Project Services
     reports), this only adds the planning/documentation layer. Works the same
-    for external NGOs and internal club projects (an Organisation classified
-    "Internal Club Project"), including time-only projects with no donation.
+    for external NGOs and club service projects (an Organisation flagged
+    `is_club_project`), including time-only projects with no donation.
     """
 
     __tablename__ = "service_projects"

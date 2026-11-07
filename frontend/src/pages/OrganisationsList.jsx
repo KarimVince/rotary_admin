@@ -42,6 +42,7 @@ const EMPTY_FORM = {
   first_supported_year: "",
   logo_url: "",
   classification_id: "",
+  is_club_project: false,
 };
 
 function toPayload(form) {
@@ -196,6 +197,7 @@ export default function OrganisationsList() {
       first_supported_year: org.first_supported_year ?? "",
       logo_url: org.logo_url ?? "",
       classification_id: org.classification_id ?? "",
+      is_club_project: org.is_club_project ?? false,
     });
     setSaveError(null);
     setIsModalOpen(true);
@@ -338,6 +340,19 @@ export default function OrganisationsList() {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="flex items-center gap-2" htmlFor="org-club-project">
+                    <input
+                      id="org-club-project"
+                      type="checkbox"
+                      checked={form.is_club_project}
+                      onChange={(event) =>
+                        setForm({ ...form, is_club_project: event.target.checked })
+                      }
+                    />
+                    Club Service Project
+                  </label>
                 </div>
                 <div>
                   <label htmlFor="org-first-year">First supported year</label>

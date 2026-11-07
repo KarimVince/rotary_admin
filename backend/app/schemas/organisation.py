@@ -26,6 +26,7 @@ class OrganisationBase(BaseModel):
     # list it already fetches, rather than the API nesting a classification
     # object.
     classification_id: uuid.UUID | None = None
+    is_club_project: bool = False
 
     _validate_country = field_validator("country")(_validate_country)
 
@@ -44,6 +45,7 @@ class OrganisationUpdate(BaseModel):
     first_supported_year: int | None = None
     logo_url: str | None = None
     classification_id: uuid.UUID | None = None
+    is_club_project: bool | None = None
 
     _validate_country = field_validator("country")(_validate_country)
 

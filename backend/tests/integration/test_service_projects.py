@@ -156,8 +156,8 @@ def test_read_only_user_can_view_but_not_write(admin_client, user_client, make_o
     assert user_client.delete(_url(org.id, suffix=f"/documents/{document_id}")).status_code == 403
 
 
-def test_internal_club_project_classification_is_seeded(db_session):
+def test_club_project_classification_is_not_seeded(db_session):
     count = db_session.execute(
         text("SELECT COUNT(*) FROM ngo_classifications WHERE name = 'Internal Club Project'")
     ).scalar()
-    assert count == 1
+    assert count == 0
