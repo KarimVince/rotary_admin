@@ -586,3 +586,35 @@ def test_update_event_start_time(secretary_client):
     body = update.json()
     assert body["start_time"] == "18:30:00"
     assert body["end_time"] == "20:00:00"
+
+
+def _make_event(client, name, event_date):
+    client.post(
+        "/api/v1/dinner-forecast/events",
+        json={"name": name, "event_date": str(event_date), "event_type": "Dinner"},
+    )
+
+
+def test_monthly_calendar_pdf_and_pptx(secretary_client):
+    _make_event(secretary_client, "Club Meeting", FUTURE)
+    _make_event(secretary_client, "Club Meeting", FUTURE + timedelta(days=1))
+    base = f"/api/v1/dinner-forecast/report?report=calendar&rotary_year={rotary_year(FUTURE)}&month={FUTURE.month}"
+
+    pdf = secretary_client.get(f"{base}&format=pdf")
+    assert pdf.status_code == 200
+    assert pdf.content[:4] == b"%PDF"
+    assert "monthly-calendar-" in pdf.headers["content-disposition"]
+
+    for chrome in ("", "&use_template=true"):
+        pptx = secretary_client.get(f"{base}&format=pptx{chrome}")
+        assert pptx.status_code == 200
+        assert pptx.content[:2] == b"PK"
+
+    forecast = secretary_client.get(f"{base}&format=pdf&forecast=true")
+    assert forecast.status_code == 200
+
+
+def test_monthly_calendar_empty_month_and_csv_rejected(secretary_client):
+    base = f"/api/v1/dinner-forecast/report?report=calendar&rotary_year={rotary_year(FUTURE)}"
+    assert secretary_client.get(f"{base}&month=7&format=pdf").status_code == 200
+    assert secretary_client.get(f"{base}&month=7&format=csv").status_code == 400

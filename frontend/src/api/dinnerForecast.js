@@ -39,6 +39,8 @@ export function deleteDinnerForecastEvent(eventId) {
   return apiFetch(`/dinner-forecast/events/${eventId}`, { method: "DELETE" });
 }
 
+// `report: "calendar"` + `month` (1-12) requests the Monthly Calendar
+// (PDF/PPTX only) instead of the Year Event Schedule.
 export function downloadDinnerForecastReport({ forecast, useTemplate, ...filters } = {}) {
   return apiDownload(
     `/dinner-forecast/report${buildQuery({

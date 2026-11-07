@@ -13,6 +13,12 @@ from app.core.attendance_support import (
     validate_event_type,
 )
 from app.core.dinner_forecast_report import build_csv_report, build_pdf_report, build_pptx_report
+from app.core.monthly_calendar_report import (
+    build_pdf_report as build_calendar_pdf,
+    build_pptx_report as build_calendar_pptx,
+    calendar_month_start,
+    default_month,
+)
 from app.core.report_filename import generate_report_filename
 from app.core.rotary_year import rotary_year
 from app.core.rotary_year import rotary_year as compute_current_rotary_year
@@ -36,6 +42,8 @@ FORECAST_KEY = "attendance.forecast"
 # list means "all types" (the old "all" sentinel is no longer sent/needed).
 EventFilter = list[str]
 ReportFormat = Literal["pdf", "csv", "pptx"]
+# "schedule" = the Year Event Schedule; "calendar" = the Monthly Calendar.
+ReportKind = Literal["schedule", "calendar"]
 
 
 def _get_event_or_404(db: Session, event_id: uuid.UUID) -> AttendanceEvent:
@@ -179,6 +187,10 @@ def generate_dinner_forecast_report(
     # PPTX only: "template" uses the district band asset; "plain" draws a
     # green band + club logo (same system as the Board Members report).
     use_template: bool = Query(False, description="PPTX only — use district template chrome"),
+    report: ReportKind = Query("schedule", description="schedule = year schedule; calendar = monthly calendar"),
+    month: int | None = Query(
+        None, ge=1, le=12, description="Calendar report only: calendar month (1-12) of the rotary year"
+    ),
     db: Session = Depends(get_db),
     _current_user: User = Depends(require_access(FORECAST_KEY, "read")),
 ):
@@ -187,6 +199,38 @@ def generate_dinner_forecast_report(
     )
     today = date.today()
     all_events = _list_query(db, selected_year, event_type).all()
+
+    if report == "calendar":
+        if format == "csv":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The monthly calendar is available as PDF or PowerPoint only",
+            )
+        selected_month = month if month is not None else default_month(selected_year)
+        month_start = calendar_month_start(selected_year, selected_month)
+        month_events = [
+            event
+            for event in all_events
+            if (event.event_date.year, event.event_date.month) == (month_start.year, month_start.month)
+            and (not forecast or event.event_date >= today)
+        ]
+        filename = generate_report_filename(
+            f"monthly-calendar-{month_start.strftime('%b').lower()}", format, rotary_year=selected_year
+        )
+        if format == "pptx":
+            content = build_calendar_pptx(
+                month_events, selected_year, selected_month, forecast, "template" if use_template else "plain"
+            )
+            media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        else:
+            content = build_calendar_pdf(month_events, selected_year, selected_month, forecast)
+            media_type = "application/pdf"
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     events = (
         [event for event in all_events if event.event_date >= today] if forecast else all_events
     )

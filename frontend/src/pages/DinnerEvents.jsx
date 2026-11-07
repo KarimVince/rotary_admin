@@ -75,8 +75,18 @@ export default function DinnerEvents() {
   const [useTemplate, setUseTemplate] = useState(
     () => sessionStorage.getItem(SESSION_KEY_USE_TEMPLATE) === "true",
   );
+  // "schedule" = Year Event Schedule; "calendar" = Monthly Calendar (PDF/PPTX
+  // only), for one month of the selected rotary year.
+  const [reportKind, setReportKind] = useState("schedule");
+  const [reportMonth, setReportMonth] = useState(() => new Date().getMonth() + 1);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
+
+  function handleReportKindChange(value) {
+    setReportKind(value);
+    // The monthly calendar has no CSV variant.
+    if (value === "calendar" && reportFormat === "csv") handleFormatChange("pdf");
+  }
 
   function handleFormatChange(value) {
     setReportFormat(value);
@@ -209,6 +219,8 @@ export default function DinnerEvents() {
         format: reportFormat,
         event_type: reportEventTypes,
         forecast: reportForecast,
+        report: reportKind === "calendar" ? "calendar" : undefined,
+        month: reportKind === "calendar" ? reportMonth : undefined,
         useTemplate: reportFormat === "pptx" ? useTemplate : undefined,
       });
       const url = URL.createObjectURL(blob);
@@ -297,6 +309,44 @@ export default function DinnerEvents() {
 
           <div className="flex flex-col gap-1.5">
             <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+              Report
+            </span>
+            <SingleSelectDropdown
+              ariaLabel="Report type"
+              minWidthClass="min-w-[150px]"
+              disabled={isGeneratingReport}
+              value={reportKind}
+              options={[
+                { value: "schedule", label: "Year schedule" },
+                { value: "calendar", label: "Monthly calendar" },
+              ]}
+              onSelect={handleReportKindChange}
+            />
+          </div>
+
+          {reportKind === "calendar" && (
+            <div className="flex flex-col gap-1.5">
+              <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
+                Month
+              </span>
+              <SingleSelectDropdown
+                ariaLabel="Calendar month"
+                minWidthClass="min-w-[150px]"
+                disabled={isGeneratingReport}
+                value={reportMonth}
+                options={[7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6].map((m) => ({
+                  value: m,
+                  label: `${new Date(2000, m - 1, 1).toLocaleString("en-GB", { month: "long" })} ${
+                    m >= 7 ? year : year + 1
+                  }`,
+                }))}
+                onSelect={setReportMonth}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <span className="pl-0.5 text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--faint)]">
               Format
             </span>
             <SingleSelectDropdown
@@ -307,7 +357,7 @@ export default function DinnerEvents() {
               options={[
                 { value: "pdf", label: "PDF" },
                 { value: "pptx", label: "PowerPoint" },
-                { value: "csv", label: "CSV" },
+                ...(reportKind === "calendar" ? [] : [{ value: "csv", label: "CSV" }]),
               ]}
               onSelect={handleFormatChange}
             />
