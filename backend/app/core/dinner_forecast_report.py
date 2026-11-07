@@ -60,7 +60,6 @@ from sqlalchemy.orm import Session
 from app.core.donation_statistics_report import (
     CLUB_LOGO_LOCKUP_IMAGE,
     COLOR_BAND_KICKER_GOLD,
-    COLOR_DISTRICT_GREEN,
     DISTRICT_BAND_IMAGE,
     _px_len,
     _rgb,
