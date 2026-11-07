@@ -31,7 +31,6 @@ from app.core.dinner_forecast_report import INTL_LOGO_PATH
 from app.core.donation_statistics_report import (
     CLUB_LOGO_LOCKUP_IMAGE,
     COLOR_BAND_KICKER_GOLD,
-    COLOR_DISTRICT_GREEN,
     DISTRICT_BAND_IMAGE,
     _px_len,
     _rgb,
@@ -292,14 +291,18 @@ def _tf0(tf) -> None:
 
 
 def _draw_chrome(slide, chrome: str, month_start: date_type, forecast: bool) -> None:
-    if chrome == "template" and DISTRICT_BAND_IMAGE.exists():
+    banded = chrome == "template" and DISTRICT_BAND_IMAGE.exists()
+    if banded:
         slide.shapes.add_picture(str(DISTRICT_BAND_IMAGE), 0, 0, width=_px_len(_W), height=_px_len(_H))
     else:
-        band = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, _px_len(_W), _px_len(_BAND_H))
-        band.fill.solid()
-        band.fill.fore_color.rgb = _rgb(COLOR_DISTRICT_GREEN)
-        band.line.fill.background()
-        band.shadow.inherit = False
+        # Plain chrome: no coloured banner — club logo, dark title, thin rule.
+        rule = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, _px_len(_SIDE), _px_len(_BAND_H - 6), _px_len(_W - 2 * _SIDE), _px_len(3)
+        )
+        rule.fill.solid()
+        rule.fill.fore_color.rgb = _rgb("#17458F")
+        rule.line.fill.background()
+        rule.shadow.inherit = False
         if CLUB_LOGO_LOCKUP_IMAGE.exists():
             with PILImage.open(CLUB_LOGO_LOCKUP_IMAGE) as im:
                 aspect = im.width / im.height
@@ -316,14 +319,14 @@ def _draw_chrome(slide, chrome: str, month_start: date_type, forecast: bool) -> 
     run.text = _title(month_start)
     run.font.size = Pt(32)
     run.font.bold = True
-    run.font.color.rgb = _rgb("#FFFFFF")
+    run.font.color.rgb = _rgb("#FFFFFF" if banded else "#0C2340")
 
     sub_box = slide.shapes.add_textbox(_px_len(80), _px_len(112), _px_len(1500), _px_len(34))
     _tf0(sub_box.text_frame)
     sub = sub_box.text_frame.paragraphs[0].add_run()
     sub.text = _subtitle(month_start, forecast)
     sub.font.size = Pt(13)
-    sub.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
+    sub.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD if banded else "#6B7686")
 
 
 def _text(slide, x, y, w, h, text, size, bold=False, color="#0c2340", align=None, wrap=True, anchor=None):

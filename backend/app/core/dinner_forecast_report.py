@@ -667,20 +667,23 @@ def _pptx_mc_h(month_events: list, participation) -> int:
 def _draw_year_schedule_chrome(slide, chrome: str, rotary_year_value: int, forecast: bool) -> None:
     """Chrome header for the PPTX — compact 160 px band so the 4x3 month
     grid has maximum room below it."""
-    if chrome == "template" and DISTRICT_BAND_IMAGE.exists():
+    banded = chrome == "template" and DISTRICT_BAND_IMAGE.exists()
+    if banded:
         slide.shapes.add_picture(
             str(DISTRICT_BAND_IMAGE), 0, 0,
             width=_px_len(_PPTX_SLIDE_W), height=_px_len(_PPTX_SLIDE_H),
         )
     else:
-        band = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE, 0, 0, _px_len(_PPTX_SLIDE_W), _px_len(_PPTX_BAND_H)
+        # Plain chrome: no coloured banner — just the club logo, the title
+        # in dark text and a thin Rotary-blue rule under the header.
+        rule = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, _px_len(_PPTX_SIDE_MARGIN), _px_len(_PPTX_BAND_H - 6),
+            _px_len(_PPTX_SLIDE_W - 2 * _PPTX_SIDE_MARGIN), _px_len(3),
         )
-        band.fill.solid()
-        band.fill.fore_color.rgb = _rgb(COLOR_DISTRICT_GREEN)
-        band.line.fill.background()
-        band.shadow.inherit = False
-        band.text_frame.clear()
+        rule.fill.solid()
+        rule.fill.fore_color.rgb = _rgb("#17458F")
+        rule.line.fill.background()
+        rule.shadow.inherit = False
         if CLUB_LOGO_LOCKUP_IMAGE.exists():
             with PILImage.open(CLUB_LOGO_LOCKUP_IMAGE) as logo_im:
                 aspect = logo_im.width / logo_im.height
@@ -705,7 +708,7 @@ def _draw_year_schedule_chrome(slide, chrome: str, rotary_year_value: int, forec
     title_run.text = "Year Event Schedule"
     title_run.font.size = Pt(32)
     title_run.font.bold = True
-    title_run.font.color.rgb = _rgb("#FFFFFF")
+    title_run.font.color.rgb = _rgb("#FFFFFF" if banded else "#0C2340")
 
     # Subtitle — 13 pt gold, y=112, bottom=146 < 160 px band.
     view_label = "Upcoming Events" if forecast else "Full Year Schedule"
@@ -718,7 +721,7 @@ def _draw_year_schedule_chrome(slide, chrome: str, rotary_year_value: int, forec
     sub_run = sub_tf.paragraphs[0].add_run()
     sub_run.text = year_str
     sub_run.font.size = Pt(13)
-    sub_run.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD)
+    sub_run.font.color.rgb = _rgb(COLOR_BAND_KICKER_GOLD if banded else "#6B7686")
 
 
 def _draw_pptx_month_card(
